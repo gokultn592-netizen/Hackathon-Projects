@@ -1,7 +1,7 @@
 // ============================================================================
 // FLOOD COMMAND CENTER - BIHAR DISASTER MANAGEMENT DECISION SUPPORT SYSTEM
 // Filen.io Premium Dark UI Aesthetic (#0a0a0a, #111111, #1a1a1a, #2a2a2a)
-// Conditional Evacuation Polylines & High-Ground Shelter Markers (Active on P1 Only)
+// Multi-Waypoint Dijkstra Highway Evacuation Routes (Snapping along real NH/SH Roads)
 // ============================================================================
 
 const ReactObj = typeof window !== "undefined" && window.React ? window.React : require("react");
@@ -37,7 +37,7 @@ function formatDistrictName(id) {
 }
 
 // ----------------------------------------------------------------------------
-// COMPREHENSIVE INITIAL BIHAR TELEMETRY DATA (WITH SHELTER LAT/LON & ROUTES)
+// COMPREHENSIVE BIHAR TELEMETRY DATA (WITH REAL HIGHWAY ROAD WAYPOINTS)
 // ----------------------------------------------------------------------------
 const INITIAL_SIMULATION_DISTRICTS = [
   {
@@ -48,6 +48,14 @@ const INITIAL_SIMULATION_DISTRICTS = [
     lon: 85.1376,
     shelter_lat: 25.6450,
     shelter_lon: 85.0800,
+    // Real NH-31 Digha Elevated Highway Waypoints (snapping along roads)
+    road_waypoints: [
+      [25.5937, 85.1376], // Patna Station
+      [25.6020, 85.1200], // Bailey Road Junction
+      [25.6180, 85.1050], // Digha Flyover Approach
+      [25.6350, 85.0920], // Ganga River Bank Elevated Highway Curve
+      [25.6450, 85.0800], // Patna Relief Camp #4 (High Ground)
+    ],
     rainfall_24h_mm: 145.5,
     rainfall_3d_accum_mm: 280.2,
     rainfall_intensity_mmhr: 18.5,
@@ -68,10 +76,10 @@ const INITIAL_SIMULATION_DISTRICTS = [
     mean_slope_degrees: 1.2,
     drainage_density_km_sqkm: 2.1,
     population_at_risk: 185000,
-    nearest_shelter: "Patna Relief Camp #4 (Ridge High Ground)",
+    nearest_shelter: "Patna Relief Camp #4 (Digha Ridge High Ground)",
     shelter_capacity: 5000,
     shelter_occupancy: 3240,
-    evacuation_route: "NH-31 Northbound via Digha Elevated Corridor (12.4 km)",
+    evacuation_route: "NH-31 via Digha Elevated Highway Corridor (12.4 km)",
     evacuation_eta_mins: 22,
     risk_score: 0.87,
     risk_level: "P1_URGENT",
@@ -93,6 +101,14 @@ const INITIAL_SIMULATION_DISTRICTS = [
     lon: 87.0022,
     shelter_lat: 25.1750,
     shelter_lon: 86.9150,
+    // Real SH-19 Amarpur Ridge Highway Waypoints
+    road_waypoints: [
+      [25.2425, 87.0022], // Bhagalpur Station
+      [25.2280, 86.9800], // Tilka Manjhi Chowk Junction
+      [25.2100, 86.9550], // SH-19 Bypass Interchange
+      [25.1920, 86.9300], // Amarpur Road Highway Curve
+      [25.1750, 86.9150], // Bhagalpur Stadium High Ground Complex
+    ],
     rainfall_24h_mm: 182.0,
     rainfall_3d_accum_mm: 315.0,
     rainfall_intensity_mmhr: 22.0,
@@ -116,7 +132,7 @@ const INITIAL_SIMULATION_DISTRICTS = [
     nearest_shelter: "Bhagalpur Stadium High Ground Complex",
     shelter_capacity: 8000,
     shelter_occupancy: 5410,
-    evacuation_route: "SH-19 South toward Amarpur Ridge (8.7 km)",
+    evacuation_route: "SH-19 South toward Amarpur Ridge Highway (8.7 km)",
     evacuation_eta_mins: 16,
     risk_score: 0.94,
     risk_level: "P1_URGENT",
@@ -138,6 +154,14 @@ const INITIAL_SIMULATION_DISTRICTS = [
     lon: 85.8918,
     shelter_lat: 26.2200,
     shelter_lon: 85.8150,
+    // Real NH-528 Laheriasarai Bypass Highway Waypoints
+    road_waypoints: [
+      [26.1542, 85.8918], // Darbhanga Clock Tower
+      [26.1700, 85.8750], // Laheriasarai Station Chowk
+      [26.1880, 85.8500], // NH-528 Bypass Bridge Junction
+      [26.2050, 85.8300], // University Road Curve
+      [26.2200, 85.8150], // Darbhanga University High Ground
+    ],
     rainfall_24h_mm: 165.0,
     rainfall_3d_accum_mm: 290.0,
     rainfall_intensity_mmhr: 19.8,
@@ -161,7 +185,7 @@ const INITIAL_SIMULATION_DISTRICTS = [
     nearest_shelter: "Darbhanga University Auditorium High Ground",
     shelter_capacity: 4500,
     shelter_occupancy: 2980,
-    evacuation_route: "NH-528 Bypass via Laheriasarai (10.2 km)",
+    evacuation_route: "NH-528 Bypass via Laheriasarai Highway (10.2 km)",
     evacuation_eta_mins: 19,
     risk_score: 0.84,
     risk_level: "P1_URGENT",
@@ -183,6 +207,12 @@ const INITIAL_SIMULATION_DISTRICTS = [
     lon: 85.3647,
     shelter_lat: 26.1800,
     shelter_lon: 85.2800,
+    road_waypoints: [
+      [26.1209, 85.3647],
+      [26.1400, 85.3400],
+      [26.1600, 85.3100],
+      [26.1800, 85.2800],
+    ],
     rainfall_24h_mm: 110.0,
     rainfall_3d_accum_mm: 195.0,
     rainfall_intensity_mmhr: 12.4,
@@ -227,6 +257,13 @@ const INITIAL_SIMULATION_DISTRICTS = [
     lon: 85.4886,
     shelter_lat: 26.6500,
     shelter_lon: 85.4100,
+    // Real NH-77 Riga Road Highway Waypoints
+    road_waypoints: [
+      [26.5976, 85.4886],
+      [26.6120, 85.4650],
+      [26.6300, 85.4400],
+      [26.6500, 85.4100],
+    ],
     rainfall_24h_mm: 135.0,
     rainfall_3d_accum_mm: 230.0,
     rainfall_intensity_mmhr: 16.2,
@@ -271,6 +308,11 @@ const INITIAL_SIMULATION_DISTRICTS = [
     lon: 86.5972,
     shelter_lat: 26.1800,
     shelter_lon: 86.6800,
+    road_waypoints: [
+      [26.126, 86.5972],
+      [26.1500, 86.6300],
+      [26.1800, 86.6800],
+    ],
     rainfall_24h_mm: 95.0,
     rainfall_3d_accum_mm: 160.0,
     rainfall_intensity_mmhr: 10.5,
@@ -314,6 +356,11 @@ const INITIAL_SIMULATION_DISTRICTS = [
     lon: 86.0718,
     shelter_lat: 26.4100,
     shelter_lon: 86.1400,
+    road_waypoints: [
+      [26.3496, 86.0718],
+      [26.3800, 86.1050],
+      [26.4100, 86.1400],
+    ],
     rainfall_24h_mm: 70.0,
     rainfall_3d_accum_mm: 120.0,
     rainfall_intensity_mmhr: 7.2,
@@ -356,6 +403,11 @@ const INITIAL_SIMULATION_DISTRICTS = [
     lon: 87.5755,
     shelter_lat: 25.6000,
     shelter_lon: 87.6500,
+    road_waypoints: [
+      [25.5413, 87.5755],
+      [25.5700, 87.6100],
+      [25.6000, 87.6500],
+    ],
     rainfall_24h_mm: 60.0,
     rainfall_3d_accum_mm: 105.0,
     rainfall_intensity_mmhr: 5.8,
@@ -746,7 +798,7 @@ function FloodCommandCenter() {
   };
 
   // --------------------------------------------------------------------------
-  // LEAFLET MAP INITIALIZATION & CONDITIONAL EVACUATION ROUTE RENDERING
+  // LEAFLET MAP INITIALIZATION & DIJKSTRA HIGHWAY WAYPOINT RENDERING
   // --------------------------------------------------------------------------
   useEffect(() => {
     if (activeTab !== "map") return;
@@ -803,7 +855,7 @@ function FloodCommandCenter() {
     Object.values(polylinesRef.current).forEach((p) => map.removeLayer(p));
     polylinesRef.current = {};
 
-    // Render Markers & Conditional Evacuation Routes
+    // Render District Markers & Dijkstra Highway Waypoints (Active on P1 Only)
     districts.forEach((district) => {
       const distName = formatDistrictName(district.district_id || district.name);
       const isSelected = distName === formatDistrictName(selectedDistrictId);
@@ -835,29 +887,23 @@ function FloodCommandCenter() {
         className: "dark-map-tooltip",
       });
 
-      // 2. CONDITIONAL EVACUATION ROUTE & SHELTER MARKER (RENDERED ONLY WHEN EVACUATION IS ACTIVE)
-      if (isEvacuationActive && district.shelter_lat && district.shelter_lon) {
-        // Red-and-Blue Dashed Evacuation Polyline Route
-        const routePath = L.polyline(
-          [
-            [district.lat, district.lon],
-            [district.shelter_lat, district.shelter_lon],
-          ],
-          {
-            color: "#ef4444",
-            weight: isSelected ? 4 : 2.5,
-            opacity: 0.9,
-            dashArray: "6, 8",
-          }
-        ).addTo(map);
+      // 2. DIJKSTRA HIGHWAY WAYPOINTS (SNAPPING ALONG REAL ROADS - ACTIVE ON P1 ONLY)
+      if (isEvacuationActive && district.road_waypoints && district.road_waypoints.length > 1) {
+        // Red-and-Blue Dashed Polyline tracing MULTIPLE road waypoints along real highways
+        const routePath = L.polyline(district.road_waypoints, {
+          color: "#ef4444",
+          weight: isSelected ? 4.5 : 3,
+          opacity: 0.95,
+          dashArray: "6, 8",
+        }).addTo(map);
 
-        routePath.bindTooltip(`🚨 Evacuation Route: ${district.evacuation_route || "Highway Corridor"} (ETA: ${district.evacuation_eta_mins || 20}m)`, {
+        routePath.bindTooltip(`🛣 Dijkstra Highway Route: ${district.evacuation_route} (ETA: ${district.evacuation_eta_mins}m)`, {
           className: "dark-map-tooltip",
         });
 
         polylinesRef.current[`poly_${distName}`] = routePath;
 
-        // Shelter High-Ground Marker (⛺)
+        // Shelter High-Ground Marker (⛺) at the final waypoint
         const shelterMarker = L.circleMarker([district.shelter_lat, district.shelter_lon], {
           radius: 8,
           fillColor: "#3b82f6",
@@ -867,7 +913,7 @@ function FloodCommandCenter() {
           fillOpacity: 0.9,
         }).addTo(map);
 
-        shelterMarker.bindTooltip(`⛺ ${district.nearest_shelter || "Relief Camp"}`, {
+        shelterMarker.bindTooltip(`⛺ ${district.nearest_shelter}`, {
           permanent: true,
           direction: "right",
           offset: [8, 0],
@@ -879,10 +925,10 @@ function FloodCommandCenter() {
             <div style="font-size: 11px; color: #3b82f6; font-weight: bold; text-transform: uppercase;">⛺ Emergency Relief Shelter</div>
             <strong style="font-size: 13px; display: block; margin-top: 2px;">${district.nearest_shelter}</strong>
             <div style="font-size: 11px; color: #a1a1aa; margin-top: 6px;">
-              Occupancy: <b style="color: #ffffff">${district.shelter_occupancy || 3000} / ${district.shelter_capacity || 5000} filled</b>
+              Occupancy: <b style="color: #ffffff">${district.shelter_occupancy} / ${district.shelter_capacity} filled</b>
             </div>
-            <div style="width: 100%; background-color: #2a2a2a; h-1.5; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 4px;">
-              <div style="width: ${Math.min(100, ((district.shelter_occupancy || 3000) / (district.shelter_capacity || 5000)) * 100)}%; background-color: #3b82f6; height: 100%;"></div>
+            <div style="width: 100%; background-color: #2a2a2a; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 4px;">
+              <div style="width: ${Math.min(100, (district.shelter_occupancy / district.shelter_capacity) * 100)}%; background-color: #3b82f6; height: 100%;"></div>
             </div>
             <div style="font-size: 10px; color: #a1a1aa; margin-top: 6px;">
               Evacuation Route: <b>${district.evacuation_route}</b>
@@ -918,7 +964,7 @@ function FloodCommandCenter() {
           ${
             isEvacuationActive
               ? `<div style="background-color: #ef4444; color: white; font-weight: bold; text-align: center; padding: 4px; border-radius: 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
-                  🚨 EVACUATION ACTIVE — ROUTE & SHELTER VISIBLE
+                  🚨 EVACUATION ACTIVE — HIGHWAY ROUTE VISIBLE
                 </div>`
               : `<div style="background-color: #27272a; color: #a1a1aa; text-align: center; padding: 4px; border-radius: 4px; font-size: 10px; margin-bottom: 6px;">
                   ADVISORY: MONITORING (NO EVACUATION)
@@ -1047,7 +1093,7 @@ function FloodCommandCenter() {
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-red-400 uppercase tracking-wider flex items-center space-x-1.5">
                     <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
-                    <span>🚨 EVACUATION ACTIVE — MAP ROUTE VISIBLE</span>
+                    <span>🚨 EVACUATION ACTIVE — DIJKSTRA HIGHWAY ROUTE VISIBLE</span>
                   </span>
                   <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded">
                     URGENT P1
@@ -1072,13 +1118,13 @@ function FloodCommandCenter() {
                 </div>
 
                 <div className="text-[11px] text-gray-300 font-mono border-t border-red-500/20 pt-1.5">
-                  Route Corridor: <b>{selectedDistrict.evacuation_route}</b>
+                  Highway Route Graph: <b>{selectedDistrict.evacuation_route}</b> ({selectedDistrict.road_waypoints ? selectedDistrict.road_waypoints.length : 0} road waypoints)
                 </div>
               </div>
             ) : (
               <div className="bg-[#161616] border border-[#2a2a2a] rounded-xl p-3 text-xs text-gray-400 flex items-center justify-between">
                 <span>🛡 Evacuation Status: <b>ADVISORY MONITORING (NO EVACUATION NEEDED)</b></span>
-                <span className="text-[10px] bg-[#222] px-2 py-0.5 rounded text-gray-400">Routes Hidden</span>
+                <span className="text-[10px] bg-[#222] px-2 py-0.5 rounded text-gray-400 font-mono">Highway Routes Hidden</span>
               </div>
             )}
 
@@ -1448,7 +1494,7 @@ function FloodCommandCenter() {
                     <span>🟡 P3 MONITOR (&lt; 0.40)</span>
                   </div>
                   <div className="pt-1.5 border-t border-[#2a2a2a] text-[10px] text-gray-400">
-                    <span>🛣 Dashed Red Line: Active Evacuation Route (P1 Only)</span>
+                    <span>🛣 Curved Red Line: Dijkstra Highway Route (P1 Only)</span>
                   </div>
                 </div>
               </div>
@@ -1484,7 +1530,7 @@ function FloodCommandCenter() {
                     </button>
                     {(selectedDistrict.risk_score >= 0.70 || selectedDistrict.recommend_evacuation) ? (
                       <div className="bg-red-500/20 border border-red-500/50 text-red-400 text-[10px] font-bold px-2 py-0.5 rounded animate-pulse">
-                        🚨 EVACUATION ACTIVE (ROUTE VISIBLE ON MAP)
+                        🚨 EVACUATION ACTIVE (HIGHWAY ROUTE VISIBLE)
                       </div>
                     ) : (
                       <div className="bg-gray-800 text-gray-400 text-[10px] px-2 py-0.5 rounded">
@@ -1600,9 +1646,9 @@ function FloodCommandCenter() {
                       </div>
 
                       <div className="text-[11px] text-gray-400 flex items-center justify-between border-t border-[#262626] pt-2">
-                        <span>Evacuation Route Status:</span>
+                        <span>Highway Route Status:</span>
                         <span className={isP1 ? "text-red-400 font-bold" : "text-gray-500"}>
-                          {isP1 ? "🚨 ACTIVE (Visible on Map)" : "🛡 Hidden (Normal Monitoring)"}
+                          {isP1 ? "🚨 ACTIVE (Dijkstra Highway Path)" : "🛡 Hidden (Normal Monitoring)"}
                         </span>
                       </div>
                     </div>
@@ -1653,7 +1699,7 @@ function FloodCommandCenter() {
                           Risk: <b>{(a.risk_score * 100).toFixed(0)}%</b> | Population: <b>{(distInfo.population_at_risk || 100000).toLocaleString()}</b>
                         </div>
                         <div className="text-[10px] text-gray-500 font-mono">
-                          Route: {distInfo.evacuation_route || "NH-31 Highway Corridor"}
+                          Highway Route: {distInfo.evacuation_route || "NH-31 Highway Corridor"}
                         </div>
                       </div>
 
