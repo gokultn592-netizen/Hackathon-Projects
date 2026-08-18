@@ -1,7 +1,7 @@
 // ============================================================================
 // FLOOD COMMAND CENTER - BIHAR DISASTER MANAGEMENT DASHBOARD
 // Filen.io Inspired Dark UI Aesthetic (#0a0a0a, #111111, #1a1a1a, #2a2a2a)
-// Works seamlessly in both Vite / React bundlers & Standalone Browser Babel CDN
+// Full Interactive Tabs, Leaflet Map, ML Risk Scoring, Hungarian Allocations & Toasts
 // ============================================================================
 
 const ReactObj = typeof window !== "undefined" && window.React ? window.React : require("react");
@@ -10,7 +10,7 @@ const { useState, useEffect, useCallback, useRef } = ReactObj;
 const API_BASE_URL = "http://localhost:8000/api/v1";
 
 // ----------------------------------------------------------------------------
-// HARDCODED FALLBACK SIMULATION DATA (8 BIHAR DISTRICTS)
+// HARDCODED INITIAL SIMULATION DATA (8 BIHAR DISTRICTS)
 // ----------------------------------------------------------------------------
 const INITIAL_SIMULATION_DISTRICTS = [
   {
@@ -26,7 +26,7 @@ const INITIAL_SIMULATION_DISTRICTS = [
     danger_level_meters: 7.5,
     discharge_rate_cumecs: 4200,
     reservoir_capacity_percent: 92,
-    is_above_danger: true,
+    is_above_danger: 1,
     inundated_area_sqkm: 45.2,
     inundation_percentage: 14.5,
     soil_saturation_index: 0.91,
@@ -53,7 +53,7 @@ const INITIAL_SIMULATION_DISTRICTS = [
     danger_level_meters: 8.0,
     discharge_rate_cumecs: 5100,
     reservoir_capacity_percent: 96,
-    is_above_danger: true,
+    is_above_danger: 1,
     inundated_area_sqkm: 68.0,
     inundation_percentage: 21.0,
     soil_saturation_index: 0.95,
@@ -80,7 +80,7 @@ const INITIAL_SIMULATION_DISTRICTS = [
     danger_level_meters: 7.8,
     discharge_rate_cumecs: 4600,
     reservoir_capacity_percent: 89,
-    is_above_danger: true,
+    is_above_danger: 1,
     inundated_area_sqkm: 52.4,
     inundation_percentage: 18.2,
     soil_saturation_index: 0.89,
@@ -107,7 +107,7 @@ const INITIAL_SIMULATION_DISTRICTS = [
     danger_level_meters: 6.8,
     discharge_rate_cumecs: 3100,
     reservoir_capacity_percent: 74,
-    is_above_danger: false,
+    is_above_danger: 0,
     inundated_area_sqkm: 22.1,
     inundation_percentage: 7.5,
     soil_saturation_index: 0.72,
@@ -134,7 +134,7 @@ const INITIAL_SIMULATION_DISTRICTS = [
     danger_level_meters: 7.2,
     discharge_rate_cumecs: 3800,
     reservoir_capacity_percent: 82,
-    is_above_danger: true,
+    is_above_danger: 1,
     inundated_area_sqkm: 34.0,
     inundation_percentage: 11.2,
     soil_saturation_index: 0.81,
@@ -161,7 +161,7 @@ const INITIAL_SIMULATION_DISTRICTS = [
     danger_level_meters: 6.5,
     discharge_rate_cumecs: 2700,
     reservoir_capacity_percent: 68,
-    is_above_danger: false,
+    is_above_danger: 0,
     inundated_area_sqkm: 15.8,
     inundation_percentage: 5.1,
     soil_saturation_index: 0.64,
@@ -188,7 +188,7 @@ const INITIAL_SIMULATION_DISTRICTS = [
     danger_level_meters: 6.0,
     discharge_rate_cumecs: 1900,
     reservoir_capacity_percent: 54,
-    is_above_danger: false,
+    is_above_danger: 0,
     inundated_area_sqkm: 8.5,
     inundation_percentage: 2.8,
     soil_saturation_index: 0.52,
@@ -215,7 +215,7 @@ const INITIAL_SIMULATION_DISTRICTS = [
     danger_level_meters: 5.5,
     discharge_rate_cumecs: 1600,
     reservoir_capacity_percent: 48,
-    is_above_danger: false,
+    is_above_danger: 0,
     inundated_area_sqkm: 5.2,
     inundation_percentage: 1.9,
     soil_saturation_index: 0.44,
@@ -238,7 +238,6 @@ const INITIAL_TOTAL_RESOURCES = {
   shelter_tents: 1500,
 };
 
-// Default fallback allocations
 const INITIAL_ALLOCATIONS = [
   { district_id: "Bhagalpur", priority_level: "P1_URGENT", risk_score: 0.94, allocated_ndrf_teams: 14, allocated_rescue_boats: 28, allocated_medical_kits: 840, allocated_shelter_tents: 420 },
   { district_id: "Patna", priority_level: "P1_URGENT", risk_score: 0.87, allocated_ndrf_teams: 12, allocated_rescue_boats: 24, allocated_medical_kits: 720, allocated_shelter_tents: 360 },
@@ -266,6 +265,7 @@ function FloodCommandCenter() {
   const [selectedDistrictId, setSelectedDistrictId] = useState("Patna");
 
   const [districts, setDistricts] = useState(INITIAL_SIMULATION_DISTRICTS);
+  const [resources, setResources] = useState(INITIAL_TOTAL_RESOURCES);
   const [allocations, setAllocations] = useState(INITIAL_ALLOCATIONS);
   const [unallocated, setUnallocated] = useState({
     ndrf_teams: 0,
@@ -280,7 +280,20 @@ function FloodCommandCenter() {
   const [loadingOptimize, setLoadingOptimize] = useState(false);
   const [loadingFullPipeline, setLoadingFullPipeline] = useState(false);
 
+  // Active Tab: "map", "predict", "optimize", "reports"
   const [activeTab, setActiveTab] = useState("map");
+
+  // Toast Notification System
+  const [toasts, setToasts] = useState([]);
+
+  const addToast = (message, type = "info") => {
+    const id = Date.now() + Math.random();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  };
+
   const mapContainerRef = useRef(null);
   const leafletMapRef = useRef(null);
   const markersRef = useRef({});
@@ -306,22 +319,10 @@ function FloodCommandCenter() {
   ).length;
 
   // Total allocated sums
-  const totalAllocatedNDRF = allocations.reduce(
-    (acc, a) => acc + (a.allocated_ndrf_teams || 0),
-    0
-  );
-  const totalAllocatedBoats = allocations.reduce(
-    (acc, a) => acc + (a.allocated_rescue_boats || 0),
-    0
-  );
-  const totalAllocatedMedical = allocations.reduce(
-    (acc, a) => acc + (a.allocated_medical_kits || 0),
-    0
-  );
-  const totalAllocatedTents = allocations.reduce(
-    (acc, a) => acc + (a.allocated_shelter_tents || 0),
-    0
-  );
+  const totalAllocatedNDRF = allocations.reduce((acc, a) => acc + (a.allocated_ndrf_teams || 0), 0);
+  const totalAllocatedBoats = allocations.reduce((acc, a) => acc + (a.allocated_rescue_boats || 0), 0);
+  const totalAllocatedMedical = allocations.reduce((acc, a) => acc + (a.allocated_medical_kits || 0), 0);
+  const totalAllocatedTents = allocations.reduce((acc, a) => acc + (a.allocated_shelter_tents || 0), 0);
 
   // --------------------------------------------------------------------------
   // API ACTIONS
@@ -335,6 +336,7 @@ function FloodCommandCenter() {
         const data = await res.json();
         setHealth(data);
         setIsOffline(false);
+        addToast("Connected to FastAPI Backend (HEALTHY)", "success");
       } else {
         throw new Error("Backend response not OK");
       }
@@ -347,6 +349,7 @@ function FloodCommandCenter() {
         model_loaded: true,
       });
       setIsOffline(true);
+      addToast("Backend Offline - Running in Simulation Mode", "warning");
     }
   }, []);
 
@@ -379,16 +382,26 @@ function FloodCommandCenter() {
         );
       }
       setIsOffline(false);
+      addToast("📡 Telemetry data ingested & fused across 8 districts", "success");
     } catch (err) {
       console.warn("Using simulation fallback for collect data:", err);
       setIsOffline(true);
+      // Simulate telemetry variation
       setDistricts((prev) =>
-        prev.map((d) => ({
-          ...d,
-          rainfall_24h_mm: Math.round(d.rainfall_24h_mm * (0.95 + Math.random() * 0.1)),
-          water_level_meters: Number((d.water_level_meters * (0.98 + Math.random() * 0.04)).toFixed(1)),
-        }))
+        prev.map((d) => {
+          const deltaRain = (Math.random() - 0.4) * 20;
+          const newRain = Math.round(Math.max(40, d.rainfall_24h_mm + deltaRain));
+          const newWater = Number(Math.max(3.0, d.water_level_meters + (Math.random() - 0.4) * 0.5).toFixed(1));
+          return {
+            ...d,
+            rainfall_24h_mm: newRain,
+            rainfall_3d_accum_mm: Math.round(newRain * 1.8),
+            water_level_meters: newWater,
+            discharge_rate_cumecs: Math.round(newWater * 550),
+          };
+        })
       );
+      addToast("📡 Simulated Telemetry Collected (Multi-modal Ingestion)", "info");
     } finally {
       setLoadingData(false);
     }
@@ -398,10 +411,16 @@ function FloodCommandCenter() {
   const handleRunPredict = async () => {
     setLoadingPredict(true);
     try {
+      // Map telemetry fields cleanly to avoid Pydantic type errors
+      const sanitizedTelemetry = districts.map((d) => ({
+        ...d,
+        is_above_danger: d.is_above_danger ? 1 : 0,
+      }));
+
       const res = await fetch(`${API_BASE_URL}/predict`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ telemetry: districts }),
+        body: JSON.stringify({ telemetry: sanitizedTelemetry }),
       });
 
       if (!res.ok) throw new Error("Predict failed");
@@ -428,6 +447,7 @@ function FloodCommandCenter() {
         );
       }
       setIsOffline(false);
+      addToast("🤖 XGBoost ML Flood Risk Predictions Updated", "success");
     } catch (err) {
       console.warn("Using simulation fallback for predict:", err);
       setIsOffline(true);
@@ -435,17 +455,19 @@ function FloodCommandCenter() {
         prev.map((d) => {
           const score = Math.min(
             0.99,
-            Math.max(0.1, (d.rainfall_24h_mm / 200.0) * 0.6 + (d.water_level_meters / 10.0) * 0.4)
+            Math.max(0.15, (d.rainfall_24h_mm / 200.0) * 0.55 + (d.water_level_meters / 10.0) * 0.45)
           );
+          const roundedScore = Number(score.toFixed(2));
           return {
             ...d,
-            risk_score: Number(score.toFixed(2)),
-            risk_level: score >= 0.7 ? "P1_URGENT" : score >= 0.4 ? "P2_HIGH" : "P3_MONITOR",
-            estimated_inundation_depth_meters: Number((Math.max(0, score - 0.2) * 3.2).toFixed(1)),
-            recommend_evacuation: score >= 0.7,
+            risk_score: roundedScore,
+            risk_level: roundedScore >= 0.7 ? "P1_URGENT" : roundedScore >= 0.4 ? "P2_HIGH" : "P3_MONITOR",
+            estimated_inundation_depth_meters: Number((Math.max(0, roundedScore - 0.2) * 3.2).toFixed(1)),
+            recommend_evacuation: roundedScore >= 0.7,
           };
         })
       );
+      addToast("🤖 Simulated XGBoost Risk Scoring Complete", "info");
     } finally {
       setLoadingPredict(false);
     }
@@ -466,7 +488,7 @@ function FloodCommandCenter() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           district_scores: districtScores,
-          available_resources: INITIAL_TOTAL_RESOURCES,
+          available_resources: resources,
         }),
       });
 
@@ -480,14 +502,15 @@ function FloodCommandCenter() {
         setUnallocated(data.unallocated_resources);
       }
       setIsOffline(false);
+      addToast("🚁 Resource Allocations Optimized via Hungarian Algorithm", "success");
     } catch (err) {
       console.warn("Using simulation fallback for optimization:", err);
       setIsOffline(true);
       const sorted = [...districts].sort((a, b) => b.risk_score - a.risk_score);
-      let remNDRF = INITIAL_TOTAL_RESOURCES.ndrf_teams;
-      let remBoats = INITIAL_TOTAL_RESOURCES.rescue_boats;
-      let remMedical = INITIAL_TOTAL_RESOURCES.medical_kits;
-      let remTents = INITIAL_TOTAL_RESOURCES.shelter_tents;
+      let remNDRF = resources.ndrf_teams;
+      let remBoats = resources.rescue_boats;
+      let remMedical = resources.medical_kits;
+      let remTents = resources.shelter_tents;
 
       const newAlloc = sorted.map((d) => {
         const p = d.risk_score >= 0.7 ? "P1_URGENT" : d.risk_score >= 0.4 ? "P2_HIGH" : "P3_MONITOR";
@@ -521,6 +544,7 @@ function FloodCommandCenter() {
         medical_kits: Math.max(0, remMedical),
         shelter_tents: Math.max(0, remTents),
       });
+      addToast("🚁 Simulated Resource Allocation Complete", "info");
     } finally {
       setLoadingOptimize(false);
     }
@@ -529,23 +553,25 @@ function FloodCommandCenter() {
   // 5. Run Full Pipeline Action
   const handleRunFullPipeline = async () => {
     setLoadingFullPipeline(true);
+    addToast("⚡ Pipeline Started: Step 1/3 Data Collection...", "info");
     await handleCollectData();
+    addToast("⚡ Pipeline Step 2/3: XGBoost Risk Scoring...", "info");
     await handleRunPredict();
+    addToast("⚡ Pipeline Step 3/3: Resource Allocation...", "info");
     await handleOptimizeResources();
     setLoadingFullPipeline(false);
+    addToast("🎉 Full Pipeline Execution Finished Successfully!", "success");
   };
 
   // --------------------------------------------------------------------------
   // LEAFLET MAP INITIALIZATION & MARKER SYNC
   // --------------------------------------------------------------------------
   useEffect(() => {
+    if (activeTab !== "map") return;
     if (!mapContainerRef.current) return;
 
     const L = typeof window !== "undefined" ? window.L : null;
-    if (!L) {
-      console.warn("Leaflet script not found in window.L");
-      return;
-    }
+    if (!L) return;
 
     if (!leafletMapRef.current) {
       const map = L.map(mapContainerRef.current, {
@@ -570,6 +596,7 @@ function FloodCommandCenter() {
 
     // Render CircleMarkers for each district
     districts.forEach((district) => {
+      const isSelected = district.district_id === selectedDistrictId;
       const color =
         district.risk_score >= 0.70
           ? "#ef4444"
@@ -577,15 +604,15 @@ function FloodCommandCenter() {
           ? "#f97316"
           : "#eab308";
 
-      const radius = 12 + district.risk_score * 12;
+      const radius = isSelected ? 16 + district.risk_score * 12 : 12 + district.risk_score * 10;
 
       const marker = L.circleMarker([district.lat, district.lon], {
         radius: radius,
         fillColor: color,
-        color: "#ffffff",
-        weight: 1.5,
+        color: isSelected ? "#3b82f6" : "#ffffff",
+        weight: isSelected ? 3 : 1.5,
         opacity: 0.9,
-        fillOpacity: 0.7,
+        fillOpacity: 0.75,
       }).addTo(map);
 
       const popupContent = `
@@ -610,7 +637,7 @@ function FloodCommandCenter() {
           </div>
           ${
             district.recommend_evacuation || district.risk_score >= 0.7
-              ? `<div style="background-color: #ef4444; color: white; font-weight: bold; text-align: center; padding: 4px; border-radius: 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px; animation: pulse 2s infinite;">
+              ? `<div style="background-color: #ef4444; color: white; font-weight: bold; text-align: center; padding: 4px; border-radius: 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px;">
                   🚨 EVACUATE NOW
                 </div>`
               : `<div style="background-color: #27272a; color: #a1a1aa; text-align: center; padding: 4px; border-radius: 4px; font-size: 10px;">
@@ -631,13 +658,33 @@ function FloodCommandCenter() {
 
       markersRef.current[district.district_id] = marker;
     });
-  }, [districts]);
+  }, [districts, activeTab, selectedDistrictId]);
 
   // --------------------------------------------------------------------------
   // RENDER UI COMPONENTS
   // --------------------------------------------------------------------------
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-gray-100 flex flex-col font-sans select-none antialiased">
+    <div className="min-h-screen bg-[#0a0a0a] text-gray-100 flex flex-col font-sans select-none antialiased relative">
+      {/* Toast Notification Container */}
+      <div className="fixed top-16 right-4 z-50 flex flex-col space-y-2 pointer-events-none">
+        {toasts.map((t) => (
+          <div
+            key={t.id}
+            className={`pointer-events-auto px-4 py-2.5 rounded-lg shadow-xl border text-xs font-medium flex items-center space-x-2 backdrop-blur-md transition-all duration-300 ${
+              t.type === "success"
+                ? "bg-emerald-950/90 border-emerald-500/50 text-emerald-200"
+                : t.type === "warning"
+                ? "bg-amber-950/90 border-amber-500/50 text-amber-200"
+                : "bg-blue-950/90 border-blue-500/50 text-blue-200"
+            }`}
+          >
+            <span>{t.type === "success" ? "✅" : t.type === "warning" ? "⚠️" : "ℹ️"}</span>
+            <span>{t.message}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Dynamic Leaflet Popup Styling */}
       <style>{`
         .leaflet-popup-content-wrapper, .leaflet-popup-tip {
           background: #1a1a1a !important;
@@ -719,13 +766,13 @@ function FloodCommandCenter() {
           <div className="space-y-4">
             <div className="space-y-1">
               <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider px-2">
-                Navigation
+                Navigation Tabs
               </span>
               <button
                 onClick={() => setActiveTab("map")}
-                className={`w-full flex items-center space-x-2 px-2.5 py-2 rounded-lg text-xs font-medium transition ${
+                className={`w-full flex items-center space-x-2 px-2.5 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
                   activeTab === "map"
-                    ? "bg-blue-600/20 text-blue-400 border border-blue-500/30"
+                    ? "bg-blue-600/20 text-blue-400 border border-blue-500/30 font-semibold"
                     : "text-gray-400 hover:bg-[#1a1a1a] hover:text-gray-200"
                 }`}
               >
@@ -734,20 +781,20 @@ function FloodCommandCenter() {
               </button>
               <button
                 onClick={() => setActiveTab("predict")}
-                className={`w-full flex items-center space-x-2 px-2.5 py-2 rounded-lg text-xs font-medium transition ${
+                className={`w-full flex items-center space-x-2 px-2.5 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
                   activeTab === "predict"
-                    ? "bg-blue-600/20 text-blue-400 border border-blue-500/30"
+                    ? "bg-blue-600/20 text-blue-400 border border-blue-500/30 font-semibold"
                     : "text-gray-400 hover:bg-[#1a1a1a] hover:text-gray-200"
                 }`}
               >
                 <span>🤖</span>
-                <span>ML Predict Risk</span>
+                <span>ML Risk Matrix</span>
               </button>
               <button
                 onClick={() => setActiveTab("optimize")}
-                className={`w-full flex items-center space-x-2 px-2.5 py-2 rounded-lg text-xs font-medium transition ${
+                className={`w-full flex items-center space-x-2 px-2.5 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
                   activeTab === "optimize"
-                    ? "bg-blue-600/20 text-blue-400 border border-blue-500/30"
+                    ? "bg-blue-600/20 text-blue-400 border border-blue-500/30 font-semibold"
                     : "text-gray-400 hover:bg-[#1a1a1a] hover:text-gray-200"
                 }`}
               >
@@ -785,7 +832,7 @@ function FloodCommandCenter() {
               <button
                 onClick={handleCollectData}
                 disabled={loadingData || loadingFullPipeline}
-                className="w-full bg-[#1e1e1e] hover:bg-[#282828] border border-[#333333] text-gray-200 py-1.5 px-3 rounded-lg text-xs font-medium flex items-center justify-center space-x-2 transition disabled:opacity-50"
+                className="w-full bg-[#1e1e1e] hover:bg-[#282828] active:scale-98 border border-[#333333] text-gray-200 py-1.5 px-3 rounded-lg text-xs font-medium flex items-center justify-center space-x-2 transition cursor-pointer disabled:opacity-50"
               >
                 {loadingData ? (
                   <span className="animate-spin text-blue-400">⏳</span>
@@ -798,7 +845,7 @@ function FloodCommandCenter() {
               <button
                 onClick={handleRunPredict}
                 disabled={loadingPredict || loadingFullPipeline}
-                className="w-full bg-[#1e1e1e] hover:bg-[#282828] border border-[#333333] text-gray-200 py-1.5 px-3 rounded-lg text-xs font-medium flex items-center justify-center space-x-2 transition disabled:opacity-50"
+                className="w-full bg-[#1e1e1e] hover:bg-[#282828] active:scale-98 border border-[#333333] text-gray-200 py-1.5 px-3 rounded-lg text-xs font-medium flex items-center justify-center space-x-2 transition cursor-pointer disabled:opacity-50"
               >
                 {loadingPredict ? (
                   <span className="animate-spin text-blue-400">⏳</span>
@@ -811,7 +858,7 @@ function FloodCommandCenter() {
               <button
                 onClick={handleOptimizeResources}
                 disabled={loadingOptimize || loadingFullPipeline}
-                className="w-full bg-[#1e1e1e] hover:bg-[#282828] border border-[#333333] text-gray-200 py-1.5 px-3 rounded-lg text-xs font-medium flex items-center justify-center space-x-2 transition disabled:opacity-50"
+                className="w-full bg-[#1e1e1e] hover:bg-[#282828] active:scale-98 border border-[#333333] text-gray-200 py-1.5 px-3 rounded-lg text-xs font-medium flex items-center justify-center space-x-2 transition cursor-pointer disabled:opacity-50"
               >
                 {loadingOptimize ? (
                   <span className="animate-spin text-blue-400">⏳</span>
@@ -828,10 +875,10 @@ function FloodCommandCenter() {
             <button
               onClick={handleRunFullPipeline}
               disabled={loadingFullPipeline}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 px-3 rounded-lg text-xs flex items-center justify-center space-x-2 transition shadow-lg shadow-blue-900/30 disabled:opacity-50"
+              className="w-full bg-blue-600 hover:bg-blue-500 active:scale-98 text-white font-semibold py-2 px-3 rounded-lg text-xs flex items-center justify-center space-x-2 transition shadow-lg shadow-blue-900/30 cursor-pointer disabled:opacity-50"
             >
               {loadingFullPipeline ? (
-                <span className="animate-spin">⏳ Running...</span>
+                <span className="animate-spin">⏳ Running Pipeline...</span>
               ) : (
                 <>
                   <span>⚡</span>
@@ -842,94 +889,241 @@ function FloodCommandCenter() {
           </div>
         </aside>
 
-        {/* CENTER PANEL (Flex-1: Map + Telemetry Strip) */}
+        {/* CENTER PANEL VIEW CONTROLLER */}
         <main className="flex-1 flex flex-col min-w-0 bg-[#0a0a0a]">
-          <div className="flex-1 relative overflow-hidden">
-            <div ref={mapContainerRef} className="w-full h-full z-10" />
+          {/* TAB 1: LEAFLET MAP VIEW */}
+          {activeTab === "map" && (
+            <div className="flex-1 flex flex-col min-h-0">
+              <div className="flex-1 relative overflow-hidden">
+                <div ref={mapContainerRef} className="w-full h-full z-10" />
 
-            {/* Map Legend Overlay */}
-            <div className="absolute top-3 right-3 bg-[#111111]/90 backdrop-blur-md border border-[#2a2a2a] rounded-lg p-2.5 text-[11px] text-gray-300 space-y-1.5 z-20 shadow-xl pointer-events-auto">
-              <span className="font-semibold text-gray-400 uppercase text-[10px] block border-b border-[#2a2a2a] pb-1">
-                Risk Classification
-              </span>
-              <div className="flex items-center space-x-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span>
-                <span>🔴 P1 URGENT (≥ 0.70)</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
-                <span>🟠 P2 HIGH (≥ 0.40)</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
-                <span>🟡 P3 MONITOR (&lt; 0.40)</span>
-              </div>
-            </div>
-          </div>
-
-          {/* TELEMETRY STRIP FOOTER */}
-          <div className="h-24 bg-[#111111] border-t border-[#2a2a2a] p-3 flex flex-col justify-between flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <span className="text-xs font-bold text-white uppercase tracking-wider">
-                  Telemetry Strip:
-                </span>
-                <select
-                  value={selectedDistrictId}
-                  onChange={(e) => setSelectedDistrictId(e.target.value)}
-                  className="bg-[#1a1a1a] border border-[#2a2a2a] text-blue-400 font-semibold text-xs rounded px-2 py-0.5 focus:outline-none"
-                >
-                  {districts.map((d) => (
-                    <option key={d.district_id} value={d.district_id}>
-                      {d.name} ({ (d.risk_score * 100).toFixed(0) }%)
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {selectedDistrict.recommend_evacuation && (
-                <div className="bg-red-500/20 border border-red-500/50 text-red-400 text-[10px] font-bold px-2 py-0.5 rounded animate-pulse">
-                  🚨 MANDATORY EVACUATION ADVISED
+                {/* Map Legend Overlay */}
+                <div className="absolute top-3 right-3 bg-[#111111]/90 backdrop-blur-md border border-[#2a2a2a] rounded-lg p-2.5 text-[11px] text-gray-300 space-y-1.5 z-20 shadow-xl pointer-events-auto">
+                  <span className="font-semibold text-gray-400 uppercase text-[10px] block border-b border-[#2a2a2a] pb-1">
+                    Risk Classification
+                  </span>
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+                    <span>🔴 P1 URGENT (≥ 0.70)</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
+                    <span>🟠 P2 HIGH (≥ 0.40)</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
+                    <span>🟡 P3 MONITOR (&lt; 0.40)</span>
+                  </div>
                 </div>
-              )}
+              </div>
+
+              {/* TELEMETRY STRIP FOOTER */}
+              <div className="h-24 bg-[#111111] border-t border-[#2a2a2a] p-3 flex flex-col justify-between flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">
+                      Telemetry Strip:
+                    </span>
+                    <select
+                      value={selectedDistrictId}
+                      onChange={(e) => setSelectedDistrictId(e.target.value)}
+                      className="bg-[#1a1a1a] border border-[#2a2a2a] text-blue-400 font-semibold text-xs rounded px-2 py-0.5 focus:outline-none cursor-pointer"
+                    >
+                      {districts.map((d) => (
+                        <option key={d.district_id} value={d.district_id}>
+                          {d.name} ({ (d.risk_score * 100).toFixed(0) }%)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {selectedDistrict.recommend_evacuation && (
+                    <div className="bg-red-500/20 border border-red-500/50 text-red-400 text-[10px] font-bold px-2 py-0.5 rounded animate-pulse">
+                      🚨 MANDATORY EVACUATION ADVISED
+                    </div>
+                  )}
+                </div>
+
+                {/* Live Metrics Grid */}
+                <div className="grid grid-cols-6 gap-2 text-xs">
+                  <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-1.5 flex flex-col justify-center">
+                    <span className="text-[9px] text-gray-400 uppercase">🌧 24h Rain</span>
+                    <span className="font-bold text-gray-100">{selectedDistrict.rainfall_24h_mm} mm</span>
+                  </div>
+
+                  <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-1.5 flex flex-col justify-center">
+                    <span className="text-[9px] text-gray-400 uppercase">🌊 Water Level</span>
+                    <span className="font-bold text-blue-400">{selectedDistrict.water_level_meters} m</span>
+                  </div>
+
+                  <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-1.5 flex flex-col justify-center">
+                    <span className="text-[9px] text-gray-400 uppercase">💧 NDWI Index</span>
+                    <span className="font-bold text-cyan-400">{selectedDistrict.ndwi_water_index}</span>
+                  </div>
+
+                  <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-1.5 flex flex-col justify-center">
+                    <span className="text-[9px] text-gray-400 uppercase">⛰ Mean Elev</span>
+                    <span className="font-bold text-emerald-400">{selectedDistrict.mean_elevation_meters} m</span>
+                  </div>
+
+                  <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-1.5 flex flex-col justify-center">
+                    <span className="text-[9px] text-gray-400 uppercase">💨 Humidity</span>
+                    <span className="font-bold text-purple-400">{selectedDistrict.humidity_percent}%</span>
+                  </div>
+
+                  <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-1.5 flex flex-col justify-center">
+                    <span className="text-[9px] text-gray-400 uppercase">🌊 Discharge</span>
+                    <span className="font-bold text-amber-400">{selectedDistrict.discharge_rate_cumecs} cumecs</span>
+                  </div>
+                </div>
+              </div>
             </div>
+          )}
 
-            {/* Live Metrics Grid */}
-            <div className="grid grid-cols-6 gap-2 text-xs">
-              <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-1.5 flex flex-col justify-center">
-                <span className="text-[9px] text-gray-400 uppercase">🌧 24h Rain</span>
-                <span className="font-bold text-gray-100">{selectedDistrict.rainfall_24h_mm} mm</span>
+          {/* TAB 2: ML RISK MATRIX TAB */}
+          {activeTab === "predict" && (
+            <div className="flex-1 p-4 overflow-y-auto space-y-4">
+              <div className="flex justify-between items-center border-b border-[#2a2a2a] pb-3">
+                <div>
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-white">
+                    🤖 XGBoost v3 Flood Risk Prediction Matrix
+                  </h2>
+                  <p className="text-xs text-gray-400">
+                    Spatio-temporal risk scores computed across 8 key Bihar districts
+                  </p>
+                </div>
+                <button
+                  onClick={handleRunPredict}
+                  disabled={loadingPredict}
+                  className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1.5 rounded-lg font-semibold transition"
+                >
+                  Recalculate Predictions
+                </button>
               </div>
 
-              <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-1.5 flex flex-col justify-center">
-                <span className="text-[9px] text-gray-400 uppercase">🌊 Water Level</span>
-                <span className="font-bold text-blue-400">{selectedDistrict.water_level_meters} m</span>
-              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {districts.map((d) => {
+                  const isP1 = d.risk_score >= 0.7;
+                  const isP2 = d.risk_score >= 0.4 && d.risk_score < 0.7;
+                  const colorClass = isP1 ? "border-red-500/40 bg-red-500/5" : isP2 ? "border-orange-500/40 bg-orange-500/5" : "border-yellow-500/40 bg-yellow-500/5";
 
-              <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-1.5 flex flex-col justify-center">
-                <span className="text-[9px] text-gray-400 uppercase">💧 NDWI Index</span>
-                <span className="font-bold text-cyan-400">{selectedDistrict.ndwi_water_index}</span>
-              </div>
+                  return (
+                    <div
+                      key={d.district_id}
+                      onClick={() => {
+                        setSelectedDistrictId(d.district_id);
+                        setActiveTab("map");
+                      }}
+                      className={`p-3 rounded-lg border ${colorClass} hover:border-blue-500 transition cursor-pointer space-y-2`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-white text-sm">{d.name}</span>
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded font-bold ${
+                            isP1
+                              ? "bg-red-500 text-white"
+                              : isP2
+                              ? "bg-orange-500 text-white"
+                              : "bg-yellow-500 text-gray-900"
+                          }`}
+                        >
+                          {(d.risk_score * 100).toFixed(0)}% RISK
+                        </span>
+                      </div>
 
-              <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-1.5 flex flex-col justify-center">
-                <span className="text-[9px] text-gray-400 uppercase">⛰ Mean Elev</span>
-                <span className="font-bold text-emerald-400">{selectedDistrict.mean_elevation_meters} m</span>
-              </div>
+                      <div className="grid grid-cols-3 gap-2 text-xs text-gray-300">
+                        <div>
+                          <span className="text-[10px] text-gray-500 block">Rainfall</span>
+                          <b>{d.rainfall_24h_mm} mm</b>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-gray-500 block">Water Level</span>
+                          <b>{d.water_level_meters} m</b>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-gray-500 block">Est. Depth</span>
+                          <b>{d.estimated_inundation_depth_meters} m</b>
+                        </div>
+                      </div>
 
-              <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-1.5 flex flex-col justify-center">
-                <span className="text-[9px] text-gray-400 uppercase">💨 Humidity</span>
-                <span className="font-bold text-purple-400">{selectedDistrict.humidity_percent}%</span>
-              </div>
-
-              <div className="bg-[#1a1a1a] border border-[#2a2a2a] rounded p-1.5 flex flex-col justify-center">
-                <span className="text-[9px] text-gray-400 uppercase">🌊 Discharge</span>
-                <span className="font-bold text-amber-400">{selectedDistrict.discharge_rate_cumecs} cumecs</span>
+                      <div className="w-full bg-[#2a2a2a] h-2 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full ${isP1 ? "bg-red-500" : isP2 ? "bg-orange-500" : "bg-yellow-500"}`}
+                          style={{ width: `${d.risk_score * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          </div>
+          )}
+
+          {/* TAB 3: RESOURCE ALLOCATOR TAB */}
+          {activeTab === "optimize" && (
+            <div className="flex-1 p-4 overflow-y-auto space-y-4">
+              <div className="flex justify-between items-center border-b border-[#2a2a2a] pb-3">
+                <div>
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-white">
+                    🚁 Emergency Response Optimization (Hungarian Matching)
+                  </h2>
+                  <p className="text-xs text-gray-400">
+                    Bipartite graph matching minimizing travel distance weighted by urgency
+                  </p>
+                </div>
+                <button
+                  onClick={handleOptimizeResources}
+                  disabled={loadingOptimize}
+                  className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1.5 rounded-lg font-semibold transition"
+                >
+                  Re-run Optimization
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {allocations.map((a) => (
+                  <div
+                    key={a.district_id}
+                    className="bg-[#161616] border border-[#2a2a2a] rounded-lg p-3 flex items-center justify-between hover:border-blue-500/50 transition"
+                  >
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="font-bold text-white text-sm">{a.district_id}</span>
+                        <span className="text-[10px] bg-[#222222] border border-[#333333] px-1.5 py-0.5 rounded text-gray-300">
+                          Priority: {a.priority_level}
+                        </span>
+                      </div>
+                      <span className="text-xs text-gray-400">
+                        Risk Score: {(a.risk_score * 100).toFixed(0)}%
+                      </span>
+                    </div>
+
+                    <div className="flex items-center space-x-4 text-xs">
+                      <div className="text-center">
+                        <span className="text-blue-400 font-bold block">{a.allocated_ndrf_teams}</span>
+                        <span className="text-[10px] text-gray-500">NDRF Teams</span>
+                      </div>
+                      <div className="text-center">
+                        <span className="text-cyan-400 font-bold block">{a.allocated_rescue_boats}</span>
+                        <span className="text-[10px] text-gray-500">Boats</span>
+                      </div>
+                      <div className="text-center">
+                        <span className="text-emerald-400 font-bold block">{a.allocated_medical_kits}</span>
+                        <span className="text-[10px] text-gray-500">Medical</span>
+                      </div>
+                      <div className="text-center">
+                        <span className="text-amber-400 font-bold block">{a.allocated_shelter_tents}</span>
+                        <span className="text-[10px] text-gray-500">Tents</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </main>
 
-        {/* RIGHT PANEL (300px Fixed: Resource Inventory & Allocations) */}
+        {/* RIGHT PANEL (300px Fixed: Resource Inventory & Interactive Allocations) */}
         <aside className="w-80 border-l border-[#2a2a2a] bg-[#111111] flex flex-col p-3 flex-shrink-0 space-y-4 overflow-y-auto">
           {/* Resource Inventory Stock */}
           <div>
@@ -945,14 +1139,14 @@ function FloodCommandCenter() {
                 <div className="flex justify-between text-gray-300 mb-1">
                   <span>🪖 NDRF Teams</span>
                   <span className="font-semibold text-blue-400">
-                    {totalAllocatedNDRF} / {INITIAL_TOTAL_RESOURCES.ndrf_teams}
+                    {totalAllocatedNDRF} / {resources.ndrf_teams}
                   </span>
                 </div>
                 <div className="w-full bg-[#2a2a2a] h-1.5 rounded-full overflow-hidden">
                   <div
                     className="bg-blue-500 h-full transition-all duration-500"
                     style={{
-                      width: `${(totalAllocatedNDRF / INITIAL_TOTAL_RESOURCES.ndrf_teams) * 100}%`,
+                      width: `${Math.min(100, (totalAllocatedNDRF / resources.ndrf_teams) * 100)}%`,
                     }}
                   />
                 </div>
@@ -962,14 +1156,14 @@ function FloodCommandCenter() {
                 <div className="flex justify-between text-gray-300 mb-1">
                   <span>🚤 Rescue Boats</span>
                   <span className="font-semibold text-cyan-400">
-                    {totalAllocatedBoats} / {INITIAL_TOTAL_RESOURCES.rescue_boats}
+                    {totalAllocatedBoats} / {resources.rescue_boats}
                   </span>
                 </div>
                 <div className="w-full bg-[#2a2a2a] h-1.5 rounded-full overflow-hidden">
                   <div
                     className="bg-cyan-500 h-full transition-all duration-500"
                     style={{
-                      width: `${(totalAllocatedBoats / INITIAL_TOTAL_RESOURCES.rescue_boats) * 100}%`,
+                      width: `${Math.min(100, (totalAllocatedBoats / resources.rescue_boats) * 100)}%`,
                     }}
                   />
                 </div>
@@ -979,14 +1173,14 @@ function FloodCommandCenter() {
                 <div className="flex justify-between text-gray-300 mb-1">
                   <span>💊 Medical Kits</span>
                   <span className="font-semibold text-emerald-400">
-                    {totalAllocatedMedical} / {INITIAL_TOTAL_RESOURCES.medical_kits}
+                    {totalAllocatedMedical} / {resources.medical_kits}
                   </span>
                 </div>
                 <div className="w-full bg-[#2a2a2a] h-1.5 rounded-full overflow-hidden">
                   <div
                     className="bg-emerald-500 h-full transition-all duration-500"
                     style={{
-                      width: `${(totalAllocatedMedical / INITIAL_TOTAL_RESOURCES.medical_kits) * 100}%`,
+                      width: `${Math.min(100, (totalAllocatedMedical / resources.medical_kits) * 100)}%`,
                     }}
                   />
                 </div>
@@ -996,14 +1190,14 @@ function FloodCommandCenter() {
                 <div className="flex justify-between text-gray-300 mb-1">
                   <span>⛺ Shelter Tents</span>
                   <span className="font-semibold text-amber-400">
-                    {totalAllocatedTents} / {INITIAL_TOTAL_RESOURCES.shelter_tents}
+                    {totalAllocatedTents} / {resources.shelter_tents}
                   </span>
                 </div>
                 <div className="w-full bg-[#2a2a2a] h-1.5 rounded-full overflow-hidden">
                   <div
                     className="bg-amber-500 h-full transition-all duration-500"
                     style={{
-                      width: `${(totalAllocatedTents / INITIAL_TOTAL_RESOURCES.shelter_tents) * 100}%`,
+                      width: `${Math.min(100, (totalAllocatedTents / resources.shelter_tents) * 100)}%`,
                     }}
                   />
                 </div>
@@ -1031,9 +1225,19 @@ function FloodCommandCenter() {
                   {allocations.map((a) => {
                     const isP1 = a.priority_level === "P1_URGENT";
                     const isP2 = a.priority_level === "P2_HIGH";
+                    const isSelected = a.district_id === selectedDistrictId;
 
                     return (
-                      <tr key={a.district_id} className="hover:bg-[#202020] transition">
+                      <tr
+                        key={a.district_id}
+                        onClick={() => {
+                          setSelectedDistrictId(a.district_id);
+                          setActiveTab("map");
+                        }}
+                        className={`cursor-pointer transition ${
+                          isSelected ? "bg-blue-600/20" : "hover:bg-[#202020]"
+                        }`}
+                      >
                         <td className="p-2 font-medium">{a.district_id}</td>
                         <td className="p-2">
                           <span
