@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-
 // ============================================================================
 // FLOOD COMMAND CENTER - BIHAR DISASTER MANAGEMENT DASHBOARD
 // Filen.io Inspired Dark UI Aesthetic (#0a0a0a, #111111, #1a1a1a, #2a2a2a)
+// Works seamlessly in both Vite / React bundlers & Standalone Browser Babel CDN
 // ============================================================================
+
+const ReactObj = typeof window !== "undefined" && window.React ? window.React : require("react");
+const { useState, useEffect, useCallback, useRef } = ReactObj;
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
 
@@ -248,7 +250,7 @@ const INITIAL_ALLOCATIONS = [
   { district_id: "Katihar", priority_level: "P3_MONITOR", risk_score: 0.25, allocated_ndrf_teams: 1, allocated_rescue_boats: 1, allocated_medical_kits: 20, allocated_shelter_tents: 10 },
 ];
 
-export default function FloodCommandCenter() {
+function FloodCommandCenter() {
   // --------------------------------------------------------------------------
   // STATE MANAGEMENT
   // --------------------------------------------------------------------------
@@ -278,7 +280,7 @@ export default function FloodCommandCenter() {
   const [loadingOptimize, setLoadingOptimize] = useState(false);
   const [loadingFullPipeline, setLoadingFullPipeline] = useState(false);
 
-  const [activeTab, setActiveTab] = useState("map"); // "map", "data", "reports"
+  const [activeTab, setActiveTab] = useState("map");
   const mapContainerRef = useRef(null);
   const leafletMapRef = useRef(null);
   const markersRef = useRef({});
@@ -380,7 +382,6 @@ export default function FloodCommandCenter() {
     } catch (err) {
       console.warn("Using simulation fallback for collect data:", err);
       setIsOffline(true);
-      // Simulate minor fluctuation
       setDistricts((prev) =>
         prev.map((d) => ({
           ...d,
@@ -430,7 +431,6 @@ export default function FloodCommandCenter() {
     } catch (err) {
       console.warn("Using simulation fallback for predict:", err);
       setIsOffline(true);
-      // Fallback update
       setDistricts((prev) =>
         prev.map((d) => {
           const score = Math.min(
@@ -483,7 +483,6 @@ export default function FloodCommandCenter() {
     } catch (err) {
       console.warn("Using simulation fallback for optimization:", err);
       setIsOffline(true);
-      // Simulation fallback calculation
       const sorted = [...districts].sort((a, b) => b.risk_score - a.risk_score);
       let remNDRF = INITIAL_TOTAL_RESOURCES.ndrf_teams;
       let remBoats = INITIAL_TOTAL_RESOURCES.rescue_boats;
@@ -542,8 +541,7 @@ export default function FloodCommandCenter() {
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
-    // Check if Leaflet L is loaded globally
-    const L = window.L;
+    const L = typeof window !== "undefined" ? window.L : null;
     if (!L) {
       console.warn("Leaflet script not found in window.L");
       return;
@@ -640,7 +638,6 @@ export default function FloodCommandCenter() {
   // --------------------------------------------------------------------------
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-gray-100 flex flex-col font-sans select-none antialiased">
-      {/* Dynamic Leaflet Dark Popup CSS Overrides */}
       <style>{`
         .leaflet-popup-content-wrapper, .leaflet-popup-tip {
           background: #1a1a1a !important;
@@ -653,9 +650,7 @@ export default function FloodCommandCenter() {
         }
       `}</style>
 
-      {/* ==================================================================== */}
       {/* 1. TOP HEADER BAR */}
-      {/* ==================================================================== */}
       <header className="h-14 border-b border-[#2a2a2a] bg-[#111111] px-4 flex items-center justify-between z-20">
         <div className="flex items-center space-x-3">
           <div className="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
@@ -717,16 +712,11 @@ export default function FloodCommandCenter() {
         </div>
       </header>
 
-      {/* ==================================================================== */}
       {/* MAIN 3-COLUMN LAYOUT BODY */}
-      {/* ==================================================================== */}
       <div className="flex-1 flex overflow-hidden">
-        {/* ------------------------------------------------------------------ */}
         {/* LEFT SIDEBAR (240px Fixed) */}
-        {/* ------------------------------------------------------------------ */}
         <aside className="w-60 border-r border-[#2a2a2a] bg-[#111111] flex flex-col justify-between p-3 flex-shrink-0">
           <div className="space-y-4">
-            {/* Nav List */}
             <div className="space-y-1">
               <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider px-2">
                 Navigation
@@ -852,11 +842,8 @@ export default function FloodCommandCenter() {
           </div>
         </aside>
 
-        {/* ------------------------------------------------------------------ */}
         {/* CENTER PANEL (Flex-1: Map + Telemetry Strip) */}
-        {/* ------------------------------------------------------------------ */}
         <main className="flex-1 flex flex-col min-w-0 bg-[#0a0a0a]">
-          {/* LEAFLET MAP CONTAINER */}
           <div className="flex-1 relative overflow-hidden">
             <div ref={mapContainerRef} className="w-full h-full z-10" />
 
@@ -942,9 +929,7 @@ export default function FloodCommandCenter() {
           </div>
         </main>
 
-        {/* ------------------------------------------------------------------ */}
         {/* RIGHT PANEL (300px Fixed: Resource Inventory & Allocations) */}
-        {/* ------------------------------------------------------------------ */}
         <aside className="w-80 border-l border-[#2a2a2a] bg-[#111111] flex flex-col p-3 flex-shrink-0 space-y-4 overflow-y-auto">
           {/* Resource Inventory Stock */}
           <div>
@@ -956,7 +941,6 @@ export default function FloodCommandCenter() {
             </div>
 
             <div className="space-y-2.5 text-xs">
-              {/* NDRF Teams */}
               <div className="bg-[#161616] border border-[#2a2a2a] p-2 rounded-lg">
                 <div className="flex justify-between text-gray-300 mb-1">
                   <span>🪖 NDRF Teams</span>
@@ -974,7 +958,6 @@ export default function FloodCommandCenter() {
                 </div>
               </div>
 
-              {/* Rescue Boats */}
               <div className="bg-[#161616] border border-[#2a2a2a] p-2 rounded-lg">
                 <div className="flex justify-between text-gray-300 mb-1">
                   <span>🚤 Rescue Boats</span>
@@ -992,7 +975,6 @@ export default function FloodCommandCenter() {
                 </div>
               </div>
 
-              {/* Medical Kits */}
               <div className="bg-[#161616] border border-[#2a2a2a] p-2 rounded-lg">
                 <div className="flex justify-between text-gray-300 mb-1">
                   <span>💊 Medical Kits</span>
@@ -1010,7 +992,6 @@ export default function FloodCommandCenter() {
                 </div>
               </div>
 
-              {/* Shelter Tents */}
               <div className="bg-[#161616] border border-[#2a2a2a] p-2 rounded-lg">
                 <div className="flex justify-between text-gray-300 mb-1">
                   <span>⛺ Shelter Tents</span>
@@ -1097,4 +1078,13 @@ export default function FloodCommandCenter() {
       </div>
     </div>
   );
+}
+
+// Bind to window for standalone Babel script tag execution
+if (typeof window !== "undefined") {
+  window.FloodCommandCenter = FloodCommandCenter;
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = FloodCommandCenter;
 }
