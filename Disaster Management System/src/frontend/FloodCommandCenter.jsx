@@ -1,7 +1,7 @@
 // ============================================================================
 // FLOOD COMMAND CENTER - BIHAR DISASTER MANAGEMENT DECISION SUPPORT SYSTEM
 // Filen.io Premium Dark UI Aesthetic (#0a0a0a, #111111, #1a1a1a, #2a2a2a)
-// Multi-modal Ingestion, SHAP Explainability, Historical Replay & Resource Allocator
+// Conditional Evacuation Polylines & High-Ground Shelter Markers (Active on P1 Only)
 // ============================================================================
 
 const ReactObj = typeof window !== "undefined" && window.React ? window.React : require("react");
@@ -37,7 +37,7 @@ function formatDistrictName(id) {
 }
 
 // ----------------------------------------------------------------------------
-// COMPREHENSIVE INITIAL BIHAR TELEMETRY DATA (8 KEY DISTRICTS)
+// COMPREHENSIVE INITIAL BIHAR TELEMETRY DATA (WITH SHELTER LAT/LON & ROUTES)
 // ----------------------------------------------------------------------------
 const INITIAL_SIMULATION_DISTRICTS = [
   {
@@ -46,6 +46,8 @@ const INITIAL_SIMULATION_DISTRICTS = [
     river_name: "Ganga",
     lat: 25.5937,
     lon: 85.1376,
+    shelter_lat: 25.6450,
+    shelter_lon: 85.0800,
     rainfall_24h_mm: 145.5,
     rainfall_3d_accum_mm: 280.2,
     rainfall_intensity_mmhr: 18.5,
@@ -66,8 +68,11 @@ const INITIAL_SIMULATION_DISTRICTS = [
     mean_slope_degrees: 1.2,
     drainage_density_km_sqkm: 2.1,
     population_at_risk: 185000,
-    nearest_shelter: "Patna Relief Camp #4 (Cap: 5,000)",
+    nearest_shelter: "Patna Relief Camp #4 (Ridge High Ground)",
+    shelter_capacity: 5000,
+    shelter_occupancy: 3240,
     evacuation_route: "NH-31 Northbound via Digha Elevated Corridor (12.4 km)",
+    evacuation_eta_mins: 22,
     risk_score: 0.87,
     risk_level: "P1_URGENT",
     estimated_inundation_depth_meters: 2.3,
@@ -86,6 +91,8 @@ const INITIAL_SIMULATION_DISTRICTS = [
     river_name: "Ganga / Kosi",
     lat: 25.2425,
     lon: 87.0022,
+    shelter_lat: 25.1750,
+    shelter_lon: 86.9150,
     rainfall_24h_mm: 182.0,
     rainfall_3d_accum_mm: 315.0,
     rainfall_intensity_mmhr: 22.0,
@@ -106,8 +113,11 @@ const INITIAL_SIMULATION_DISTRICTS = [
     mean_slope_degrees: 0.9,
     drainage_density_km_sqkm: 2.5,
     population_at_risk: 210000,
-    nearest_shelter: "Bhagalpur Stadium Complex (Cap: 8,000)",
+    nearest_shelter: "Bhagalpur Stadium High Ground Complex",
+    shelter_capacity: 8000,
+    shelter_occupancy: 5410,
     evacuation_route: "SH-19 South toward Amarpur Ridge (8.7 km)",
+    evacuation_eta_mins: 16,
     risk_score: 0.94,
     risk_level: "P1_URGENT",
     estimated_inundation_depth_meters: 2.8,
@@ -126,6 +136,8 @@ const INITIAL_SIMULATION_DISTRICTS = [
     river_name: "Bagmati / Kamla",
     lat: 26.1542,
     lon: 85.8918,
+    shelter_lat: 26.2200,
+    shelter_lon: 85.8150,
     rainfall_24h_mm: 165.0,
     rainfall_3d_accum_mm: 290.0,
     rainfall_intensity_mmhr: 19.8,
@@ -146,8 +158,11 @@ const INITIAL_SIMULATION_DISTRICTS = [
     mean_slope_degrees: 1.1,
     drainage_density_km_sqkm: 2.3,
     population_at_risk: 145000,
-    nearest_shelter: "Darbhanga University Auditorium (Cap: 4,500)",
+    nearest_shelter: "Darbhanga University Auditorium High Ground",
+    shelter_capacity: 4500,
+    shelter_occupancy: 2980,
     evacuation_route: "NH-528 Bypass via Laheriasarai (10.2 km)",
+    evacuation_eta_mins: 19,
     risk_score: 0.84,
     risk_level: "P1_URGENT",
     estimated_inundation_depth_meters: 2.1,
@@ -166,6 +181,8 @@ const INITIAL_SIMULATION_DISTRICTS = [
     river_name: "Burhi Gandak",
     lat: 26.1209,
     lon: 85.3647,
+    shelter_lat: 26.1800,
+    shelter_lon: 85.2800,
     rainfall_24h_mm: 110.0,
     rainfall_3d_accum_mm: 195.0,
     rainfall_intensity_mmhr: 12.4,
@@ -186,8 +203,11 @@ const INITIAL_SIMULATION_DISTRICTS = [
     mean_slope_degrees: 1.5,
     drainage_density_km_sqkm: 1.8,
     population_at_risk: 92000,
-    nearest_shelter: "Muzaffarpur Zila High School (Cap: 3,000)",
+    nearest_shelter: "Muzaffarpur Zila High School",
+    shelter_capacity: 3000,
+    shelter_occupancy: 850,
     evacuation_route: "NH-28 East towards Motipur (15.1 km)",
+    evacuation_eta_mins: 25,
     risk_score: 0.58,
     risk_level: "P2_HIGH",
     estimated_inundation_depth_meters: 1.2,
@@ -205,6 +225,8 @@ const INITIAL_SIMULATION_DISTRICTS = [
     river_name: "Lakhandei / Bagmati",
     lat: 26.5976,
     lon: 85.4886,
+    shelter_lat: 26.6500,
+    shelter_lon: 85.4100,
     rainfall_24h_mm: 135.0,
     rainfall_3d_accum_mm: 230.0,
     rainfall_intensity_mmhr: 16.2,
@@ -225,8 +247,11 @@ const INITIAL_SIMULATION_DISTRICTS = [
     mean_slope_degrees: 1.8,
     drainage_density_km_sqkm: 2.0,
     population_at_risk: 110000,
-    nearest_shelter: "Sitamarhi Town Hall Shelter (Cap: 3,500)",
+    nearest_shelter: "Sitamarhi Town Hall Shelter",
+    shelter_capacity: 3500,
+    shelter_occupancy: 1200,
     evacuation_route: "NH-77 South via Riga Road (11.0 km)",
+    evacuation_eta_mins: 18,
     risk_score: 0.65,
     risk_level: "P2_HIGH",
     estimated_inundation_depth_meters: 1.6,
@@ -244,6 +269,8 @@ const INITIAL_SIMULATION_DISTRICTS = [
     river_name: "Kosi Barrage",
     lat: 26.126,
     lon: 86.5972,
+    shelter_lat: 26.1800,
+    shelter_lon: 86.6800,
     rainfall_24h_mm: 95.0,
     rainfall_3d_accum_mm: 160.0,
     rainfall_intensity_mmhr: 10.5,
@@ -264,8 +291,11 @@ const INITIAL_SIMULATION_DISTRICTS = [
     mean_slope_degrees: 1.3,
     drainage_density_km_sqkm: 1.6,
     population_at_risk: 65000,
-    nearest_shelter: "Supaul Block Community Center (Cap: 2,500)",
+    nearest_shelter: "Supaul Block Community Center",
+    shelter_capacity: 2500,
+    shelter_occupancy: 450,
     evacuation_route: "SH-66 East towards Pipra (14.2 km)",
+    evacuation_eta_mins: 22,
     risk_score: 0.45,
     risk_level: "P2_HIGH",
     estimated_inundation_depth_meters: 0.8,
@@ -282,6 +312,8 @@ const INITIAL_SIMULATION_DISTRICTS = [
     river_name: "Kamla Balan",
     lat: 26.3496,
     lon: 86.0718,
+    shelter_lat: 26.4100,
+    shelter_lon: 86.1400,
     rainfall_24h_mm: 70.0,
     rainfall_3d_accum_mm: 120.0,
     rainfall_intensity_mmhr: 7.2,
@@ -302,8 +334,11 @@ const INITIAL_SIMULATION_DISTRICTS = [
     mean_slope_degrees: 1.4,
     drainage_density_km_sqkm: 1.4,
     population_at_risk: 42000,
-    nearest_shelter: "Madhubani District Sports Complex (Cap: 3,000)",
+    nearest_shelter: "Madhubani District Sports Complex",
+    shelter_capacity: 3000,
+    shelter_occupancy: 310,
     evacuation_route: "NH-57 Bypass (6.5 km)",
+    evacuation_eta_mins: 12,
     risk_score: 0.32,
     risk_level: "P3_MONITOR",
     estimated_inundation_depth_meters: 0.3,
@@ -319,6 +354,8 @@ const INITIAL_SIMULATION_DISTRICTS = [
     river_name: "Mahananda / Ganga",
     lat: 25.5413,
     lon: 87.5755,
+    shelter_lat: 25.6000,
+    shelter_lon: 87.6500,
     rainfall_24h_mm: 60.0,
     rainfall_3d_accum_mm: 105.0,
     rainfall_intensity_mmhr: 5.8,
@@ -339,8 +376,11 @@ const INITIAL_SIMULATION_DISTRICTS = [
     mean_slope_degrees: 0.8,
     drainage_density_km_sqkm: 1.5,
     population_at_risk: 28000,
-    nearest_shelter: "Katihar Railway Indoor Stadium (Cap: 4,000)",
+    nearest_shelter: "Katihar Railway Indoor Stadium",
+    shelter_capacity: 4000,
+    shelter_occupancy: 200,
     evacuation_route: "NH-31 East (8.0 km)",
+    evacuation_eta_mins: 14,
     risk_score: 0.25,
     risk_level: "P3_MONITOR",
     estimated_inundation_depth_meters: 0.1,
@@ -406,7 +446,7 @@ function FloodCommandCenter() {
   const [loadingOptimize, setLoadingOptimize] = useState(false);
   const [loadingFullPipeline, setLoadingFullPipeline] = useState(false);
 
-  // Active Tab: "map", "predict", "optimize", "analytics"
+  // Active Tab: "map", "predict", "optimize"
   const [activeTab, setActiveTab] = useState("map");
 
   // Toast Notification System
@@ -423,6 +463,7 @@ function FloodCommandCenter() {
   const mapContainerRef = useRef(null);
   const leafletMapRef = useRef(null);
   const markersRef = useRef({});
+  const polylinesRef = useRef({});
 
   // Timeline Play/Pause Effect
   useEffect(() => {
@@ -705,7 +746,7 @@ function FloodCommandCenter() {
   };
 
   // --------------------------------------------------------------------------
-  // LEAFLET MAP INITIALIZATION & MARKER SYNC
+  // LEAFLET MAP INITIALIZATION & CONDITIONAL EVACUATION ROUTE RENDERING
   // --------------------------------------------------------------------------
   useEffect(() => {
     if (activeTab !== "map") return;
@@ -755,12 +796,19 @@ function FloodCommandCenter() {
       map.flyTo([targetDist.lat, targetDist.lon], 8.5, { duration: 1.0 });
     }
 
+    // Clear existing markers and polylines
     Object.values(markersRef.current).forEach((m) => map.removeLayer(m));
     markersRef.current = {};
 
+    Object.values(polylinesRef.current).forEach((p) => map.removeLayer(p));
+    polylinesRef.current = {};
+
+    // Render Markers & Conditional Evacuation Routes
     districts.forEach((district) => {
       const distName = formatDistrictName(district.district_id || district.name);
       const isSelected = distName === formatDistrictName(selectedDistrictId);
+      const isEvacuationActive = district.risk_score >= 0.70 || district.recommend_evacuation || district.risk_level === "P1_URGENT";
+
       const color =
         district.risk_score >= 0.70
           ? "#ef4444"
@@ -770,6 +818,7 @@ function FloodCommandCenter() {
 
       const radius = isSelected ? 12 : 7 + district.risk_score * 6;
 
+      // 1. Primary District Circle Marker
       const marker = L.circleMarker([district.lat, district.lon], {
         radius: radius,
         fillColor: color,
@@ -786,6 +835,66 @@ function FloodCommandCenter() {
         className: "dark-map-tooltip",
       });
 
+      // 2. CONDITIONAL EVACUATION ROUTE & SHELTER MARKER (RENDERED ONLY WHEN EVACUATION IS ACTIVE)
+      if (isEvacuationActive && district.shelter_lat && district.shelter_lon) {
+        // Red-and-Blue Dashed Evacuation Polyline Route
+        const routePath = L.polyline(
+          [
+            [district.lat, district.lon],
+            [district.shelter_lat, district.shelter_lon],
+          ],
+          {
+            color: "#ef4444",
+            weight: isSelected ? 4 : 2.5,
+            opacity: 0.9,
+            dashArray: "6, 8",
+          }
+        ).addTo(map);
+
+        routePath.bindTooltip(`🚨 Evacuation Route: ${district.evacuation_route || "Highway Corridor"} (ETA: ${district.evacuation_eta_mins || 20}m)`, {
+          className: "dark-map-tooltip",
+        });
+
+        polylinesRef.current[`poly_${distName}`] = routePath;
+
+        // Shelter High-Ground Marker (⛺)
+        const shelterMarker = L.circleMarker([district.shelter_lat, district.shelter_lon], {
+          radius: 8,
+          fillColor: "#3b82f6",
+          color: "#ffffff",
+          weight: 2,
+          opacity: 1,
+          fillOpacity: 0.9,
+        }).addTo(map);
+
+        shelterMarker.bindTooltip(`⛺ ${district.nearest_shelter || "Relief Camp"}`, {
+          permanent: true,
+          direction: "right",
+          offset: [8, 0],
+          className: "dark-map-tooltip",
+        });
+
+        const shelterPopup = `
+          <div style="font-family: Inter, sans-serif; background-color: #1a1a1a; color: #ffffff; padding: 10px; border-radius: 8px; border: 1px solid #3b82f6; width: 220px;">
+            <div style="font-size: 11px; color: #3b82f6; font-weight: bold; text-transform: uppercase;">⛺ Emergency Relief Shelter</div>
+            <strong style="font-size: 13px; display: block; margin-top: 2px;">${district.nearest_shelter}</strong>
+            <div style="font-size: 11px; color: #a1a1aa; margin-top: 6px;">
+              Occupancy: <b style="color: #ffffff">${district.shelter_occupancy || 3000} / ${district.shelter_capacity || 5000} filled</b>
+            </div>
+            <div style="width: 100%; background-color: #2a2a2a; h-1.5; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 4px;">
+              <div style="width: ${Math.min(100, ((district.shelter_occupancy || 3000) / (district.shelter_capacity || 5000)) * 100)}%; background-color: #3b82f6; height: 100%;"></div>
+            </div>
+            <div style="font-size: 10px; color: #a1a1aa; margin-top: 6px;">
+              Evacuation Route: <b>${district.evacuation_route}</b>
+            </div>
+          </div>
+        `;
+
+        shelterMarker.bindPopup(shelterPopup, { className: "dark-custom-popup", closeButton: false });
+        markersRef.current[`shelter_${distName}`] = shelterMarker;
+      }
+
+      // District Popup Content
       const popupContent = `
         <div style="font-family: Inter, sans-serif; background-color: #1a1a1a; color: #ffffff; padding: 10px; border-radius: 8px; border: 1px solid #2a2a2a; width: 220px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
@@ -806,7 +915,16 @@ function FloodCommandCenter() {
               <div style="width: ${Math.min(100, (district.estimated_inundation_depth_meters / 3.5) * 100)}%; background-color: ${color}; height: 100%;"></div>
             </div>
           </div>
-          <button id="inspect-btn-${distName}" style="width: 100%; background-color: #3b82f6; color: white; border: none; padding: 5px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer; margin-top: 4px;">
+          ${
+            isEvacuationActive
+              ? `<div style="background-color: #ef4444; color: white; font-weight: bold; text-align: center; padding: 4px; border-radius: 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+                  🚨 EVACUATION ACTIVE — ROUTE & SHELTER VISIBLE
+                </div>`
+              : `<div style="background-color: #27272a; color: #a1a1aa; text-align: center; padding: 4px; border-radius: 4px; font-size: 10px; margin-bottom: 6px;">
+                  ADVISORY: MONITORING (NO EVACUATION)
+                </div>`
+          }
+          <button id="inspect-btn-${distName}" style="width: 100%; background-color: #3b82f6; color: white; border: none; padding: 5px; border-radius: 4px; font-size: 11px; font-weight: bold; cursor: pointer;">
             🔍 Inspect District Intelligence
           </button>
         </div>
@@ -863,7 +981,6 @@ function FloodCommandCenter() {
         ))}
       </div>
 
-      {/* Dynamic Leaflet Popup & Tooltip Styling */}
       <style>{`
         .leaflet-popup-content-wrapper, .leaflet-popup-tip {
           background: #1a1a1a !important;
@@ -893,7 +1010,6 @@ function FloodCommandCenter() {
       {detailModalOpen && selectedDistrict && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#111111] border border-[#2a2a2a] rounded-2xl max-w-3xl w-full p-6 space-y-5 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-            {/* Modal Header */}
             <div className="flex justify-between items-start border-b border-[#2a2a2a] pb-4">
               <div>
                 <div className="flex items-center space-x-3">
@@ -925,6 +1041,47 @@ function FloodCommandCenter() {
               </button>
             </div>
 
+            {/* Conditional Evacuation Route Card inside Inspector */}
+            {selectedDistrict.risk_score >= 0.70 || selectedDistrict.recommend_evacuation ? (
+              <div className="bg-red-500/10 border border-red-500/40 rounded-xl p-3.5 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-red-400 uppercase tracking-wider flex items-center space-x-1.5">
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+                    <span>🚨 EVACUATION ACTIVE — MAP ROUTE VISIBLE</span>
+                  </span>
+                  <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded">
+                    URGENT P1
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-gray-200">
+                  <div>
+                    <span className="text-[10px] text-gray-400 block">Nearest Relief Shelter</span>
+                    <b className="text-white">{selectedDistrict.nearest_shelter}</b>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-gray-400 block">Shelter Occupancy</span>
+                    <b className="text-blue-400">{selectedDistrict.shelter_occupancy} / {selectedDistrict.shelter_capacity} filled</b>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-gray-400 block">Evacuation ETA</span>
+                    <b className="text-amber-400">{selectedDistrict.evacuation_eta_mins} mins via Highway</b>
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-gray-300 font-mono border-t border-red-500/20 pt-1.5">
+                  Route Corridor: <b>{selectedDistrict.evacuation_route}</b>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-[#161616] border border-[#2a2a2a] rounded-xl p-3 text-xs text-gray-400 flex items-center justify-between">
+                <span>🛡 Evacuation Status: <b>ADVISORY MONITORING (NO EVACUATION NEEDED)</b></span>
+                <span className="text-[10px] bg-[#222] px-2 py-0.5 rounded text-gray-400">Routes Hidden</span>
+              </div>
+            )}
+
             {/* 4 Modality Metric Cards */}
             <div className="grid grid-cols-4 gap-3 text-xs">
               <div className="bg-[#161616] border border-[#2a2a2a] p-3 rounded-xl space-y-1">
@@ -949,10 +1106,10 @@ function FloodCommandCenter() {
               </div>
 
               <div className="bg-[#161616] border border-[#2a2a2a] p-3 rounded-xl space-y-1">
-                <span className="text-[10px] text-gray-400 uppercase font-semibold block">👥 Population & Route</span>
+                <span className="text-[10px] text-gray-400 uppercase font-semibold block">👥 Vulnerable Population</span>
                 <div className="text-base font-bold text-purple-400">{(selectedDistrict.population_at_risk || 150000).toLocaleString()}</div>
-                <div className="text-[10px] text-gray-400">Shelter: <b>{selectedDistrict.nearest_shelter || "Relief Camp #1"}</b></div>
-                <div className="text-[10px] text-gray-400">Evacuation Route: <b>{selectedDistrict.evacuation_route || "NH-31"}</b></div>
+                <div className="text-[10px] text-gray-400">Priority Level: <b>{selectedDistrict.risk_level}</b></div>
+                <div className="text-[10px] text-gray-400">Elevation: <b>{selectedDistrict.mean_elevation_meters} m</b></div>
               </div>
             </div>
 
@@ -1290,6 +1447,9 @@ function FloodCommandCenter() {
                     <span className="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
                     <span>🟡 P3 MONITOR (&lt; 0.40)</span>
                   </div>
+                  <div className="pt-1.5 border-t border-[#2a2a2a] text-[10px] text-gray-400">
+                    <span>🛣 Dashed Red Line: Active Evacuation Route (P1 Only)</span>
+                  </div>
                 </div>
               </div>
 
@@ -1322,9 +1482,13 @@ function FloodCommandCenter() {
                     >
                       🔍 Full Intelligence Report
                     </button>
-                    {selectedDistrict.recommend_evacuation && (
+                    {(selectedDistrict.risk_score >= 0.70 || selectedDistrict.recommend_evacuation) ? (
                       <div className="bg-red-500/20 border border-red-500/50 text-red-400 text-[10px] font-bold px-2 py-0.5 rounded animate-pulse">
-                        🚨 MANDATORY EVACUATION ADVISED
+                        🚨 EVACUATION ACTIVE (ROUTE VISIBLE ON MAP)
+                      </div>
+                    ) : (
+                      <div className="bg-gray-800 text-gray-400 text-[10px] px-2 py-0.5 rounded">
+                        🛡 MONITORING (ROUTES HIDDEN)
                       </div>
                     )}
                   </div>
@@ -1435,13 +1599,10 @@ function FloodCommandCenter() {
                         </div>
                       </div>
 
-                      {/* Top SHAP Factor */}
                       <div className="text-[11px] text-gray-400 flex items-center justify-between border-t border-[#262626] pt-2">
-                        <span>Top Risk Driver:</span>
-                        <span className="text-blue-400 font-semibold">
-                          {d.shap_explainability && d.shap_explainability[0]
-                            ? d.shap_explainability[0].label
-                            : "3-Day Rainfall Accumulation"}
+                        <span>Evacuation Route Status:</span>
+                        <span className={isP1 ? "text-red-400 font-bold" : "text-gray-500"}>
+                          {isP1 ? "🚨 ACTIVE (Visible on Map)" : "🛡 Hidden (Normal Monitoring)"}
                         </span>
                       </div>
                     </div>
@@ -1492,7 +1653,7 @@ function FloodCommandCenter() {
                           Risk: <b>{(a.risk_score * 100).toFixed(0)}%</b> | Population: <b>{(distInfo.population_at_risk || 100000).toLocaleString()}</b>
                         </div>
                         <div className="text-[10px] text-gray-500 font-mono">
-                          Evacuation Route: {distInfo.evacuation_route || "NH-31 Highway Corridor"}
+                          Route: {distInfo.evacuation_route || "NH-31 Highway Corridor"}
                         </div>
                       </div>
 
