@@ -1,7 +1,7 @@
 // ============================================================================
 // FLOOD COMMAND CENTER - BIHAR DISASTER MANAGEMENT DECISION SUPPORT SYSTEM
 // Filen.io Premium Dark UI Aesthetic (#0a0a0a, #111111, #1a1a1a, #2a2a2a)
-// Real OpenStreetMap (OSRM) Road Network Navigation (Street-level Snapping)
+// Statewide Status Overview & Emergency Shelter Master Dashboard
 // ============================================================================
 
 const ReactObj = typeof window !== "undefined" && window.React ? window.React : require("react");
@@ -37,7 +37,7 @@ function formatDistrictName(id) {
 }
 
 // ----------------------------------------------------------------------------
-// INITIAL BIHAR TELEMETRY DATA (WITH OSRM REAL ROAD NETWORK SNAP)
+// INITIAL BIHAR TELEMETRY DATA
 // ----------------------------------------------------------------------------
 const INITIAL_SIMULATION_DISTRICTS = [
   {
@@ -71,6 +71,7 @@ const INITIAL_SIMULATION_DISTRICTS = [
     nearest_shelter: "Patna Relief Camp #4 (Digha High Ground)",
     shelter_capacity: 5000,
     shelter_occupancy: 3240,
+    shelter_status: "🚨 ACTIVE EVACUATION",
     evacuation_route: "NH-31 via Atal Path Highway Corridor (12.4 km)",
     evacuation_eta_mins: 22,
     risk_score: 0.87,
@@ -116,6 +117,7 @@ const INITIAL_SIMULATION_DISTRICTS = [
     nearest_shelter: "Bhagalpur Stadium High Ground Complex",
     shelter_capacity: 8000,
     shelter_occupancy: 5410,
+    shelter_status: "🚨 ACTIVE EVACUATION",
     evacuation_route: "SH-19 South toward Amarpur Ridge Highway (8.7 km)",
     evacuation_eta_mins: 16,
     risk_score: 0.94,
@@ -161,6 +163,7 @@ const INITIAL_SIMULATION_DISTRICTS = [
     nearest_shelter: "Darbhanga University Auditorium High Ground",
     shelter_capacity: 4500,
     shelter_occupancy: 2980,
+    shelter_status: "🚨 ACTIVE EVACUATION",
     evacuation_route: "NH-528 Bypass via Laheriasarai Highway (10.2 km)",
     evacuation_eta_mins: 19,
     risk_score: 0.84,
@@ -206,6 +209,7 @@ const INITIAL_SIMULATION_DISTRICTS = [
     nearest_shelter: "Muzaffarpur Zila High School",
     shelter_capacity: 3000,
     shelter_occupancy: 850,
+    shelter_status: "🟠 READY / PREPARED",
     evacuation_route: "NH-28 East towards Motipur (15.1 km)",
     evacuation_eta_mins: 25,
     risk_score: 0.58,
@@ -250,6 +254,7 @@ const INITIAL_SIMULATION_DISTRICTS = [
     nearest_shelter: "Sitamarhi Town Hall Shelter",
     shelter_capacity: 3500,
     shelter_occupancy: 1200,
+    shelter_status: "🟠 READY / PREPARED",
     evacuation_route: "NH-77 South via Riga Road (11.0 km)",
     evacuation_eta_mins: 18,
     risk_score: 0.65,
@@ -294,6 +299,7 @@ const INITIAL_SIMULATION_DISTRICTS = [
     nearest_shelter: "Supaul Block Community Center",
     shelter_capacity: 2500,
     shelter_occupancy: 450,
+    shelter_status: "🟢 STANDBY",
     evacuation_route: "SH-66 East towards Pipra (14.2 km)",
     evacuation_eta_mins: 22,
     risk_score: 0.45,
@@ -337,6 +343,7 @@ const INITIAL_SIMULATION_DISTRICTS = [
     nearest_shelter: "Madhubani District Sports Complex",
     shelter_capacity: 3000,
     shelter_occupancy: 310,
+    shelter_status: "🟢 STANDBY",
     evacuation_route: "NH-57 Bypass (6.5 km)",
     evacuation_eta_mins: 12,
     risk_score: 0.32,
@@ -379,6 +386,7 @@ const INITIAL_SIMULATION_DISTRICTS = [
     nearest_shelter: "Katihar Railway Indoor Stadium",
     shelter_capacity: 4000,
     shelter_occupancy: 200,
+    shelter_status: "🟢 STANDBY",
     evacuation_route: "NH-31 East (8.0 km)",
     evacuation_eta_mins: 14,
     risk_score: 0.25,
@@ -446,7 +454,7 @@ function FloodCommandCenter() {
   const [loadingOptimize, setLoadingOptimize] = useState(false);
   const [loadingFullPipeline, setLoadingFullPipeline] = useState(false);
 
-  // Active Tab: "map", "predict", "optimize"
+  // Active Tab: "map", "state", "predict", "optimize"
   const [activeTab, setActiveTab] = useState("map");
 
   // Toast Notification System
@@ -495,6 +503,10 @@ function FloodCommandCenter() {
   const p3Count = districts.filter((d) => d.risk_score < 0.40 || d.risk_level === "P3_MONITOR").length;
 
   const totalAtRiskPopulation = districts.reduce((acc, d) => acc + (d.population_at_risk || 100000), 0);
+  const totalInundatedArea = districts.reduce((acc, d) => acc + (d.inundated_area_sqkm || 0), 0).toFixed(1);
+  const totalShelterCapacity = districts.reduce((acc, d) => acc + (d.shelter_capacity || 0), 0);
+  const totalShelterOccupancy = districts.reduce((acc, d) => acc + (d.shelter_occupancy || 0), 0);
+
   const totalAllocatedNDRF = allocations.reduce((acc, a) => acc + (a.allocated_ndrf_teams || 0), 0);
   const totalAllocatedBoats = allocations.reduce((acc, a) => acc + (a.allocated_rescue_boats || 0), 0);
   const totalAllocatedMedical = allocations.reduce((acc, a) => acc + (a.allocated_medical_kits || 0), 0);
@@ -837,7 +849,6 @@ function FloodCommandCenter() {
 
       // 2. DYNAMIC OSRM OPENSTREETMAP ROUTING (STREET-LEVEL SNAPPING ON P1 ONLY)
       if (isEvacuationActive && district.shelter_lat && district.shelter_lon) {
-        // Fetch real-time OSRM driving directions along actual streets & flyovers!
         const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${district.lon},${district.lat};${district.shelter_lon},${district.shelter_lat}?overview=full&geometries=geojson`;
 
         fetch(osrmUrl)
@@ -848,7 +859,6 @@ function FloodCommandCenter() {
               const distanceKm = (osrmData.routes[0].distance / 1000).toFixed(1);
               const durationMins = Math.round(osrmData.routes[0].duration / 60);
 
-              // Red-and-Blue Dashed Polyline tracing 200+ OpenStreetMap street waypoints!
               const routePath = L.polyline(osrmCoords, {
                 color: "#ef4444",
                 weight: isSelected ? 4.5 : 3.5,
@@ -1292,6 +1302,19 @@ function FloodCommandCenter() {
                 <span>📡</span>
                 <span>Live Data Map</span>
               </button>
+
+              <button
+                onClick={() => setActiveTab("state")}
+                className={`w-full flex items-center space-x-2 px-2.5 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
+                  activeTab === "state"
+                    ? "bg-blue-600/20 text-blue-400 border border-blue-500/30 font-semibold"
+                    : "text-gray-400 hover:bg-[#1a1a1a] hover:text-gray-200"
+                }`}
+              >
+                <span>🏛</span>
+                <span>State & Shelter Status</span>
+              </button>
+
               <button
                 onClick={() => setActiveTab("predict")}
                 className={`w-full flex items-center space-x-2 px-2.5 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
@@ -1303,6 +1326,7 @@ function FloodCommandCenter() {
                 <span>🤖</span>
                 <span>ML Risk Matrix</span>
               </button>
+
               <button
                 onClick={() => setActiveTab("optimize")}
                 className={`w-full flex items-center space-x-2 px-2.5 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
@@ -1534,6 +1558,173 @@ function FloodCommandCenter() {
                     <span className="text-[9px] text-gray-400 uppercase">🌊 Discharge</span>
                     <span className="font-bold text-amber-400">{selectedDistrict.discharge_rate_cumecs} cumecs</span>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* NEW TAB: STATEWIDE STATUS & EMERGENCY SHELTER MASTER DASHBOARD */}
+          {activeTab === "state" && (
+            <div className="flex-1 p-5 overflow-y-auto space-y-6">
+              {/* Statewide Summary Cards */}
+              <div className="border-b border-[#2a2a2a] pb-3 flex justify-between items-center">
+                <div>
+                  <h2 className="text-base font-extrabold uppercase tracking-wider text-white">
+                    🏛 Bihar Statewide Flood & Relief Shelter Master Status
+                  </h2>
+                  <p className="text-xs text-gray-400">
+                    Real-time operational monitoring across 38 districts, 8 major river basins, and relief camps
+                  </p>
+                </div>
+                <div className="bg-red-500/10 border border-red-500/40 px-3 py-1.5 rounded-lg text-xs text-red-400 font-bold flex items-center space-x-2">
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+                  <span>STATEWIDE FLOOD ALERT: HIGH MONSOON STAGE</span>
+                </div>
+              </div>
+
+              {/* 4 Statewide KPI Panels */}
+              <div className="grid grid-cols-4 gap-4">
+                <div className="bg-[#141414] border border-[#2a2a2a] p-4 rounded-xl space-y-1">
+                  <span className="text-xs text-gray-400 uppercase font-semibold">🌊 Flooded Basin Area</span>
+                  <div className="text-2xl font-extrabold text-blue-400 font-mono">{totalInundatedArea} km²</div>
+                  <span className="text-[10px] text-gray-500 block">Across Ganga, Kosi & Bagmati Floodplains</span>
+                </div>
+
+                <div className="bg-[#141414] border border-[#2a2a2a] p-4 rounded-xl space-y-1">
+                  <span className="text-xs text-gray-400 uppercase font-semibold">👥 At-Risk Bihar Citizens</span>
+                  <div className="text-2xl font-extrabold text-purple-400 font-mono">{totalAtRiskPopulation.toLocaleString()}</div>
+                  <span className="text-[10px] text-gray-500 block">High vulnerability priority zones</span>
+                </div>
+
+                <div className="bg-[#141414] border border-[#2a2a2a] p-4 rounded-xl space-y-1">
+                  <span className="text-xs text-gray-400 uppercase font-semibold">⛺ Total Shelter Occupancy</span>
+                  <div className="text-2xl font-extrabold text-amber-400 font-mono">
+                    {totalShelterOccupancy.toLocaleString()} / {totalShelterCapacity.toLocaleString()}
+                  </div>
+                  <div className="w-full bg-[#262626] h-1.5 rounded-full overflow-hidden mt-1">
+                    <div
+                      className="bg-amber-400 h-full"
+                      style={{ width: `${((totalShelterOccupancy / totalShelterCapacity) * 100).toFixed(0)}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="bg-[#141414] border border-[#2a2a2a] p-4 rounded-xl space-y-1">
+                  <span className="text-xs text-gray-400 uppercase font-semibold">🚨 Emergency Readiness</span>
+                  <div className="text-2xl font-extrabold text-emerald-400 font-mono">{p1Count} URGENT / {districts.length}</div>
+                  <span className="text-[10px] text-gray-500 block">3 P1 Urgent, 3 P2 High, 2 P3 Monitor</span>
+                </div>
+              </div>
+
+              {/* Master Shelter Directory Table */}
+              <div className="bg-[#141414] border border-[#2a2a2a] rounded-xl p-4 space-y-3">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-white">
+                    ⛺ Bihar Statewide High-Ground Emergency Relief Shelters
+                  </h3>
+                  <span className="text-xs text-gray-400">Occupancy & High-Ground Readiness</span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-[#2a2a2a] text-gray-400 bg-[#1a1a1a]">
+                        <th className="p-3">District</th>
+                        <th className="p-3">Designated Safe Relief Shelter</th>
+                        <th className="p-3">Status</th>
+                        <th className="p-3 text-center">Occupancy / Capacity</th>
+                        <th className="p-3 text-center">Fill Ratio</th>
+                        <th className="p-3">Evacuation Corridor</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#262626] text-gray-200">
+                      {districts.map((d) => {
+                        const name = formatDistrictName(d.district_id);
+                        const fillPercent = Math.round((d.shelter_occupancy / d.shelter_capacity) * 100);
+                        const isP1 = d.risk_score >= 0.7;
+
+                        return (
+                          <tr
+                            key={d.district_id}
+                            onClick={() => {
+                              setSelectedDistrictId(name);
+                              setActiveTab("map");
+                            }}
+                            className="hover:bg-[#1e1e1e] cursor-pointer transition"
+                          >
+                            <td className="p-3 font-bold text-white">{name}</td>
+                            <td className="p-3 text-blue-300 font-medium">{d.nearest_shelter}</td>
+                            <td className="p-3">
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  isP1
+                                    ? "bg-red-500/20 border border-red-500/40 text-red-400"
+                                    : d.risk_score >= 0.4
+                                    ? "bg-orange-500/20 border border-orange-500/40 text-orange-400"
+                                    : "bg-emerald-500/20 border border-emerald-500/40 text-emerald-400"
+                                }`}
+                              >
+                                {d.shelter_status || (isP1 ? "🚨 ACTIVE" : "🟢 STANDBY")}
+                              </span>
+                            </td>
+                            <td className="p-3 text-center font-mono font-bold">
+                              {d.shelter_occupancy} / {d.shelter_capacity}
+                            </td>
+                            <td className="p-3 text-center">
+                              <div className="w-24 mx-auto space-y-1">
+                                <span className="text-[10px] text-gray-400">{fillPercent}%</span>
+                                <div className="w-full bg-[#262626] h-1.5 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full ${fillPercent > 60 ? "bg-red-500" : fillPercent > 30 ? "bg-amber-400" : "bg-emerald-400"}`}
+                                    style={{ width: `${fillPercent}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-3 text-gray-400 font-mono text-[11px]">{d.evacuation_route}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Major Basin River Level Gauges */}
+              <div className="bg-[#141414] border border-[#2a2a2a] rounded-xl p-4 space-y-3">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-white">
+                  🌊 Bihar River Basin Hydrological Gauge Status
+                </h3>
+
+                <div className="grid grid-cols-2 gap-4 text-xs">
+                  {districts.slice(0, 4).map((d) => {
+                    const name = formatDistrictName(d.district_id);
+                    const diff = (d.water_level_meters - d.danger_level_meters).toFixed(1);
+                    const isOver = d.water_level_meters >= d.danger_level_meters;
+
+                    return (
+                      <div key={d.district_id} className="bg-[#1a1a1a] border border-[#2a2a2a] p-3 rounded-lg space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-white">{d.river_name || "Ganga"} ({name})</span>
+                          <span className={isOver ? "text-red-400 font-bold" : "text-emerald-400 font-bold"}>
+                            {isOver ? `+${diff}m ABOVE DANGER` : `${diff}m SAFE`}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between text-gray-400 text-[11px]">
+                          <span>Current Water Level: <b>{d.water_level_meters}m</b></span>
+                          <span>Danger Mark: <b>{d.danger_level_meters}m</b></span>
+                        </div>
+
+                        <div className="w-full bg-[#262626] h-2 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${isOver ? "bg-red-500" : "bg-emerald-400"}`}
+                            style={{ width: `${Math.min(100, (d.water_level_meters / 10.0) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
