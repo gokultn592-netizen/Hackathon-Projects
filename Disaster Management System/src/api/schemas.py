@@ -90,3 +90,22 @@ class ResourceAllocationResponse(BaseModel):
     total_districts_serviced: int
     unallocated_resources: Dict[str, int]
     district_allocations: List[DistrictAllocationDetail]
+
+
+class DataSourceAuditDetail(BaseModel):
+    name: str
+    type: str  # REAL_DATA or MOCK_DATA
+    status: str
+    file_path: str
+    records_count: Optional[int] = 0
+    file_size_bytes: Optional[int] = 0
+    details: str
+    source_url: Optional[str] = None
+
+
+class DataAuditResponse(BaseModel):
+    status: str = "SUCCESS"
+    is_all_real_data: bool
+    verified_real_sources_count: int
+    total_sources_count: int
+    sources: Dict[str, DataSourceAuditDetail]
