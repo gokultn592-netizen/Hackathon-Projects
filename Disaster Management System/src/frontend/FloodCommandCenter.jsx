@@ -1,13 +1,40 @@
 // ============================================================================
 // FLOOD COMMAND CENTER - BIHAR DISASTER MANAGEMENT DASHBOARD
 // Filen.io Inspired Dark UI Aesthetic (#0a0a0a, #111111, #1a1a1a, #2a2a2a)
-// Full Interactive Tabs, Leaflet Map, ML Risk Scoring, Hungarian Allocations & Toasts
+// Full Interactive Tabs, Leaflet Map with Compact Markers & Permanent District Labels
 // ============================================================================
 
 const ReactObj = typeof window !== "undefined" && window.React ? window.React : require("react");
 const { useState, useEffect, useCallback, useRef } = ReactObj;
 
 const API_BASE_URL = "http://localhost:8000/api/v1";
+
+// ----------------------------------------------------------------------------
+// DISTRICT NAME MAPPER (Converts generic District_01 -> Actual Bihar Names)
+// ----------------------------------------------------------------------------
+const DISTRICT_NAME_MAP = {
+  District_01: "Patna",
+  District_02: "Bhagalpur",
+  District_03: "Darbhanga",
+  District_04: "Muzaffarpur",
+  District_05: "Sitamarhi",
+  District_06: "Supaul",
+  District_07: "Madhubani",
+  District_08: "Katihar",
+  District_1: "Patna",
+  District_2: "Bhagalpur",
+  District_3: "Darbhanga",
+  District_4: "Muzaffarpur",
+  District_5: "Sitamarhi",
+  District_6: "Supaul",
+  District_7: "Madhubani",
+  District_8: "Katihar",
+};
+
+function formatDistrictName(id) {
+  if (!id) return "Patna";
+  return DISTRICT_NAME_MAP[id] || id;
+}
 
 // ----------------------------------------------------------------------------
 // HARDCODED INITIAL SIMULATION DATA (8 BIHAR DISTRICTS)
@@ -302,7 +329,7 @@ function FloodCommandCenter() {
   // HELPERS & COMPUTED METRICS
   // --------------------------------------------------------------------------
   const selectedDistrict =
-    districts.find((d) => d.district_id === selectedDistrictId) || districts[0];
+    districts.find((d) => d.district_id === selectedDistrictId || formatDistrictName(d.district_id) === formatDistrictName(selectedDistrictId)) || districts[0];
 
   const p1Count = districts.filter(
     (d) => d.risk_score >= 0.70 || d.risk_level === "P1_URGENT"
@@ -375,18 +402,23 @@ function FloodCommandCenter() {
 
       if (data.fused_telemetry && data.fused_telemetry.length > 0) {
         setDistricts((prev) =>
-          prev.map((d, i) => ({
-            ...d,
-            ...(data.fused_telemetry[i] || {}),
-          }))
+          prev.map((d, i) => {
+            const item = data.fused_telemetry[i] || {};
+            const cleanName = formatDistrictName(item.district_id || d.district_id);
+            return {
+              ...d,
+              ...item,
+              district_id: cleanName,
+              name: cleanName,
+            };
+          })
         );
       }
       setIsOffline(false);
-      addToast("📡 Telemetry data ingested & fused across 8 districts", "success");
+      addToast("📡 Telemetry data ingested & fused across Bihar districts", "success");
     } catch (err) {
       console.warn("Using simulation fallback for collect data:", err);
       setIsOffline(true);
-      // Simulate telemetry variation
       setDistricts((prev) =>
         prev.map((d) => {
           const deltaRain = (Math.random() - 0.4) * 20;
@@ -411,9 +443,9 @@ function FloodCommandCenter() {
   const handleRunPredict = async () => {
     setLoadingPredict(true);
     try {
-      // Map telemetry fields cleanly to avoid Pydantic type errors
       const sanitizedTelemetry = districts.map((d) => ({
         ...d,
+        district_id: formatDistrictName(d.district_id),
         is_above_danger: d.is_above_danger ? 1 : 0,
       }));
 
@@ -429,12 +461,14 @@ function FloodCommandCenter() {
       if (data.predictions && data.predictions.length > 0) {
         const predMap = {};
         data.predictions.forEach((p) => {
-          predMap[p.district_id] = p;
+          const nameKey = formatDistrictName(p.district_id);
+          predMap[nameKey] = p;
         });
 
         setDistricts((prev) =>
           prev.map((d) => {
-            const pred = predMap[d.district_id];
+            const cleanName = formatDistrictName(d.district_id);
+            const pred = predMap[cleanName] || predMap[d.district_id];
             if (!pred) return d;
             return {
               ...d,
@@ -478,7 +512,7 @@ function FloodCommandCenter() {
     setLoadingOptimize(true);
     try {
       const districtScores = districts.map((d) => ({
-        district_id: d.district_id,
+        district_id: formatDistrictName(d.district_id),
         risk_score: d.risk_score,
         population_estimate: 150000,
       }));
@@ -496,7 +530,12 @@ function FloodCommandCenter() {
       const data = await res.json();
 
       if (data.district_allocations) {
-        setAllocations(data.district_allocations);
+        setAllocations(
+          data.district_allocations.map((a) => ({
+            ...a,
+            district_id: formatDistrictName(a.district_id),
+          }))
+        );
       }
       if (data.unallocated_resources) {
         setUnallocated(data.unallocated_resources);
@@ -526,7 +565,7 @@ function FloodCommandCenter() {
         remTents -= tents;
 
         return {
-          district_id: d.district_id,
+          district_id: formatDistrictName(d.district_id),
           priority_level: p,
           risk_score: d.risk_score,
           allocated_ndrf_teams: ndrf,
@@ -575,8 +614,8 @@ function FloodCommandCenter() {
 
     if (!leafletMapRef.current) {
       const map = L.map(mapContainerRef.current, {
-        center: [25.5, 85.5],
-        zoom: 7,
+        center: [25.6, 85.8],
+        zoom: 7.5,
         zoomControl: true,
       });
 
@@ -594,9 +633,10 @@ function FloodCommandCenter() {
     Object.values(markersRef.current).forEach((m) => map.removeLayer(m));
     markersRef.current = {};
 
-    // Render CircleMarkers for each district
+    // Render CircleMarkers for each district (Compact 6-12px visible radius)
     districts.forEach((district) => {
-      const isSelected = district.district_id === selectedDistrictId;
+      const distName = formatDistrictName(district.district_id || district.name);
+      const isSelected = distName === formatDistrictName(selectedDistrictId);
       const color =
         district.risk_score >= 0.70
           ? "#ef4444"
@@ -604,21 +644,30 @@ function FloodCommandCenter() {
           ? "#f97316"
           : "#eab308";
 
-      const radius = isSelected ? 16 + district.risk_score * 12 : 12 + district.risk_score * 10;
+      // Compact, visible bubble size: 6px base + risk_score * 6 (max 12px)
+      const radius = isSelected ? 10 : 6 + district.risk_score * 6;
 
       const marker = L.circleMarker([district.lat, district.lon], {
         radius: radius,
         fillColor: color,
         color: isSelected ? "#3b82f6" : "#ffffff",
-        weight: isSelected ? 3 : 1.5,
-        opacity: 0.9,
-        fillOpacity: 0.75,
+        weight: isSelected ? 2.5 : 1.5,
+        opacity: 0.95,
+        fillOpacity: 0.85,
       }).addTo(map);
+
+      // Permanent visible text label above each marker
+      marker.bindTooltip(distName, {
+        permanent: true,
+        direction: "top",
+        offset: [0, -8],
+        className: "dark-map-tooltip",
+      });
 
       const popupContent = `
         <div style="font-family: Inter, sans-serif; background-color: #1a1a1a; color: #ffffff; padding: 10px; border-radius: 8px; border: 1px solid #2a2a2a; width: 200px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <strong style="font-size: 14px;">${district.name}</strong>
+            <strong style="font-size: 14px;">${distName}</strong>
             <span style="background-color: ${color}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold;">
               ${(district.risk_score * 100).toFixed(0)}% RISK
             </span>
@@ -653,10 +702,10 @@ function FloodCommandCenter() {
       });
 
       marker.on("click", () => {
-        setSelectedDistrictId(district.district_id);
+        setSelectedDistrictId(distName);
       });
 
-      markersRef.current[district.district_id] = marker;
+      markersRef.current[distName] = marker;
     });
   }, [districts, activeTab, selectedDistrictId]);
 
@@ -684,7 +733,7 @@ function FloodCommandCenter() {
         ))}
       </div>
 
-      {/* Dynamic Leaflet Popup Styling */}
+      {/* Dynamic Leaflet Popup & Permanent Tooltip Styling */}
       <style>{`
         .leaflet-popup-content-wrapper, .leaflet-popup-tip {
           background: #1a1a1a !important;
@@ -694,6 +743,19 @@ function FloodCommandCenter() {
         }
         .leaflet-container {
           background-color: #0d0d0d !important;
+        }
+        .dark-map-tooltip {
+          background: rgba(17, 17, 17, 0.88) !important;
+          border: 1px solid #333333 !important;
+          color: #ffffff !important;
+          font-size: 10px !important;
+          font-weight: 600 !important;
+          padding: 2px 6px !important;
+          border-radius: 4px !important;
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6) !important;
+        }
+        .dark-map-tooltip::before {
+          border-top-color: rgba(17, 17, 17, 0.88) !important;
         }
       `}</style>
 
@@ -925,15 +987,18 @@ function FloodCommandCenter() {
                       Telemetry Strip:
                     </span>
                     <select
-                      value={selectedDistrictId}
+                      value={formatDistrictName(selectedDistrictId)}
                       onChange={(e) => setSelectedDistrictId(e.target.value)}
                       className="bg-[#1a1a1a] border border-[#2a2a2a] text-blue-400 font-semibold text-xs rounded px-2 py-0.5 focus:outline-none cursor-pointer"
                     >
-                      {districts.map((d) => (
-                        <option key={d.district_id} value={d.district_id}>
-                          {d.name} ({ (d.risk_score * 100).toFixed(0) }%)
-                        </option>
-                      ))}
+                      {districts.map((d) => {
+                        const name = formatDistrictName(d.district_id || d.name);
+                        return (
+                          <option key={d.district_id} value={name}>
+                            {name} ({ (d.risk_score * 100).toFixed(0) }%)
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
 
@@ -1003,6 +1068,7 @@ function FloodCommandCenter() {
 
               <div className="grid grid-cols-2 gap-4">
                 {districts.map((d) => {
+                  const name = formatDistrictName(d.district_id || d.name);
                   const isP1 = d.risk_score >= 0.7;
                   const isP2 = d.risk_score >= 0.4 && d.risk_score < 0.7;
                   const colorClass = isP1 ? "border-red-500/40 bg-red-500/5" : isP2 ? "border-orange-500/40 bg-orange-500/5" : "border-yellow-500/40 bg-yellow-500/5";
@@ -1011,13 +1077,13 @@ function FloodCommandCenter() {
                     <div
                       key={d.district_id}
                       onClick={() => {
-                        setSelectedDistrictId(d.district_id);
+                        setSelectedDistrictId(name);
                         setActiveTab("map");
                       }}
                       className={`p-3 rounded-lg border ${colorClass} hover:border-blue-500 transition cursor-pointer space-y-2`}
                     >
                       <div className="flex justify-between items-center">
-                        <span className="font-bold text-white text-sm">{d.name}</span>
+                        <span className="font-bold text-white text-sm">{name}</span>
                         <span
                           className={`text-xs px-2 py-0.5 rounded font-bold ${
                             isP1
@@ -1081,43 +1147,46 @@ function FloodCommandCenter() {
               </div>
 
               <div className="space-y-3">
-                {allocations.map((a) => (
-                  <div
-                    key={a.district_id}
-                    className="bg-[#161616] border border-[#2a2a2a] rounded-lg p-3 flex items-center justify-between hover:border-blue-500/50 transition"
-                  >
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <span className="font-bold text-white text-sm">{a.district_id}</span>
-                        <span className="text-[10px] bg-[#222222] border border-[#333333] px-1.5 py-0.5 rounded text-gray-300">
-                          Priority: {a.priority_level}
+                {allocations.map((a) => {
+                  const name = formatDistrictName(a.district_id);
+                  return (
+                    <div
+                      key={a.district_id}
+                      className="bg-[#161616] border border-[#2a2a2a] rounded-lg p-3 flex items-center justify-between hover:border-blue-500/50 transition"
+                    >
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className="font-bold text-white text-sm">{name}</span>
+                          <span className="text-[10px] bg-[#222222] border border-[#333333] px-1.5 py-0.5 rounded text-gray-300">
+                            Priority: {a.priority_level}
+                          </span>
+                        </div>
+                        <span className="text-xs text-gray-400">
+                          Risk Score: {(a.risk_score * 100).toFixed(0)}%
                         </span>
                       </div>
-                      <span className="text-xs text-gray-400">
-                        Risk Score: {(a.risk_score * 100).toFixed(0)}%
-                      </span>
-                    </div>
 
-                    <div className="flex items-center space-x-4 text-xs">
-                      <div className="text-center">
-                        <span className="text-blue-400 font-bold block">{a.allocated_ndrf_teams}</span>
-                        <span className="text-[10px] text-gray-500">NDRF Teams</span>
-                      </div>
-                      <div className="text-center">
-                        <span className="text-cyan-400 font-bold block">{a.allocated_rescue_boats}</span>
-                        <span className="text-[10px] text-gray-500">Boats</span>
-                      </div>
-                      <div className="text-center">
-                        <span className="text-emerald-400 font-bold block">{a.allocated_medical_kits}</span>
-                        <span className="text-[10px] text-gray-500">Medical</span>
-                      </div>
-                      <div className="text-center">
-                        <span className="text-amber-400 font-bold block">{a.allocated_shelter_tents}</span>
-                        <span className="text-[10px] text-gray-500">Tents</span>
+                      <div className="flex items-center space-x-4 text-xs">
+                        <div className="text-center">
+                          <span className="text-blue-400 font-bold block">{a.allocated_ndrf_teams}</span>
+                          <span className="text-[10px] text-gray-500">NDRF Teams</span>
+                        </div>
+                        <div className="text-center">
+                          <span className="text-cyan-400 font-bold block">{a.allocated_rescue_boats}</span>
+                          <span className="text-[10px] text-gray-500">Boats</span>
+                        </div>
+                        <div className="text-center">
+                          <span className="text-emerald-400 font-bold block">{a.allocated_medical_kits}</span>
+                          <span className="text-[10px] text-gray-500">Medical</span>
+                        </div>
+                        <div className="text-center">
+                          <span className="text-amber-400 font-bold block">{a.allocated_shelter_tents}</span>
+                          <span className="text-[10px] text-gray-500">Tents</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1223,22 +1292,23 @@ function FloodCommandCenter() {
                 </thead>
                 <tbody className="divide-y divide-[#2a2a2a] text-gray-200">
                   {allocations.map((a) => {
+                    const distName = formatDistrictName(a.district_id);
                     const isP1 = a.priority_level === "P1_URGENT";
                     const isP2 = a.priority_level === "P2_HIGH";
-                    const isSelected = a.district_id === selectedDistrictId;
+                    const isSelected = distName === formatDistrictName(selectedDistrictId);
 
                     return (
                       <tr
                         key={a.district_id}
                         onClick={() => {
-                          setSelectedDistrictId(a.district_id);
+                          setSelectedDistrictId(distName);
                           setActiveTab("map");
                         }}
                         className={`cursor-pointer transition ${
                           isSelected ? "bg-blue-600/20" : "hover:bg-[#202020]"
                         }`}
                       >
-                        <td className="p-2 font-medium">{a.district_id}</td>
+                        <td className="p-2 font-medium">{distName}</td>
                         <td className="p-2">
                           <span
                             className={`px-1.5 py-0.5 rounded font-bold text-[9px] ${
