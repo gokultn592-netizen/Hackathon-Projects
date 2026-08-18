@@ -2,7 +2,6 @@
 // FLOOD COMMAND CENTER - BIHAR DISASTER MANAGEMENT DASHBOARD
 // Filen.io Inspired Dark UI Aesthetic (#0a0a0a, #111111, #1a1a1a, #2a2a2a)
 // Full Interactive Tabs, Leaflet Map, ML Risk Scoring, Hungarian Allocations
-// Includes Dedicated Data Source Audit & Verification Portal (/check)
 // ============================================================================
 
 const ReactObj = typeof window !== "undefined" && window.React ? window.React : require("react");
@@ -308,115 +307,8 @@ function FloodCommandCenter() {
   const [loadingOptimize, setLoadingOptimize] = useState(false);
   const [loadingFullPipeline, setLoadingFullPipeline] = useState(false);
 
-  // Active Tab: "map", "predict", "optimize", "check"
+  // Active Tab: "map", "predict", "optimize"
   const [activeTab, setActiveTab] = useState("map");
-
-  // Check URL pathname or hash for /check portal
-  useEffect(() => {
-    const checkRoute = () => {
-      const path = typeof window !== "undefined" ? window.location.pathname : "";
-      const hash = typeof window !== "undefined" ? window.location.hash : "";
-      if (path.includes("/check") || hash.includes("/check") || hash.includes("check")) {
-        setActiveTab("check");
-      }
-    };
-    checkRoute();
-    if (typeof window !== "undefined") {
-      window.addEventListener("hashchange", checkRoute);
-      window.addEventListener("popstate", checkRoute);
-    }
-    return () => {
-      if (typeof window !== "undefined") {
-        window.removeEventListener("hashchange", checkRoute);
-        window.removeEventListener("popstate", checkRoute);
-      }
-    };
-  }, []);
-
-  // Data Audit Portal State
-  const [auditData, setAuditData] = useState(null);
-  const [loadingAudit, setLoadingAudit] = useState(false);
-
-  const fetchAuditData = useCallback(async () => {
-    setLoadingAudit(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/data-audit`);
-      if (res.ok) {
-        const data = await res.json();
-        setAuditData(data);
-      } else {
-        throw new Error("Audit endpoint error");
-      }
-    } catch (err) {
-      console.warn("Audit endpoint offline, using local verification snapshot:", err);
-      setAuditData({
-        status: "SUCCESS",
-        is_all_real_data: true,
-        verified_real_sources_count: 5,
-        total_sources_count: 5,
-        sources: {
-          imd_rainfall: {
-            name: "IMD 2019 Daily Gridded Rainfall",
-            type: "REAL_DATA",
-            status: "VERIFIED_REAL",
-            file_path: "data/processed/imd_rainfall_2019.csv",
-            records_count: 50232,
-            file_size_bytes: 1727719,
-            details: "Real 2019 monsoon 0.25deg gridded precipitation downloaded via imdlib from India Meteorological Department.",
-            source_url: "https://www.imdpune.gov.in/",
-          },
-          wris_river_levels: {
-            name: "India-WRIS River Gauge Telemetry",
-            type: "REAL_DATA",
-            status: "VERIFIED_REAL",
-            file_path: "data/processed/wris_river_cleaned.csv",
-            records_count: 1098,
-            file_size_bytes: 58471,
-            details: "Real hydro gauge water levels & 24h rise rates for Kosi & Gandak river basins.",
-            source_url: "https://indiawris.gov.in/",
-          },
-          srtm_dem_elevation: {
-            name: "OpenTopography SRTM GL1 30m DEM Elevation",
-            type: "REAL_DATA",
-            status: "VERIFIED_REAL",
-            file_path: "data/raw/srtm_bihar.tif",
-            records_count: 116661601,
-            file_size_bytes: 233388393,
-            details: "Real 30m resolution elevation raster GeoTIFF downloaded from OpenTopography S3 bucket.",
-            source_url: "https://opentopography.s3.sdsc.edu/raster/SRTM_GL1/",
-          },
-          isro_bhuvan_sat: {
-            name: "ISRO Bhuvan Satellite NDWI Ground Truth",
-            type: "REAL_DATA",
-            status: "VERIFIED_REAL",
-            file_path: "data/raw/bhuvan_telemetry.csv",
-            records_count: 50232,
-            file_size_bytes: 1844429,
-            details: "Real satellite NDWI water index & soil saturation inundation ground truth.",
-            source_url: "https://bhuvan.nrsc.gov.in/",
-          },
-          population_density: {
-            name: "WorldPop 2020 Bihar Population Density Grid",
-            type: "REAL_DATA",
-            status: "VERIFIED_REAL",
-            file_path: "data/raw/bihar_population_2011.csv",
-            records_count: 50232,
-            file_size_bytes: 139569,
-            details: "Real population density grid for Bihar districts (WorldPop / Census).",
-            source_url: "https://data.worldpop.org/",
-          },
-        },
-      });
-    } finally {
-      setLoadingAudit(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === "check") {
-      fetchAuditData();
-    }
-  }, [activeTab, fetchAuditData]);
 
   // Toast Notification System
   const [toasts, setToasts] = useState([]);
@@ -893,17 +785,10 @@ function FloodCommandCenter() {
             </span>
           </div>
 
-          <button
-            onClick={() => setActiveTab("check")}
-            className={`px-3 py-1 rounded-full text-xs font-semibold border flex items-center space-x-1.5 transition ${
-              activeTab === "check"
-                ? "bg-purple-600/30 border-purple-500 text-purple-300"
-                : "bg-[#1a1a1a] border-[#2a2a2a] text-gray-300 hover:border-purple-500/50"
-            }`}
-          >
-            <span>🔍</span>
-            <span>Audit Data Sources (/check)</span>
-          </button>
+          <div className="bg-[#1a1a1a] border border-[#2a2a2a] px-3 py-1 rounded-full text-xs text-gray-300 flex items-center space-x-1">
+            <span>Model Status:</span>
+            <span className="text-emerald-400 font-semibold">✅ Ready (XGBoost v3)</span>
+          </div>
         </div>
 
         {/* Right Simulation Toggle & Refresh */}
@@ -969,17 +854,6 @@ function FloodCommandCenter() {
               >
                 <span>🚁</span>
                 <span>Resource Allocator</span>
-              </button>
-              <button
-                onClick={() => setActiveTab("check")}
-                className={`w-full flex items-center space-x-2 px-2.5 py-2 rounded-lg text-xs font-medium transition cursor-pointer ${
-                  activeTab === "check"
-                    ? "bg-purple-600/20 text-purple-400 border border-purple-500/30 font-semibold"
-                    : "text-gray-400 hover:bg-[#1a1a1a] hover:text-gray-200"
-                }`}
-              >
-                <span>🔍</span>
-                <span>Data Audit Portal (/check)</span>
               </button>
             </div>
 
@@ -1292,329 +1166,162 @@ function FloodCommandCenter() {
               </div>
             </div>
           )}
-
-          {/* TAB 4: DEDICATED DATA SOURCE AUDIT PORTAL (/check) */}
-          {activeTab === "check" && (
-            <div className="flex-1 p-6 overflow-y-auto space-y-6 bg-[#0d0d0d]">
-              {/* Header Banner */}
-              <div className="flex items-center justify-between border-b border-[#2a2a2a] pb-4">
-                <div>
-                  <div className="flex items-center space-x-3">
-                    <h2 className="text-lg font-bold text-white uppercase tracking-wider">
-                      🔍 Data Source Audit Portal (`/check`)
-                    </h2>
-                    <span className="bg-purple-600/20 border border-purple-500/40 text-purple-300 text-xs px-2.5 py-0.5 rounded font-mono font-semibold">
-                      http://localhost:3000/check
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Independent verification suite inspecting raw datasets, file system paths, S3 buckets, and API telemetry modalities
-                  </p>
-                </div>
-
-                <button
-                  onClick={fetchAuditData}
-                  disabled={loadingAudit}
-                  className="bg-purple-600 hover:bg-purple-500 text-white text-xs px-4 py-2 rounded-lg font-bold transition flex items-center space-x-2 cursor-pointer shadow-lg shadow-purple-900/30"
-                >
-                  {loadingAudit ? <span className="animate-spin">⏳</span> : <span>🔄</span>}
-                  <span>Re-Audit Data Sources</span>
-                </button>
-              </div>
-
-              {/* Overall Verification Status Card */}
-              {auditData && (
-                <div
-                  className={`p-4 rounded-xl border flex items-center justify-between backdrop-blur-md ${
-                    auditData.is_all_real_data
-                      ? "bg-emerald-950/40 border-emerald-500/50 text-emerald-200"
-                      : "bg-amber-950/40 border-amber-500/50 text-amber-200"
-                  }`}
-                >
-                  <div className="flex items-center space-x-4">
-                    <div
-                      className={`w-12 h-12 rounded-lg flex items-center justify-center text-2xl font-bold ${
-                        auditData.is_all_real_data
-                          ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
-                          : "bg-amber-500/20 text-amber-400 border border-amber-500/40"
-                      }`}
-                    >
-                      {auditData.is_all_real_data ? "✅" : "⚠️"}
-                    </div>
-                    <div>
-                      <h3 className="text-base font-extrabold uppercase tracking-wide">
-                        {auditData.is_all_real_data
-                          ? "100% REAL DATA SOURCES VERIFIED"
-                          : "MOCK / SIMULATED DATA DETECTED"}
-                      </h3>
-                      <p className="text-xs opacity-90">
-                        {auditData.verified_real_sources_count} out of {auditData.total_sources_count} modalities are actively using verified physical datasets from IMD, WRIS, OpenTopography, Bhuvan & WorldPop.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <div className="text-2xl font-extrabold font-mono">
-                      {auditData.verified_real_sources_count} / {auditData.total_sources_count}
-                    </div>
-                    <div className="text-[10px] uppercase tracking-wider opacity-75 font-semibold">
-                      REAL MODALITIES
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Detailed 5 Modality Cards Grid */}
-              <div className="space-y-4">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                  Data Modality Inspection & File Verification
-                </h3>
-
-                {auditData &&
-                  auditData.sources &&
-                  Object.entries(auditData.sources).map(([key, src]) => {
-                    const isReal = src.type === "REAL_DATA";
-
-                    return (
-                      <div
-                        key={key}
-                        className="bg-[#141414] border border-[#2a2a2a] rounded-xl p-4 space-y-3 hover:border-gray-700 transition"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <span className="text-lg">
-                              {key.includes("imd")
-                                ? "🌧"
-                                : key.includes("wris")
-                                ? "🌊"
-                                : key.includes("srtm")
-                                ? "⛰"
-                                : key.includes("bhuvan")
-                                ? "🛰"
-                                : "👥"}
-                            </span>
-                            <div>
-                              <h4 className="font-bold text-white text-sm">{src.name}</h4>
-                              <span className="text-[11px] text-gray-400 font-mono">
-                                Path: <code className="text-blue-400 bg-[#1e1e1e] px-1.5 py-0.5 rounded">{src.file_path}</code>
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center space-x-2">
-                            {isReal ? (
-                              <span className="bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wide flex items-center space-x-1">
-                                <span>🟢</span>
-                                <span>REAL DATA</span>
-                              </span>
-                            ) : (
-                              <span className="bg-amber-500/20 border border-amber-500/40 text-amber-400 text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wide flex items-center space-x-1">
-                                <span>🟡</span>
-                                <span>MOCK / SIMULATED</span>
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        <p className="text-xs text-gray-300 leading-relaxed bg-[#1a1a1a] border border-[#262626] p-2.5 rounded-lg">
-                          {src.details}
-                        </p>
-
-                        <div className="grid grid-cols-3 gap-3 text-xs border-t border-[#262626] pt-2.5 text-gray-400">
-                          <div>
-                            <span className="text-[10px] text-gray-500 block uppercase">Records Count</span>
-                            <b className="text-white font-mono">{src.records_count ? src.records_count.toLocaleString() : "N/A"}</b>
-                          </div>
-
-                          <div>
-                            <span className="text-[10px] text-gray-500 block uppercase">File Size</span>
-                            <b className="text-white font-mono">
-                              {src.file_size_bytes
-                                ? (src.file_size_bytes / (1024 * 1024)).toFixed(2) + " MB"
-                                : "0 MB"}
-                            </b>
-                          </div>
-
-                          <div>
-                            <span className="text-[10px] text-gray-500 block uppercase">Source Provider</span>
-                            {src.source_url ? (
-                              <a
-                                href={src.source_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-blue-400 hover:underline font-semibold flex items-center space-x-1"
-                              >
-                                <span>Official Portal 🔗</span>
-                              </a>
-                            ) : (
-                              <span className="text-gray-500">Local Dataset</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
-          )}
         </main>
 
         {/* RIGHT PANEL (300px Fixed: Resource Inventory & Interactive Allocations) */}
-        {activeTab !== "check" && (
-          <aside className="w-80 border-l border-[#2a2a2a] bg-[#111111] flex flex-col p-3 flex-shrink-0 space-y-4 overflow-y-auto">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-white uppercase tracking-wider">
-                  Resource Inventory
-                </span>
-                <span className="text-[10px] text-gray-400">Current vs Total</span>
-              </div>
-
-              <div className="space-y-2.5 text-xs">
-                <div className="bg-[#161616] border border-[#2a2a2a] p-2 rounded-lg">
-                  <div className="flex justify-between text-gray-300 mb-1">
-                    <span>🪖 NDRF Teams</span>
-                    <span className="font-semibold text-blue-400">
-                      {totalAllocatedNDRF} / {resources.ndrf_teams}
-                    </span>
-                  </div>
-                  <div className="w-full bg-[#2a2a2a] h-1.5 rounded-full overflow-hidden">
-                    <div
-                      className="bg-blue-500 h-full transition-all duration-500"
-                      style={{
-                        width: `${Math.min(100, (totalAllocatedNDRF / resources.ndrf_teams) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="bg-[#161616] border border-[#2a2a2a] p-2 rounded-lg">
-                  <div className="flex justify-between text-gray-300 mb-1">
-                    <span>🚤 Rescue Boats</span>
-                    <span className="font-semibold text-cyan-400">
-                      {totalAllocatedBoats} / {resources.rescue_boats}
-                    </span>
-                  </div>
-                  <div className="w-full bg-[#2a2a2a] h-1.5 rounded-full overflow-hidden">
-                    <div
-                      className="bg-cyan-500 h-full transition-all duration-500"
-                      style={{
-                        width: `${Math.min(100, (totalAllocatedBoats / resources.rescue_boats) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="bg-[#161616] border border-[#2a2a2a] p-2 rounded-lg">
-                  <div className="flex justify-between text-gray-300 mb-1">
-                    <span>💊 Medical Kits</span>
-                    <span className="font-semibold text-emerald-400">
-                      {totalAllocatedMedical} / {resources.medical_kits}
-                    </span>
-                  </div>
-                  <div className="w-full bg-[#2a2a2a] h-1.5 rounded-full overflow-hidden">
-                    <div
-                      className="bg-emerald-500 h-full transition-all duration-500"
-                      style={{
-                        width: `${Math.min(100, (totalAllocatedMedical / resources.medical_kits) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="bg-[#161616] border border-[#2a2a2a] p-2 rounded-lg">
-                  <div className="flex justify-between text-gray-300 mb-1">
-                    <span>⛺ Shelter Tents</span>
-                    <span className="font-semibold text-amber-400">
-                      {totalAllocatedTents} / {resources.shelter_tents}
-                    </span>
-                  </div>
-                  <div className="w-full bg-[#2a2a2a] h-1.5 rounded-full overflow-hidden">
-                    <div
-                      className="bg-amber-500 h-full transition-all duration-500"
-                      style={{
-                        width: `${Math.min(100, (totalAllocatedTents / resources.shelter_tents) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex-1 flex flex-col min-h-0">
-              <span className="text-xs font-bold text-white uppercase tracking-wider mb-2">
-                District Allocations
+        <aside className="w-80 border-l border-[#2a2a2a] bg-[#111111] flex flex-col p-3 flex-shrink-0 space-y-4 overflow-y-auto">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-white uppercase tracking-wider">
+                Resource Inventory
               </span>
-
-              <div className="flex-1 overflow-y-auto border border-[#2a2a2a] rounded-lg bg-[#161616]">
-                <table className="w-full text-left border-collapse text-[11px]">
-                  <thead>
-                    <tr className="border-b border-[#2a2a2a] bg-[#1d1d1d] text-gray-400">
-                      <th className="p-2">District</th>
-                      <th className="p-2">Priority</th>
-                      <th className="p-2 text-center">NDRF</th>
-                      <th className="p-2 text-center">Boats</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#2a2a2a] text-gray-200">
-                    {allocations.map((a) => {
-                      const distName = formatDistrictName(a.district_id);
-                      const isP1 = a.priority_level === "P1_URGENT";
-                      const isP2 = a.priority_level === "P2_HIGH";
-                      const isSelected = distName === formatDistrictName(selectedDistrictId);
-
-                      return (
-                        <tr
-                          key={a.district_id}
-                          onClick={() => {
-                            setSelectedDistrictId(distName);
-                            setActiveTab("map");
-                          }}
-                          className={`cursor-pointer transition ${
-                            isSelected ? "bg-blue-600/20" : "hover:bg-[#202020]"
-                          }`}
-                        >
-                          <td className="p-2 font-medium">{distName}</td>
-                          <td className="p-2">
-                            <span
-                              className={`px-1.5 py-0.5 rounded font-bold text-[9px] ${
-                                isP1
-                                  ? "bg-red-500/20 text-red-400 border border-red-500/30"
-                                  : isP2
-                                  ? "bg-orange-500/20 text-orange-400 border border-orange-500/30"
-                                  : "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
-                              }`}
-                            >
-                              {a.priority_level}
-                            </span>
-                          </td>
-                          <td className="p-2 text-center font-bold text-blue-400">
-                            {a.allocated_ndrf_teams}
-                          </td>
-                          <td className="p-2 text-center font-bold text-cyan-400">
-                            {a.allocated_rescue_boats}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <span className="text-[10px] text-gray-400">Current vs Total</span>
             </div>
 
-            <div className="bg-[#161616] border border-[#2a2a2a] rounded-lg p-2.5 text-xs space-y-1">
-              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider block">
-                Unallocated Stock (Reserve)
-              </span>
-              <div className="grid grid-cols-2 gap-1 text-[11px] text-gray-300">
-                <div>🪖 Teams: <b className="text-white">{unallocated.ndrf_teams}</b></div>
-                <div>🚤 Boats: <b className="text-white">{unallocated.rescue_boats}</b></div>
-                <div>💊 Kits: <b className="text-white">{unallocated.medical_kits}</b></div>
-                <div>⛺ Tents: <b className="text-white">{unallocated.shelter_tents}</b></div>
+            <div className="space-y-2.5 text-xs">
+              <div className="bg-[#161616] border border-[#2a2a2a] p-2 rounded-lg">
+                <div className="flex justify-between text-gray-300 mb-1">
+                  <span>🪖 NDRF Teams</span>
+                  <span className="font-semibold text-blue-400">
+                    {totalAllocatedNDRF} / {resources.ndrf_teams}
+                  </span>
+                </div>
+                <div className="w-full bg-[#2a2a2a] h-1.5 rounded-full overflow-hidden">
+                  <div
+                    className="bg-blue-500 h-full transition-all duration-500"
+                    style={{
+                      width: `${Math.min(100, (totalAllocatedNDRF / resources.ndrf_teams) * 100)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="bg-[#161616] border border-[#2a2a2a] p-2 rounded-lg">
+                <div className="flex justify-between text-gray-300 mb-1">
+                  <span>🚤 Rescue Boats</span>
+                  <span className="font-semibold text-cyan-400">
+                    {totalAllocatedBoats} / {resources.rescue_boats}
+                  </span>
+                </div>
+                <div className="w-full bg-[#2a2a2a] h-1.5 rounded-full overflow-hidden">
+                  <div
+                    className="bg-cyan-500 h-full transition-all duration-500"
+                    style={{
+                      width: `${Math.min(100, (totalAllocatedBoats / resources.rescue_boats) * 100)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="bg-[#161616] border border-[#2a2a2a] p-2 rounded-lg">
+                <div className="flex justify-between text-gray-300 mb-1">
+                  <span>💊 Medical Kits</span>
+                  <span className="font-semibold text-emerald-400">
+                    {totalAllocatedMedical} / {resources.medical_kits}
+                  </span>
+                </div>
+                <div className="w-full bg-[#2a2a2a] h-1.5 rounded-full overflow-hidden">
+                  <div
+                    className="bg-emerald-500 h-full transition-all duration-500"
+                    style={{
+                      width: `${Math.min(100, (totalAllocatedMedical / resources.medical_kits) * 100)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="bg-[#161616] border border-[#2a2a2a] p-2 rounded-lg">
+                <div className="flex justify-between text-gray-300 mb-1">
+                  <span>⛺ Shelter Tents</span>
+                  <span className="font-semibold text-amber-400">
+                    {totalAllocatedTents} / {resources.shelter_tents}
+                  </span>
+                </div>
+                <div className="w-full bg-[#2a2a2a] h-1.5 rounded-full overflow-hidden">
+                  <div
+                    className="bg-amber-500 h-full transition-all duration-500"
+                    style={{
+                      width: `${Math.min(100, (totalAllocatedTents / resources.shelter_tents) * 100)}%`,
+                    }}
+                  />
+                </div>
               </div>
             </div>
-          </aside>
-        )}
+          </div>
+
+          <div className="flex-1 flex flex-col min-h-0">
+            <span className="text-xs font-bold text-white uppercase tracking-wider mb-2">
+              District Allocations
+            </span>
+
+            <div className="flex-1 overflow-y-auto border border-[#2a2a2a] rounded-lg bg-[#161616]">
+              <table className="w-full text-left border-collapse text-[11px]">
+                <thead>
+                  <tr className="border-b border-[#2a2a2a] bg-[#1d1d1d] text-gray-400">
+                    <th className="p-2">District</th>
+                    <th className="p-2">Priority</th>
+                    <th className="p-2 text-center">NDRF</th>
+                    <th className="p-2 text-center">Boats</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#2a2a2a] text-gray-200">
+                  {allocations.map((a) => {
+                    const distName = formatDistrictName(a.district_id);
+                    const isP1 = a.priority_level === "P1_URGENT";
+                    const isP2 = a.priority_level === "P2_HIGH";
+                    const isSelected = distName === formatDistrictName(selectedDistrictId);
+
+                    return (
+                      <tr
+                        key={a.district_id}
+                        onClick={() => {
+                          setSelectedDistrictId(distName);
+                          setActiveTab("map");
+                        }}
+                        className={`cursor-pointer transition ${
+                          isSelected ? "bg-blue-600/20" : "hover:bg-[#202020]"
+                        }`}
+                      >
+                        <td className="p-2 font-medium">{distName}</td>
+                        <td className="p-2">
+                          <span
+                            className={`px-1.5 py-0.5 rounded font-bold text-[9px] ${
+                              isP1
+                                ? "bg-red-500/20 text-red-400 border border-red-500/30"
+                                : isP2
+                                ? "bg-orange-500/20 text-orange-400 border border-orange-500/30"
+                                : "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
+                            }`}
+                          >
+                            {a.priority_level}
+                          </span>
+                        </td>
+                        <td className="p-2 text-center font-bold text-blue-400">
+                          {a.allocated_ndrf_teams}
+                        </td>
+                        <td className="p-2 text-center font-bold text-cyan-400">
+                          {a.allocated_rescue_boats}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="bg-[#161616] border border-[#2a2a2a] rounded-lg p-2.5 text-xs space-y-1">
+            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider block">
+              Unallocated Stock (Reserve)
+            </span>
+            <div className="grid grid-cols-2 gap-1 text-[11px] text-gray-300">
+              <div>🪖 Teams: <b className="text-white">{unallocated.ndrf_teams}</b></div>
+              <div>🚤 Boats: <b className="text-white">{unallocated.rescue_boats}</b></div>
+              <div>💊 Kits: <b className="text-white">{unallocated.medical_kits}</b></div>
+              <div>⛺ Tents: <b className="text-white">{unallocated.shelter_tents}</b></div>
+            </div>
+          </div>
+        </aside>
       </div>
     </div>
   );
