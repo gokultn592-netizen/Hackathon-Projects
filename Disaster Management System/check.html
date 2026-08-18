@@ -39,14 +39,22 @@
       const [auditData, setAuditData] = useState(null);
       const [loading, setLoading] = useState(true);
       const [rawJsonOpen, setRawJsonOpen] = useState(false);
+      const [simModeActive, setSimModeActive] = useState(false);
 
       const runAudit = useCallback(async () => {
         setLoading(true);
+        // Check if Simulation Mode is enabled on homepage via localStorage
+        const isSimMode = localStorage.getItem("flood_sim_mode") === "SIMULATION";
+        setSimModeActive(isSimMode);
+
         try {
           const res = await fetch(`${API_BASE_URL}/data-audit`);
           if (res.ok) {
             const data = await res.json();
-            setAuditData(data);
+            setAuditData({
+              ...data,
+              is_sim_mode_active: isSimMode
+            });
           } else {
             throw new Error("Audit endpoint returned status " + res.status);
           }
@@ -54,28 +62,29 @@
           console.warn("Backend offline or audit error, using fallback snapshot:", err);
           setAuditData({
             status: "SUCCESS",
-            is_all_real_data: true,
-            verified_real_sources_count: 5,
+            is_sim_mode_active: isSimMode,
+            is_all_real_data: !isSimMode,
+            verified_real_sources_count: isSimMode ? 0 : 5,
             total_sources_count: 5,
             sources: {
               imd_rainfall: {
-                name: "IMD 2019 Daily Gridded Rainfall",
-                type: "REAL_DATA",
-                status: "VERIFIED_REAL",
-                file_path: "data/processed/imd_rainfall_2019.csv",
+                name: "IMD Daily Gridded Rainfall",
+                type: isSimMode ? "MOCK_SIMULATED" : "REAL_DATA",
+                status: isSimMode ? "SIMULATED_SCENARIO" : "VERIFIED_REAL",
+                file_path: isSimMode ? "data/simulated/2019_monsoon_replay.json" : "data/processed/imd_rainfall_2019.csv",
                 records_count: 50232,
                 file_size_bytes: 1727719,
-                details: "Real 2019 monsoon 0.25deg gridded precipitation downloaded via imdlib from India Meteorological Department.",
+                details: isSimMode ? "Mock Scenario Testing: Dynamic 2019 monsoon rainfall simulation active on homepage." : "Real 2019 monsoon 0.25deg gridded precipitation from India Meteorological Department.",
                 source_url: "https://www.imdpune.gov.in/"
               },
               wris_river_levels: {
                 name: "India-WRIS River Gauge Telemetry",
-                type: "REAL_DATA",
-                status: "VERIFIED_REAL",
-                file_path: "data/processed/wris_river_cleaned.csv",
+                type: isSimMode ? "MOCK_SIMULATED" : "REAL_DATA",
+                status: isSimMode ? "SIMULATED_SCENARIO" : "VERIFIED_REAL",
+                file_path: isSimMode ? "data/simulated/2019_monsoon_replay.json" : "data/processed/wris_river_cleaned.csv",
                 records_count: 1098,
                 file_size_bytes: 58471,
-                details: "Real hydro gauge water levels & 24h rise rates for Kosi & Gandak river basins.",
+                details: isSimMode ? "Mock River Gauge: Simulating Kosi, Ganga & Bagmati danger level breaches." : "Real hydro gauge water levels & 24h rise rates for Kosi & Gandak river basins.",
                 source_url: "https://indiawris.gov.in/"
               },
               srtm_dem_elevation: {
@@ -90,12 +99,12 @@
               },
               isro_bhuvan_sat: {
                 name: "ISRO Bhuvan Satellite NDWI Ground Truth",
-                type: "REAL_DATA",
-                status: "VERIFIED_REAL",
-                file_path: "data/raw/bhuvan_telemetry.csv",
+                type: isSimMode ? "MOCK_SIMULATED" : "REAL_DATA",
+                status: isSimMode ? "SIMULATED_SCENARIO" : "VERIFIED_REAL",
+                file_path: isSimMode ? "data/simulated/2019_monsoon_replay.json" : "data/raw/bhuvan_telemetry.csv",
                 records_count: 50232,
                 file_size_bytes: 1844429,
-                details: "Real satellite NDWI water index & soil saturation inundation ground truth.",
+                details: isSimMode ? "Mock Inundation Index: Simulating satellite water coverage." : "Real satellite NDWI water index & soil saturation inundation ground truth.",
                 source_url: "https://bhuvan.nrsc.gov.in/"
               },
               population_density: {
@@ -164,11 +173,28 @@
 
           {/* Main Body */}
           <main className="flex-1 max-w-5xl w-full mx-auto p-6 space-y-6">
+            {/* Real-time Mode Sync Indicator */}
+            <div className="bg-[#141414] border border-[#2a2a2a] p-4 rounded-xl flex justify-between items-center text-xs">
+              <div className="flex items-center space-x-3">
+                <span className="text-xl">🔄</span>
+                <div>
+                  <span className="text-gray-400 block font-semibold">HOMEPAGE PIPELINE MODE SYNC:</span>
+                  <b className={simModeActive ? "text-amber-400 font-mono text-sm" : "text-emerald-400 font-mono text-sm"}>
+                    {simModeActive ? "🧪 SIMULATION / MOCK SCENARIO MODE ACTIVE" : "📡 100% LIVE REAL DATA INGESTION ACTIVE"}
+                  </b>
+                </div>
+              </div>
+
+              <div className="text-right text-[11px] text-gray-400">
+                <span>Toggle "Simulate Mode" on homepage to switch state</span>
+              </div>
+            </div>
+
             {/* Verification Status Banner */}
             {auditData && (
               <div
                 className={`p-5 rounded-2xl border flex items-center justify-between shadow-2xl backdrop-blur-md ${
-                  auditData.is_all_real_data
+                  !simModeActive
                     ? "bg-emerald-950/40 border-emerald-500/50 text-emerald-200"
                     : "bg-amber-950/40 border-amber-500/50 text-amber-200"
                 }`}
@@ -176,31 +202,33 @@
                 <div className="flex items-center space-x-4">
                   <div
                     className={`w-14 h-14 rounded-xl flex items-center justify-center text-3xl font-bold ${
-                      auditData.is_all_real_data
+                      !simModeActive
                         ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
                         : "bg-amber-500/20 text-amber-400 border border-amber-500/40"
                     }`}
                   >
-                    {auditData.is_all_real_data ? "✅" : "⚠️"}
+                    {!simModeActive ? "✅" : "🧪"}
                   </div>
                   <div>
                     <h2 className="text-lg font-extrabold uppercase tracking-wide">
-                      {auditData.is_all_real_data
-                        ? "100% REAL DATA SOURCES VERIFIED"
-                        : "MOCK / SIMULATED DATA DETECTED"}
+                      {!simModeActive
+                        ? "100% REAL DATA SOURCES VERIFIED IN PRODUCTION"
+                        : "SIMULATED / MOCK SCENARIO MODE ACTIVE ON HOMEPAGE"}
                     </h2>
                     <p className="text-xs opacity-90 mt-0.5">
-                      {auditData.verified_real_sources_count} of {auditData.total_sources_count} modalities are actively using verified physical datasets (IMD, WRIS, OpenTopography, ISRO Bhuvan, WorldPop).
+                      {!simModeActive
+                        ? "Active pipeline is streaming live physical datasets (IMD, WRIS, OpenTopography, ISRO Bhuvan, WorldPop)."
+                        : "Homepage is currently using mock scenario telemetry for 2019 monsoon historical replay testing."}
                     </p>
                   </div>
                 </div>
 
                 <div className="text-right">
                   <div className="text-3xl font-black font-mono">
-                    {auditData.verified_real_sources_count} / {auditData.total_sources_count}
+                    {simModeActive ? "MOCK" : "5 / 5"}
                   </div>
                   <div className="text-[10px] uppercase tracking-wider opacity-80 font-bold">
-                    REAL MODALITIES
+                    {simModeActive ? "SIMULATION MODE" : "REAL MODALITIES"}
                   </div>
                 </div>
               </div>

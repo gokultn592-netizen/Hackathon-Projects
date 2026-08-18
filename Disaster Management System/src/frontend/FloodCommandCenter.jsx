@@ -1,7 +1,7 @@
 // ============================================================================
 // FLOOD COMMAND CENTER - BIHAR DISASTER MANAGEMENT DECISION SUPPORT SYSTEM
 // Filen.io Premium Dark UI Aesthetic (#0a0a0a, #111111, #1a1a1a, #2a2a2a)
-// Statewide Status Overview & Emergency Shelter Master Dashboard
+// Dynamic Hydrology Simulation Engine (Slider Reactivity & LocalStorage Audit Sync)
 // ============================================================================
 
 const ReactObj = typeof window !== "undefined" && window.React ? window.React : require("react");
@@ -36,10 +36,8 @@ function formatDistrictName(id) {
   return DISTRICT_NAME_MAP[id] || id;
 }
 
-// ----------------------------------------------------------------------------
-// INITIAL BIHAR TELEMETRY DATA
-// ----------------------------------------------------------------------------
-const INITIAL_SIMULATION_DISTRICTS = [
+// Peak Base Parameters for the 8 Bihar Districts
+const DISTRICT_BASE_PROFILES = [
   {
     district_id: "Patna",
     name: "Patna",
@@ -48,43 +46,15 @@ const INITIAL_SIMULATION_DISTRICTS = [
     lon: 85.1376,
     shelter_lat: 25.6450,
     shelter_lon: 85.0800,
-    rainfall_24h_mm: 145.5,
-    rainfall_3d_accum_mm: 280.2,
-    rainfall_intensity_mmhr: 18.5,
-    imd_warning_level: "WARNING",
-    humidity_percent: 88,
-    temperature_celsius: 27.4,
-    water_level_meters: 8.2,
-    danger_level_meters: 7.5,
-    river_rise_rate_percent: 4.8,
-    discharge_rate_cumecs: 4200,
-    reservoir_capacity_percent: 92,
-    is_above_danger: 1,
-    inundated_area_sqkm: 45.2,
-    inundation_percentage: 14.5,
-    soil_saturation_index: 0.91,
-    ndwi_water_index: 0.74,
-    mean_elevation_meters: 32.0,
-    mean_slope_degrees: 1.2,
-    drainage_density_km_sqkm: 2.1,
+    peak_rain_24h: 165.0,
+    peak_water_level: 9.2,
+    danger_level: 7.5,
     population_at_risk: 185000,
     nearest_shelter: "Patna Relief Camp #4 (Digha High Ground)",
     shelter_capacity: 5000,
-    shelter_occupancy: 3240,
-    shelter_status: "🚨 ACTIVE EVACUATION",
     evacuation_route: "NH-31 via Atal Path Highway Corridor (12.4 km)",
     evacuation_eta_mins: 22,
-    risk_score: 0.87,
-    risk_level: "P1_URGENT",
-    estimated_inundation_depth_meters: 2.3,
-    recommend_evacuation: true,
-    shap_explainability: [
-      { feature: "rainfall_3d_accum_mm", contribution: 34, label: "3-Day Rainfall Accumulation (280mm)" },
-      { feature: "water_level_above_danger", contribution: 28, label: "River Level (+0.7m above danger)" },
-      { feature: "ndwi_water_index", contribution: 18, label: "ISRO NDWI Water Index (0.74)" },
-      { feature: "soil_saturation_index", contribution: 12, label: "Soil Saturation (91%)" },
-      { feature: "mean_elevation_meters", contribution: -8, label: "Low Elevation Offset (32m)" },
-    ],
+    elevation: 32.0,
   },
   {
     district_id: "Bhagalpur",
@@ -94,43 +64,15 @@ const INITIAL_SIMULATION_DISTRICTS = [
     lon: 87.0022,
     shelter_lat: 25.1750,
     shelter_lon: 86.9150,
-    rainfall_24h_mm: 182.0,
-    rainfall_3d_accum_mm: 315.0,
-    rainfall_intensity_mmhr: 22.0,
-    imd_warning_level: "WARNING",
-    humidity_percent: 92,
-    temperature_celsius: 26.8,
-    water_level_meters: 9.1,
-    danger_level_meters: 8.0,
-    river_rise_rate_percent: 6.2,
-    discharge_rate_cumecs: 5100,
-    reservoir_capacity_percent: 96,
-    is_above_danger: 1,
-    inundated_area_sqkm: 68.0,
-    inundation_percentage: 21.0,
-    soil_saturation_index: 0.95,
-    ndwi_water_index: 0.82,
-    mean_elevation_meters: 28.0,
-    mean_slope_degrees: 0.9,
-    drainage_density_km_sqkm: 2.5,
+    peak_rain_24h: 195.0,
+    peak_water_level: 9.8,
+    danger_level: 8.0,
     population_at_risk: 210000,
     nearest_shelter: "Bhagalpur Stadium High Ground Complex",
     shelter_capacity: 8000,
-    shelter_occupancy: 5410,
-    shelter_status: "🚨 ACTIVE EVACUATION",
     evacuation_route: "SH-19 South toward Amarpur Ridge Highway (8.7 km)",
     evacuation_eta_mins: 16,
-    risk_score: 0.94,
-    risk_level: "P1_URGENT",
-    estimated_inundation_depth_meters: 2.8,
-    recommend_evacuation: true,
-    shap_explainability: [
-      { feature: "rainfall_3d_accum_mm", contribution: 38, label: "Extreme 3-Day Rainfall (315mm)" },
-      { feature: "water_level_above_danger", contribution: 30, label: "Kosi Overflow (+1.1m above danger)" },
-      { feature: "ndwi_water_index", contribution: 16, label: "Satellite Inundation NDWI (0.82)" },
-      { feature: "soil_saturation_index", contribution: 10, label: "Saturated Clay Basin (95%)" },
-      { feature: "mean_elevation_meters", contribution: -6, label: "Floodplain Elevation (28m)" },
-    ],
+    elevation: 28.0,
   },
   {
     district_id: "Darbhanga",
@@ -140,43 +82,15 @@ const INITIAL_SIMULATION_DISTRICTS = [
     lon: 85.8918,
     shelter_lat: 26.2200,
     shelter_lon: 85.8150,
-    rainfall_24h_mm: 165.0,
-    rainfall_3d_accum_mm: 290.0,
-    rainfall_intensity_mmhr: 19.8,
-    imd_warning_level: "WARNING",
-    humidity_percent: 90,
-    temperature_celsius: 27.0,
-    water_level_meters: 8.7,
-    danger_level_meters: 7.8,
-    river_rise_rate_percent: 5.1,
-    discharge_rate_cumecs: 4600,
-    reservoir_capacity_percent: 89,
-    is_above_danger: 1,
-    inundated_area_sqkm: 52.4,
-    inundation_percentage: 18.2,
-    soil_saturation_index: 0.89,
-    ndwi_water_index: 0.78,
-    mean_elevation_meters: 39.0,
-    mean_slope_degrees: 1.1,
-    drainage_density_km_sqkm: 2.3,
+    peak_rain_24h: 175.0,
+    peak_water_level: 8.9,
+    danger_level: 7.8,
     population_at_risk: 145000,
     nearest_shelter: "Darbhanga University Auditorium High Ground",
     shelter_capacity: 4500,
-    shelter_occupancy: 2980,
-    shelter_status: "🚨 ACTIVE EVACUATION",
     evacuation_route: "NH-528 Bypass via Laheriasarai Highway (10.2 km)",
     evacuation_eta_mins: 19,
-    risk_score: 0.84,
-    risk_level: "P1_URGENT",
-    estimated_inundation_depth_meters: 2.1,
-    recommend_evacuation: true,
-    shap_explainability: [
-      { feature: "rainfall_3d_accum_mm", contribution: 32, label: "Bagmati Catchment Rainfall (290mm)" },
-      { feature: "water_level_above_danger", contribution: 26, label: "River Level Rise (+0.9m)" },
-      { feature: "ndwi_water_index", contribution: 22, label: "Satellite Surface Water Index (0.78)" },
-      { feature: "soil_saturation_index", contribution: 12, label: "Saturated Topsoil (89%)" },
-      { feature: "mean_elevation_meters", contribution: -8, label: "Gentle Gradient Terrain (39m)" },
-    ],
+    elevation: 39.0,
   },
   {
     district_id: "Muzaffarpur",
@@ -186,42 +100,15 @@ const INITIAL_SIMULATION_DISTRICTS = [
     lon: 85.3647,
     shelter_lat: 26.1800,
     shelter_lon: 85.2800,
-    rainfall_24h_mm: 110.0,
-    rainfall_3d_accum_mm: 195.0,
-    rainfall_intensity_mmhr: 12.4,
-    imd_warning_level: "ALERT",
-    humidity_percent: 84,
-    temperature_celsius: 28.2,
-    water_level_meters: 6.4,
-    danger_level_meters: 6.8,
-    river_rise_rate_percent: 2.1,
-    discharge_rate_cumecs: 3100,
-    reservoir_capacity_percent: 74,
-    is_above_danger: 0,
-    inundated_area_sqkm: 22.1,
-    inundation_percentage: 7.5,
-    soil_saturation_index: 0.72,
-    ndwi_water_index: 0.58,
-    mean_elevation_meters: 47.0,
-    mean_slope_degrees: 1.5,
-    drainage_density_km_sqkm: 1.8,
+    peak_rain_24h: 125.0,
+    peak_water_level: 6.9,
+    danger_level: 6.8,
     population_at_risk: 92000,
     nearest_shelter: "Muzaffarpur Zila High School",
     shelter_capacity: 3000,
-    shelter_occupancy: 850,
-    shelter_status: "🟠 READY / PREPARED",
     evacuation_route: "NH-28 East towards Motipur (15.1 km)",
     evacuation_eta_mins: 25,
-    risk_score: 0.58,
-    risk_level: "P2_HIGH",
-    estimated_inundation_depth_meters: 1.2,
-    recommend_evacuation: false,
-    shap_explainability: [
-      { feature: "rainfall_3d_accum_mm", contribution: 25, label: "Moderate Monsoon Rain (195mm)" },
-      { feature: "ndwi_water_index", contribution: 20, label: "Localized Inundation (0.58)" },
-      { feature: "water_level_above_danger", contribution: -15, label: "Below Danger Mark (-0.4m)" },
-      { feature: "mean_elevation_meters", contribution: -18, label: "Higher Ground Elevation (47m)" },
-    ],
+    elevation: 47.0,
   },
   {
     district_id: "Sitamarhi",
@@ -231,42 +118,15 @@ const INITIAL_SIMULATION_DISTRICTS = [
     lon: 85.4886,
     shelter_lat: 26.6500,
     shelter_lon: 85.4100,
-    rainfall_24h_mm: 135.0,
-    rainfall_3d_accum_mm: 230.0,
-    rainfall_intensity_mmhr: 16.2,
-    imd_warning_level: "ALERT",
-    humidity_percent: 86,
-    temperature_celsius: 27.6,
-    water_level_meters: 7.3,
-    danger_level_meters: 7.2,
-    river_rise_rate_percent: 3.4,
-    discharge_rate_cumecs: 3800,
-    reservoir_capacity_percent: 82,
-    is_above_danger: 1,
-    inundated_area_sqkm: 34.0,
-    inundation_percentage: 11.2,
-    soil_saturation_index: 0.81,
-    ndwi_water_index: 0.65,
-    mean_elevation_meters: 52.0,
-    mean_slope_degrees: 1.8,
-    drainage_density_km_sqkm: 2.0,
+    peak_rain_24h: 145.0,
+    peak_water_level: 7.6,
+    danger_level: 7.2,
     population_at_risk: 110000,
     nearest_shelter: "Sitamarhi Town Hall Shelter",
     shelter_capacity: 3500,
-    shelter_occupancy: 1200,
-    shelter_status: "🟠 READY / PREPARED",
     evacuation_route: "NH-77 South via Riga Road (11.0 km)",
     evacuation_eta_mins: 18,
-    risk_score: 0.65,
-    risk_level: "P2_HIGH",
-    estimated_inundation_depth_meters: 1.6,
-    recommend_evacuation: false,
-    shap_explainability: [
-      { feature: "water_level_above_danger", contribution: 30, label: "Lakhandei River Breaching (+0.1m)" },
-      { feature: "rainfall_3d_accum_mm", contribution: 28, label: "Nepal Border Rainfall (230mm)" },
-      { feature: "soil_saturation_index", contribution: 18, label: "Soil Saturation (81%)" },
-      { feature: "mean_elevation_meters", contribution: -16, label: "Terrain Elevation (52m)" },
-    ],
+    elevation: 52.0,
   },
   {
     district_id: "Supaul",
@@ -276,41 +136,15 @@ const INITIAL_SIMULATION_DISTRICTS = [
     lon: 86.5972,
     shelter_lat: 26.1800,
     shelter_lon: 86.6800,
-    rainfall_24h_mm: 95.0,
-    rainfall_3d_accum_mm: 160.0,
-    rainfall_intensity_mmhr: 10.5,
-    imd_warning_level: "WATCH",
-    humidity_percent: 81,
-    temperature_celsius: 28.5,
-    water_level_meters: 5.8,
-    danger_level_meters: 6.5,
-    river_rise_rate_percent: 1.5,
-    discharge_rate_cumecs: 2700,
-    reservoir_capacity_percent: 68,
-    is_above_danger: 0,
-    inundated_area_sqkm: 15.8,
-    inundation_percentage: 5.1,
-    soil_saturation_index: 0.64,
-    ndwi_water_index: 0.48,
-    mean_elevation_meters: 56.0,
-    mean_slope_degrees: 1.3,
-    drainage_density_km_sqkm: 1.6,
+    peak_rain_24h: 110.0,
+    peak_water_level: 6.2,
+    danger_level: 6.5,
     population_at_risk: 65000,
     nearest_shelter: "Supaul Block Community Center",
     shelter_capacity: 2500,
-    shelter_occupancy: 450,
-    shelter_status: "🟢 STANDBY",
     evacuation_route: "SH-66 East towards Pipra (14.2 km)",
     evacuation_eta_mins: 22,
-    risk_score: 0.45,
-    risk_level: "P2_HIGH",
-    estimated_inundation_depth_meters: 0.8,
-    recommend_evacuation: false,
-    shap_explainability: [
-      { feature: "rainfall_3d_accum_mm", contribution: 22, label: "Moderate Local Rain (160mm)" },
-      { feature: "ndwi_water_index", contribution: 15, label: "Kosi Embankment Water Index (0.48)" },
-      { feature: "water_level_above_danger", contribution: -20, label: "Kosi Below Danger (-0.7m)" },
-    ],
+    elevation: 56.0,
   },
   {
     district_id: "Madhubani",
@@ -320,40 +154,15 @@ const INITIAL_SIMULATION_DISTRICTS = [
     lon: 86.0718,
     shelter_lat: 26.4100,
     shelter_lon: 86.1400,
-    rainfall_24h_mm: 70.0,
-    rainfall_3d_accum_mm: 120.0,
-    rainfall_intensity_mmhr: 7.2,
-    imd_warning_level: "NORMAL",
-    humidity_percent: 76,
-    temperature_celsius: 29.1,
-    water_level_meters: 4.5,
-    danger_level_meters: 6.0,
-    river_rise_rate_percent: 0.8,
-    discharge_rate_cumecs: 1900,
-    reservoir_capacity_percent: 54,
-    is_above_danger: 0,
-    inundated_area_sqkm: 8.5,
-    inundation_percentage: 2.8,
-    soil_saturation_index: 0.52,
-    ndwi_water_index: 0.36,
-    mean_elevation_meters: 62.0,
-    mean_slope_degrees: 1.4,
-    drainage_density_km_sqkm: 1.4,
+    peak_rain_24h: 85.0,
+    peak_water_level: 5.1,
+    danger_level: 6.0,
     population_at_risk: 42000,
     nearest_shelter: "Madhubani District Sports Complex",
     shelter_capacity: 3000,
-    shelter_occupancy: 310,
-    shelter_status: "🟢 STANDBY",
     evacuation_route: "NH-57 Bypass (6.5 km)",
     evacuation_eta_mins: 12,
-    risk_score: 0.32,
-    risk_level: "P3_MONITOR",
-    estimated_inundation_depth_meters: 0.3,
-    recommend_evacuation: false,
-    shap_explainability: [
-      { feature: "water_level_above_danger", contribution: -35, label: "Kamla River Below Danger (-1.5m)" },
-      { feature: "mean_elevation_meters", contribution: -25, label: "Safe Elevation (62m)" },
-    ],
+    elevation: 62.0,
   },
   {
     district_id: "Katihar",
@@ -363,42 +172,102 @@ const INITIAL_SIMULATION_DISTRICTS = [
     lon: 87.5755,
     shelter_lat: 25.6000,
     shelter_lon: 87.6500,
-    rainfall_24h_mm: 60.0,
-    rainfall_3d_accum_mm: 105.0,
-    rainfall_intensity_mmhr: 5.8,
-    imd_warning_level: "NORMAL",
-    humidity_percent: 74,
-    temperature_celsius: 29.5,
-    water_level_meters: 3.9,
-    danger_level_meters: 5.5,
-    river_rise_rate_percent: 0.4,
-    discharge_rate_cumecs: 1600,
-    reservoir_capacity_percent: 48,
-    is_above_danger: 0,
-    inundated_area_sqkm: 5.2,
-    inundation_percentage: 1.9,
-    soil_saturation_index: 0.44,
-    ndwi_water_index: 0.29,
-    mean_elevation_meters: 34.0,
-    mean_slope_degrees: 0.8,
-    drainage_density_km_sqkm: 1.5,
+    peak_rain_24h: 75.0,
+    peak_water_level: 4.4,
+    danger_level: 5.5,
     population_at_risk: 28000,
     nearest_shelter: "Katihar Railway Indoor Stadium",
     shelter_capacity: 4000,
-    shelter_occupancy: 200,
-    shelter_status: "🟢 STANDBY",
     evacuation_route: "NH-31 East (8.0 km)",
     evacuation_eta_mins: 14,
-    risk_score: 0.25,
-    risk_level: "P3_MONITOR",
-    estimated_inundation_depth_meters: 0.1,
-    recommend_evacuation: false,
-    shap_explainability: [
-      { feature: "water_level_above_danger", contribution: -40, label: "Mahananda Normal Level (-1.6m)" },
-      { feature: "rainfall_3d_accum_mm", contribution: -20, label: "Low 3-Day Accumulation (105mm)" },
-    ],
+    elevation: 34.0,
   },
 ];
+
+// Pure Mathematical Dynamic Hydrology Curve Generator
+function generateHydrologyForDay(dayNumber) {
+  // Day 1 to 184 (May 1 to Oct 31)
+  // Day 1-60 (Pre-monsoon): 0.15 -> 0.35 factor
+  // Day 61-120 (Monsoon surge): 0.35 -> 0.80 factor
+  // Day 121-155 (Bihar Historic Sept 2019 Flood Peak): 0.80 -> 1.0 peak
+  // Day 156-184 (Receding monsoon): 1.0 -> 0.25 factor
+  let seasonFactor = 0.2;
+  if (dayNumber <= 60) {
+    seasonFactor = 0.15 + (dayNumber / 60.0) * 0.20;
+  } else if (dayNumber <= 120) {
+    seasonFactor = 0.35 + ((dayNumber - 60) / 60.0) * 0.45;
+  } else if (dayNumber <= 155) {
+    seasonFactor = 0.80 + ((dayNumber - 120) / 35.0) * 0.20;
+  } else {
+    seasonFactor = 1.0 - ((dayNumber - 155) / 29.0) * 0.75;
+  }
+
+  return DISTRICT_BASE_PROFILES.map((prof) => {
+    const rain = Math.round(prof.peak_rain_24h * seasonFactor);
+    const rain3d = Math.round(rain * 1.85);
+    const waterLevel = Number((prof.peak_water_level * (0.4 + seasonFactor * 0.6)).toFixed(1));
+    const isAboveDanger = waterLevel >= prof.danger_level ? 1 : 0;
+
+    // Calculate dynamic risk score (0.10 to 0.98)
+    const riskRatio = (rain / 200.0) * 0.5 + (waterLevel / prof.peak_water_level) * 0.5;
+    const riskScore = Number(Math.min(0.98, Math.max(0.12, riskRatio)).toFixed(2));
+
+    const isP1 = riskScore >= 0.70;
+    const isP2 = riskScore >= 0.40 && riskScore < 0.70;
+    const riskLevel = isP1 ? "P1_URGENT" : isP2 ? "P2_HIGH" : "P3_MONITOR";
+
+    const shelterOccupancy = Math.round(prof.shelter_capacity * Math.min(0.85, riskScore * 0.9));
+    const shelterStatus = isP1 ? "🚨 ACTIVE EVACUATION" : isP2 ? "🟠 READY / PREPARED" : "🟢 STANDBY";
+
+    return {
+      district_id: prof.district_id,
+      name: prof.name,
+      river_name: prof.river_name,
+      lat: prof.lat,
+      lon: prof.lon,
+      shelter_lat: prof.shelter_lat,
+      shelter_lon: prof.shelter_lon,
+      rainfall_24h_mm: rain,
+      rainfall_3d_accum_mm: rain3d,
+      rainfall_intensity_mmhr: Number((rain / 8.0).toFixed(1)),
+      imd_warning_level: isP1 ? "WARNING" : isP2 ? "ALERT" : "NORMAL",
+      humidity_percent: Math.round(65 + seasonFactor * 30),
+      temperature_celsius: Number((32.0 - seasonFactor * 5.0).toFixed(1)),
+      water_level_meters: waterLevel,
+      danger_level_meters: prof.danger_level,
+      river_rise_rate_percent: Number((seasonFactor * 6.5).toFixed(1)),
+      discharge_rate_cumecs: Math.round(waterLevel * 520),
+      reservoir_capacity_percent: Math.round(40 + seasonFactor * 56),
+      is_above_danger: isAboveDanger,
+      inundated_area_sqkm: Number((seasonFactor * 68.0).toFixed(1)),
+      inundation_percentage: Number((seasonFactor * 21.0).toFixed(1)),
+      soil_saturation_index: Number((0.35 + seasonFactor * 0.60).toFixed(2)),
+      ndwi_water_index: Number((0.20 + seasonFactor * 0.62).toFixed(2)),
+      mean_elevation_meters: prof.elevation,
+      mean_slope_degrees: 1.2,
+      drainage_density_km_sqkm: 2.1,
+      population_at_risk: prof.population_at_risk,
+      nearest_shelter: prof.nearest_shelter,
+      shelter_capacity: prof.shelter_capacity,
+      shelter_occupancy: shelterOccupancy,
+      shelter_status: shelterStatus,
+      evacuation_route: prof.evacuation_route,
+      evacuation_eta_mins: prof.evacuation_eta_mins,
+      risk_score: riskScore,
+      risk_level: riskLevel,
+      estimated_inundation_depth_meters: Number((Math.max(0, riskScore - 0.2) * 3.2).toFixed(1)),
+      recommend_evacuation: isP1,
+      shap_explainability: [
+        { feature: "rainfall_3d_accum_mm", contribution: Math.round(seasonFactor * 38), label: `3-Day Rainfall (${rain3d}mm)` },
+        { feature: "water_level_above_danger", contribution: Math.round(seasonFactor * 30), label: `River Level (${waterLevel}m)` },
+        { feature: "ndwi_water_index", contribution: Math.round(seasonFactor * 20), label: "ISRO NDWI Water Index" },
+        { feature: "mean_elevation_meters", contribution: -12, label: "Basin Terrain Elevation" },
+      ],
+    };
+  });
+}
+
+const INITIAL_SIMULATION_DISTRICTS = generateHydrologyForDay(150);
 
 const INITIAL_TOTAL_RESOURCES = {
   ndrf_teams: 50,
@@ -473,12 +342,27 @@ function FloodCommandCenter() {
   const markersRef = useRef({});
   const polylinesRef = useRef({});
 
+  // LocalStorage Sync for check.html Portal
+  useEffect(() => {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("flood_sim_mode", useSimulation ? "SIMULATION" : "REAL");
+    }
+  }, [useSimulation]);
+
+  // Timeline Slider Reactivity Effect: Dynamic Hydrology Update on Day Change
+  useEffect(() => {
+    if (useSimulation) {
+      const dailyData = generateHydrologyForDay(simulationDay);
+      setDistricts(dailyData);
+    }
+  }, [simulationDay, useSimulation]);
+
   // Timeline Play/Pause Effect
   useEffect(() => {
     let timer;
     if (isPlayingReplay) {
       timer = setInterval(() => {
-        setSimulationDay((prev) => (prev >= 180 ? 1 : prev + 2));
+        setSimulationDay((prev) => (prev >= 184 ? 1 : prev + 2));
       }, 400);
     }
     return () => clearInterval(timer);
@@ -577,20 +461,8 @@ function FloodCommandCenter() {
     } catch (err) {
       console.warn("Using simulation fallback for collect data:", err);
       setIsOffline(true);
-      setDistricts((prev) =>
-        prev.map((d) => {
-          const deltaRain = (Math.random() - 0.4) * 20;
-          const newRain = Math.round(Math.max(40, d.rainfall_24h_mm + deltaRain));
-          const newWater = Number(Math.max(3.0, d.water_level_meters + (Math.random() - 0.4) * 0.5).toFixed(1));
-          return {
-            ...d,
-            rainfall_24h_mm: newRain,
-            rainfall_3d_accum_mm: Math.round(newRain * 1.8),
-            water_level_meters: newWater,
-            discharge_rate_cumecs: Math.round(newWater * 550),
-          };
-        })
-      );
+      const updated = generateHydrologyForDay(simulationDay);
+      setDistricts(updated);
       addToast("📡 Simulated Telemetry Collected (Multi-modal Ingestion)", "info");
     } finally {
       setLoadingData(false);
@@ -642,22 +514,8 @@ function FloodCommandCenter() {
     } catch (err) {
       console.warn("Using simulation fallback for predict:", err);
       setIsOffline(true);
-      setDistricts((prev) =>
-        prev.map((d) => {
-          const score = Math.min(
-            0.99,
-            Math.max(0.15, (d.rainfall_24h_mm / 200.0) * 0.55 + (d.water_level_meters / 10.0) * 0.45)
-          );
-          const roundedScore = Number(score.toFixed(2));
-          return {
-            ...d,
-            risk_score: roundedScore,
-            risk_level: roundedScore >= 0.7 ? "P1_URGENT" : roundedScore >= 0.4 ? "P2_HIGH" : "P3_MONITOR",
-            estimated_inundation_depth_meters: Number((Math.max(0, roundedScore - 0.2) * 3.2).toFixed(1)),
-            recommend_evacuation: roundedScore >= 0.7,
-          };
-        })
-      );
+      const updated = generateHydrologyForDay(simulationDay);
+      setDistricts(updated);
       addToast("🤖 Simulated XGBoost Risk Scoring Complete", "info");
     } finally {
       setLoadingPredict(false);
@@ -1563,10 +1421,9 @@ function FloodCommandCenter() {
             </div>
           )}
 
-          {/* NEW TAB: STATEWIDE STATUS & EMERGENCY SHELTER MASTER DASHBOARD */}
+          {/* STATEWIDE STATUS & EMERGENCY SHELTER MASTER DASHBOARD */}
           {activeTab === "state" && (
             <div className="flex-1 p-5 overflow-y-auto space-y-6">
-              {/* Statewide Summary Cards */}
               <div className="border-b border-[#2a2a2a] pb-3 flex justify-between items-center">
                 <div>
                   <h2 className="text-base font-extrabold uppercase tracking-wider text-white">
@@ -1582,7 +1439,6 @@ function FloodCommandCenter() {
                 </div>
               </div>
 
-              {/* 4 Statewide KPI Panels */}
               <div className="grid grid-cols-4 gap-4">
                 <div className="bg-[#141414] border border-[#2a2a2a] p-4 rounded-xl space-y-1">
                   <span className="text-xs text-gray-400 uppercase font-semibold">🌊 Flooded Basin Area</span>
@@ -1612,11 +1468,10 @@ function FloodCommandCenter() {
                 <div className="bg-[#141414] border border-[#2a2a2a] p-4 rounded-xl space-y-1">
                   <span className="text-xs text-gray-400 uppercase font-semibold">🚨 Emergency Readiness</span>
                   <div className="text-2xl font-extrabold text-emerald-400 font-mono">{p1Count} URGENT / {districts.length}</div>
-                  <span className="text-[10px] text-gray-500 block">3 P1 Urgent, 3 P2 High, 2 P3 Monitor</span>
+                  <span className="text-[10px] text-gray-500 block">{p1Count} P1 Urgent, {p2Count} P2 High, {p3Count} P3 Monitor</span>
                 </div>
               </div>
 
-              {/* Master Shelter Directory Table */}
               <div className="bg-[#141414] border border-[#2a2a2a] rounded-xl p-4 space-y-3">
                 <div className="flex justify-between items-center">
                   <h3 className="text-sm font-bold uppercase tracking-wider text-white">
@@ -1690,7 +1545,6 @@ function FloodCommandCenter() {
                 </div>
               </div>
 
-              {/* Major Basin River Level Gauges */}
               <div className="bg-[#141414] border border-[#2a2a2a] rounded-xl p-4 space-y-3">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-white">
                   🌊 Bihar River Basin Hydrological Gauge Status
