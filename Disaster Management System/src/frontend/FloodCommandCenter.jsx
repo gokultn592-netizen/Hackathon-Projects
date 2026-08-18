@@ -2,6 +2,7 @@
 // FLOOD COMMAND CENTER - BIHAR DISASTER MANAGEMENT DASHBOARD
 // Filen.io Inspired Dark UI Aesthetic (#0a0a0a, #111111, #1a1a1a, #2a2a2a)
 // Full Interactive Tabs, Leaflet Map, ML Risk Scoring, Hungarian Allocations
+// Includes Leaflet Container Reset & invalidateSize for Seamless Tab Navigation
 // ============================================================================
 
 const ReactObj = typeof window !== "undefined" && window.React ? window.React : require("react");
@@ -600,7 +601,7 @@ function FloodCommandCenter() {
   };
 
   // --------------------------------------------------------------------------
-  // LEAFLET MAP INITIALIZATION & MARKER SYNC
+  // LEAFLET MAP INITIALIZATION & MARKER SYNC (FIXED FOR TAB SWITCHING & FLYTO)
   // --------------------------------------------------------------------------
   useEffect(() => {
     if (activeTab !== "map") return;
@@ -608,6 +609,17 @@ function FloodCommandCenter() {
 
     const L = typeof window !== "undefined" ? window.L : null;
     if (!L) return;
+
+    // Reset map instance if container element reference changed in DOM
+    if (
+      leafletMapRef.current &&
+      leafletMapRef.current.getContainer() !== mapContainerRef.current
+    ) {
+      try {
+        leafletMapRef.current.remove();
+      } catch (e) {}
+      leafletMapRef.current = null;
+    }
 
     if (!leafletMapRef.current) {
       const map = L.map(mapContainerRef.current, {
@@ -626,9 +638,27 @@ function FloodCommandCenter() {
 
     const map = leafletMapRef.current;
 
+    // Force Leaflet to recalculate container dimensions so map is NOT pitch dark
+    setTimeout(() => {
+      if (map) {
+        map.invalidateSize();
+      }
+    }, 60);
+
+    // Find target selected district
+    const targetDist = districts.find(
+      (d) => formatDistrictName(d.district_id || d.name) === formatDistrictName(selectedDistrictId)
+    );
+
+    if (targetDist && targetDist.lat && targetDist.lon) {
+      map.flyTo([targetDist.lat, targetDist.lon], 8.5, { duration: 1.0 });
+    }
+
+    // Clear existing markers
     Object.values(markersRef.current).forEach((m) => map.removeLayer(m));
     markersRef.current = {};
 
+    // Render CircleMarkers for each district
     districts.forEach((district) => {
       const distName = formatDistrictName(district.district_id || district.name);
       const isSelected = distName === formatDistrictName(selectedDistrictId);
@@ -639,7 +669,7 @@ function FloodCommandCenter() {
           ? "#f97316"
           : "#eab308";
 
-      const radius = isSelected ? 10 : 6 + district.risk_score * 6;
+      const radius = isSelected ? 11 : 6 + district.risk_score * 6;
 
       const marker = L.circleMarker([district.lat, district.lon], {
         radius: radius,
@@ -693,6 +723,10 @@ function FloodCommandCenter() {
         className: "dark-custom-popup",
         closeButton: false,
       });
+
+      if (isSelected) {
+        marker.openPopup();
+      }
 
       marker.on("click", () => {
         setSelectedDistrictId(distName);
