@@ -452,6 +452,48 @@ function FloodCommandCenter() {
   const hospitalGroupRef = useRef(null);
   const hazardGroupRef = useRef(null);
 
+  // Helper to compute dynamic resource allocations based on current district risk scores
+  const syncAllocations = (districtList) => {
+    const sorted = [...districtList].sort((a, b) => b.risk_score - a.risk_score);
+    let remNDRF = resources.ndrf_teams;
+    let remBoats = resources.rescue_boats;
+    let remMedical = resources.medical_kits;
+    let remTents = resources.shelter_tents;
+
+    const newAlloc = sorted.map((d) => {
+      const p = d.risk_score >= 0.7 ? "P1_URGENT" : d.risk_score >= 0.4 ? "P2_HIGH" : "P3_MONITOR";
+      const w = d.risk_score;
+      const ndrf = Math.min(remNDRF, Math.max(0, Math.round(15 * w)));
+      const boats = Math.min(remBoats, Math.max(0, Math.round(30 * w)));
+      const med = Math.min(remMedical, Math.round(900 * w));
+      const tents = Math.min(remTents, Math.round(450 * w));
+
+      remNDRF -= ndrf;
+      remBoats -= boats;
+      remMedical -= med;
+      remTents -= tents;
+
+      return {
+        district_id: formatDistrictName(d.district_id),
+        priority_level: p,
+        risk_score: d.risk_score,
+        allocated_ndrf_teams: ndrf,
+        allocated_rescue_boats: boats,
+        allocated_medical_kits: med,
+        allocated_shelter_tents: tents,
+        evacuation_center_recommended: d.risk_score >= 0.6,
+      };
+    });
+
+    setAllocations(newAlloc);
+    setUnallocated({
+      ndrf_teams: Math.max(0, remNDRF),
+      rescue_boats: Math.max(0, remBoats),
+      medical_kits: Math.max(0, remMedical),
+      shelter_tents: Math.max(0, remTents),
+    });
+  };
+
   // LocalStorage Sync for check.html Portal
   useEffect(() => {
     if (typeof localStorage !== "undefined") {
@@ -459,13 +501,12 @@ function FloodCommandCenter() {
     }
   }, [useSimulation]);
 
-  // Timeline Slider Reactivity Effect: Dynamic Hydrology Update on Day Change
+  // Timeline Slider & Replay Reactivity Effect: Fully syncs map, shelters, river gauges, ML matrix, and resource allocations
   useEffect(() => {
-    if (useSimulation) {
-      const dailyData = generateHydrologyForDay(simulationDay);
-      setDistricts(dailyData);
-    }
-  }, [simulationDay, useSimulation]);
+    const dailyData = generateHydrologyForDay(simulationDay);
+    setDistricts(dailyData);
+    syncAllocations(dailyData);
+  }, [simulationDay]);
 
   // Timeline Play/Pause Effect
   useEffect(() => {
