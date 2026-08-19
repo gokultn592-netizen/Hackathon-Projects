@@ -1,7 +1,7 @@
 // ============================================================================
 // FLOOD COMMAND CENTER - BIHAR DISASTER MANAGEMENT DECISION SUPPORT SYSTEM
 // Filen.io Premium Dark UI Aesthetic (#0a0a0a, #111111, #1a1a1a, #2a2a2a)
-// Executive Administrative Decision Suite (Dynamic Status Badges & Accurate Alignment)
+// Executive Administrative Decision Suite (Real Data Default & Dynamic Occupancy)
 // ============================================================================
 
 const ReactObj = typeof window !== "undefined" && window.React ? window.React : require("react");
@@ -43,7 +43,7 @@ const DISTRICT_BASE_PROFILES = [
   {
     district_id: "Patna",
     name: "Patna",
-    river_name: "Ganga",
+    river_name: "Ganga (Digha Ghat)",
     lat: 25.5937,
     lon: 85.1376,
     shelter_lat: 25.6450,
@@ -70,7 +70,7 @@ const DISTRICT_BASE_PROFILES = [
   {
     district_id: "Bhagalpur",
     name: "Bhagalpur",
-    river_name: "Ganga / Kosi",
+    river_name: "Ganga / Kosi (Kahalgoan)",
     lat: 25.2425,
     lon: 87.0022,
     shelter_lat: 25.1750,
@@ -97,7 +97,7 @@ const DISTRICT_BASE_PROFILES = [
   {
     district_id: "Darbhanga",
     name: "Darbhanga",
-    river_name: "Bagmati / Kamla",
+    river_name: "Bagmati / Kamla (Hayaghat)",
     lat: 26.1542,
     lon: 85.8918,
     shelter_lat: 26.2200,
@@ -124,7 +124,7 @@ const DISTRICT_BASE_PROFILES = [
   {
     district_id: "Muzaffarpur",
     name: "Muzaffarpur",
-    river_name: "Burhi Gandak",
+    river_name: "Burhi Gandak (Sikandarpur)",
     lat: 26.1209,
     lon: 85.3647,
     shelter_lat: 26.1800,
@@ -151,7 +151,7 @@ const DISTRICT_BASE_PROFILES = [
   {
     district_id: "Sitamarhi",
     name: "Sitamarhi",
-    river_name: "Lakhandei / Bagmati",
+    river_name: "Lakhandei / Bagmati (Runnisaidpur)",
     lat: 26.5976,
     lon: 85.4886,
     shelter_lat: 26.6500,
@@ -178,7 +178,7 @@ const DISTRICT_BASE_PROFILES = [
   {
     district_id: "Supaul",
     name: "Supaul",
-    river_name: "Kosi Barrage",
+    river_name: "Kosi Barrage (Birpur)",
     lat: 26.1260,
     lon: 86.5972,
     shelter_lat: 26.1800,
@@ -205,7 +205,7 @@ const DISTRICT_BASE_PROFILES = [
   {
     district_id: "Madhubani",
     name: "Madhubani",
-    river_name: "Kamla Balan",
+    river_name: "Kamla Balan (Jhanjharpur)",
     lat: 26.3496,
     lon: 86.0718,
     shelter_lat: 26.4100,
@@ -232,7 +232,7 @@ const DISTRICT_BASE_PROFILES = [
   {
     district_id: "Katihar",
     name: "Katihar",
-    river_name: "Mahananda / Ganga",
+    river_name: "Mahananda / Ganga (Baltara)",
     lat: 25.5413,
     lon: 87.5755,
     shelter_lat: 25.6000,
@@ -261,36 +261,45 @@ const DISTRICT_BASE_PROFILES = [
 // Smooth Calibrated 2019 Bihar Monsoon Simulation Engine
 function generateHydrologyForDay(dayNumber) {
   // Day 1-184 (May 1 to Oct 31, 2019)
-  // Day 1-60 (Pre-monsoon): 0.20 -> 0.40 factor
-  // Day 61-120 (Monsoon buildup): 0.40 -> 0.75 factor
+  // Day 1-60 (Pre-monsoon): 0.15 -> 0.35 factor
+  // Day 61-120 (Monsoon buildup): 0.35 -> 0.70 factor
   // Day 121-165 (Historic Sept 2019 Bihar Flood Peak): 0.85 -> 1.00 peak
-  // Day 166-184 (Receding monsoon): 0.95 -> 0.30 factor
-  let seasonFactor = 0.3;
+  // Day 166-184 (Receding monsoon): 0.95 -> 0.25 factor
+  let seasonFactor = 0.2;
   if (dayNumber <= 60) {
-    seasonFactor = 0.20 + (dayNumber / 60.0) * 0.20;
+    seasonFactor = 0.15 + (dayNumber / 60.0) * 0.20;
   } else if (dayNumber <= 120) {
-    seasonFactor = 0.40 + ((dayNumber - 60) / 60.0) * 0.35;
+    seasonFactor = 0.35 + ((dayNumber - 60) / 60.0) * 0.35;
   } else if (dayNumber <= 165) {
     seasonFactor = 0.82 + ((dayNumber - 120) / 45.0) * 0.18;
   } else {
-    seasonFactor = 1.0 - ((dayNumber - 165) / 19.0) * 0.70;
+    seasonFactor = 1.0 - ((dayNumber - 165) / 19.0) * 0.75;
   }
 
   return DISTRICT_BASE_PROFILES.map((prof) => {
     const rain = Math.round(prof.peak_rain_24h * seasonFactor);
     const rain3d = Math.round(rain * 1.85);
-    const waterLevel = Number((prof.peak_water_level * (0.45 + seasonFactor * 0.55)).toFixed(1));
+    
+    // Normalize relative gauge water level (meters relative to river bed)
+    const waterLevel = Number((prof.danger_level * (0.65 + seasonFactor * 0.50)).toFixed(1));
     const isAboveDanger = waterLevel >= prof.danger_level ? 1 : 0;
 
     const riskRatio = (rain / 200.0) * 0.45 + (waterLevel / prof.peak_water_level) * 0.55;
-    const riskScore = Number(Math.min(0.98, Math.max(0.15, riskRatio)).toFixed(2));
+    const riskScore = Number(Math.min(0.98, Math.max(0.12, riskRatio)).toFixed(2));
 
     const isP1 = riskScore >= 0.70;
     const isP2 = riskScore >= 0.40 && riskScore < 0.70;
     const riskLevel = isP1 ? "P1_URGENT" : isP2 ? "P2_HIGH" : "P3_MONITOR";
 
-    const shelterOccupancy = Math.round(prof.shelter_capacity * Math.min(0.88, riskScore * 0.92));
-    const shelterStatus = isP1 ? "🚨 ACTIVE EVACUATION" : isP2 ? "🟠 READY / PREPARED" : "🟢 STANDBY";
+    // Dynamic Shelter Occupancy: Low risk = Low occupancy (10-15%), High risk = High occupancy (70-90%)
+    let occupancyRatio = 0.10 + riskScore * 0.15;
+    if (isP1) {
+      occupancyRatio = 0.65 + (riskScore - 0.70) * 0.95;
+    } else if (isP2) {
+      occupancyRatio = 0.25 + (riskScore - 0.40) * 1.10;
+    }
+    const shelterOccupancy = Math.min(prof.shelter_capacity, Math.round(prof.shelter_capacity * Math.min(0.95, occupancyRatio)));
+    const shelterStatus = isP1 ? "🚨 ACTIVE EVACUATION" : isP2 ? "🟠 READY / PREPARED" : "🟢 STANDBY / NORMAL";
 
     return {
       district_id: prof.district_id,
@@ -371,7 +380,7 @@ const INITIAL_ALLOCATIONS = [
 
 function FloodCommandCenter() {
   // --------------------------------------------------------------------------
-  // STATE MANAGEMENT
+  // STATE MANAGEMENT - REAL DATA MODE IS NOW DEFAULT (useSimulation = false)
   // --------------------------------------------------------------------------
   const [health, setHealth] = useState({
     status: "CHECKING",
@@ -380,7 +389,8 @@ function FloodCommandCenter() {
     model_loaded: false,
   });
 
-  const [useSimulation, setUseSimulation] = useState(true);
+  // REAL DATA MODE BY DEFAULT (user requested real data by default!)
+  const [useSimulation, setUseSimulation] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [selectedDistrictId, setSelectedDistrictId] = useState("Patna");
   const [detailModalOpen, setDetailModalOpen] = useState(false);
@@ -503,7 +513,7 @@ function FloodCommandCenter() {
         const data = await res.json();
         setHealth(data);
         setIsOffline(false);
-        addToast("Connected to FastAPI Backend (HEALTHY)", "success");
+        addToast("Connected to FastAPI Backend (LIVE REAL DATA)", "success");
       } else {
         throw new Error("Backend response not OK");
       }
@@ -554,7 +564,7 @@ function FloodCommandCenter() {
         );
       }
       setIsOffline(false);
-      addToast("📡 Telemetry data ingested & fused across Bihar districts", "success");
+      addToast("📡 Live Real Data Telemetry Ingested across 8 Bihar Districts", "success");
     } catch (err) {
       console.warn("Using simulation fallback for collect data:", err);
       setIsOffline(true);
@@ -1302,7 +1312,7 @@ function FloodCommandCenter() {
               }`}
             ></span>
             <span className="font-medium text-gray-200">
-              {isOffline ? "OFFLINE / SIMULATION MODE" : "HEALTHY"}
+              {isOffline ? "OFFLINE / SIMULATION MODE" : "HEALTHY (LIVE DATA)"}
             </span>
           </div>
 
@@ -1320,7 +1330,7 @@ function FloodCommandCenter() {
         {/* Right Simulation Toggle & Refresh */}
         <div className="flex items-center space-x-3">
           <label className="flex items-center cursor-pointer space-x-2 text-xs bg-[#1a1a1a] border border-[#2a2a2a] px-2.5 py-1.5 rounded-lg hover:border-[#3b82f6]/40 transition">
-            <span className="text-gray-300">Simulate Mode</span>
+            <span className="text-gray-300 font-semibold">Simulate Mode</span>
             <input
               type="checkbox"
               checked={useSimulation}
@@ -1717,8 +1727,14 @@ function FloodCommandCenter() {
                   </div>
                   <div className="w-full bg-[#262626] h-1.5 rounded-full overflow-hidden mt-1">
                     <div
-                      className="bg-amber-400 h-full"
-                      style={{ width: `${((totalShelterOccupancy / totalShelterCapacity) * 100).toFixed(0)}%` }}
+                      className={`h-full ${
+                        totalShelterOccupancy / totalShelterCapacity > 0.6
+                          ? "bg-red-500"
+                          : totalShelterOccupancy / totalShelterCapacity > 0.3
+                          ? "bg-amber-400"
+                          : "bg-emerald-400"
+                      }`}
+                      style={{ width: `${Math.round((totalShelterOccupancy / totalShelterCapacity) * 100)}%` }}
                     />
                   </div>
                 </div>
@@ -1820,7 +1836,7 @@ function FloodCommandCenter() {
                         <div className="flex justify-between items-center">
                           <span className="font-bold text-white">{d.river_name || "Ganga"} ({name})</span>
                           <span className={isOver ? "text-red-400 font-bold" : "text-emerald-400 font-bold"}>
-                            {isOver ? `+${diff}m ABOVE DANGER` : `${diff}m SAFE`}
+                            {isOver ? `+${diff}m ABOVE DANGER MARK` : `${Math.abs(diff)}m BELOW DANGER (SAFE)`}
                           </span>
                         </div>
 
@@ -1832,7 +1848,7 @@ function FloodCommandCenter() {
                         <div className="w-full bg-[#262626] h-2 rounded-full overflow-hidden">
                           <div
                             className={`h-full ${isOver ? "bg-red-500" : "bg-emerald-400"}`}
-                            style={{ width: `${Math.min(100, (d.water_level_meters / 10.0) * 100)}%` }}
+                            style={{ width: `${Math.min(100, (d.water_level_meters / (d.danger_level_meters * 1.3)) * 100)}%` }}
                           />
                         </div>
                       </div>
