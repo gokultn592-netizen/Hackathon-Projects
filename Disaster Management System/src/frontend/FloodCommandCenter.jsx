@@ -1869,14 +1869,13 @@ function FloodCommandCenter() {
                     const name = formatDistrictName(d.district_id);
                     const prof = DISTRICT_BASE_PROFILES.find((p) => p.district_id === name || p.name === name) || {};
                     
+                    const dMark = prof.danger_level || d.danger_level_meters || 8.0;
                     let wLevel = d.water_level_meters;
-                    let dMark = d.danger_level_meters || prof.danger_level;
-                    if (wLevel > 30.0 && dMark > 30.0) {
-                      wLevel = Number((prof.danger_level + (wLevel - dMark)).toFixed(1));
-                      dMark = prof.danger_level;
-                    } else if (!wLevel || wLevel < 2.0) {
-                      wLevel = Number((prof.danger_level * 0.85).toFixed(1));
-                      dMark = prof.danger_level;
+                    
+                    // Normalize water level relative to danger mark threshold based on active risk level
+                    if (!wLevel || wLevel > dMark + 4.0 || wLevel < 1.0) {
+                      const levelRatio = 0.72 + (d.risk_score || 0.20) * 0.52;
+                      wLevel = Number((dMark * levelRatio).toFixed(1));
                     }
 
                     const diff = (wLevel - dMark).toFixed(1);
@@ -1899,7 +1898,7 @@ function FloodCommandCenter() {
                         <div className="w-full bg-[#262626] h-2 rounded-full overflow-hidden">
                           <div
                             className={`h-full ${isOver ? "bg-red-500" : "bg-emerald-400"}`}
-                            style={{ width: `${Math.min(100, (wLevel / (dMark * 1.3)) * 100)}%` }}
+                            style={{ width: `${Math.min(100, (wLevel / (dMark * 1.25)) * 100)}%` }}
                           />
                         </div>
                       </div>
