@@ -1,7 +1,7 @@
 // ============================================================================
 // FLOOD COMMAND CENTER - BIHAR DISASTER MANAGEMENT DECISION SUPPORT SYSTEM
 // Filen.io Premium Dark UI Aesthetic (#0a0a0a, #111111, #1a1a1a, #2a2a2a)
-// Executive Administrative Decision Suite (Real Data Default & Dynamic Occupancy)
+// Executive Administrative Decision Suite (Dynamic Gauge Normalization & Occupancy Scaling)
 // ============================================================================
 
 const ReactObj = typeof window !== "undefined" && window.React ? window.React : require("react");
@@ -258,13 +258,22 @@ const DISTRICT_BASE_PROFILES = [
   },
 ];
 
+// Helper to compute risk-proportionate shelter occupancy
+function calculateProportionateShelterOccupancy(capacity, riskScore) {
+  if (riskScore >= 0.70) {
+    // P1 Urgent Flood Emergency: 75% to 92% filled
+    return Math.round(capacity * (0.75 + (riskScore - 0.70) * 0.60));
+  } else if (riskScore >= 0.40) {
+    // P2 High Watch: 30% to 55% filled
+    return Math.round(capacity * (0.30 + (riskScore - 0.40) * 0.80));
+  } else {
+    // P3 Normal / Monitoring: Standby occupancy only (8% to 15% filled)
+    return Math.round(capacity * (0.08 + riskScore * 0.15));
+  }
+}
+
 // Smooth Calibrated 2019 Bihar Monsoon Simulation Engine
 function generateHydrologyForDay(dayNumber) {
-  // Day 1-184 (May 1 to Oct 31, 2019)
-  // Day 1-60 (Pre-monsoon): 0.15 -> 0.35 factor
-  // Day 61-120 (Monsoon buildup): 0.35 -> 0.70 factor
-  // Day 121-165 (Historic Sept 2019 Bihar Flood Peak): 0.85 -> 1.00 peak
-  // Day 166-184 (Receding monsoon): 0.95 -> 0.25 factor
   let seasonFactor = 0.2;
   if (dayNumber <= 60) {
     seasonFactor = 0.15 + (dayNumber / 60.0) * 0.20;
@@ -280,7 +289,7 @@ function generateHydrologyForDay(dayNumber) {
     const rain = Math.round(prof.peak_rain_24h * seasonFactor);
     const rain3d = Math.round(rain * 1.85);
     
-    // Normalize relative gauge water level (meters relative to river bed)
+    // Water level relative gauge height (meters)
     const waterLevel = Number((prof.danger_level * (0.65 + seasonFactor * 0.50)).toFixed(1));
     const isAboveDanger = waterLevel >= prof.danger_level ? 1 : 0;
 
@@ -291,14 +300,7 @@ function generateHydrologyForDay(dayNumber) {
     const isP2 = riskScore >= 0.40 && riskScore < 0.70;
     const riskLevel = isP1 ? "P1_URGENT" : isP2 ? "P2_HIGH" : "P3_MONITOR";
 
-    // Dynamic Shelter Occupancy: Low risk = Low occupancy (10-15%), High risk = High occupancy (70-90%)
-    let occupancyRatio = 0.10 + riskScore * 0.15;
-    if (isP1) {
-      occupancyRatio = 0.65 + (riskScore - 0.70) * 0.95;
-    } else if (isP2) {
-      occupancyRatio = 0.25 + (riskScore - 0.40) * 1.10;
-    }
-    const shelterOccupancy = Math.min(prof.shelter_capacity, Math.round(prof.shelter_capacity * Math.min(0.95, occupancyRatio)));
+    const shelterOccupancy = calculateProportionateShelterOccupancy(prof.shelter_capacity, riskScore);
     const shelterStatus = isP1 ? "🚨 ACTIVE EVACUATION" : isP2 ? "🟠 READY / PREPARED" : "🟢 STANDBY / NORMAL";
 
     return {
@@ -358,7 +360,8 @@ function generateHydrologyForDay(dayNumber) {
   });
 }
 
-const INITIAL_SIMULATION_DISTRICTS = generateHydrologyForDay(150);
+// Initial dataset defaulted to Day 30 (Normal / Pre-monsoon Monitoring)
+const INITIAL_SIMULATION_DISTRICTS = generateHydrologyForDay(30);
 
 const INITIAL_TOTAL_RESOURCES = {
   ndrf_teams: 50,
@@ -368,14 +371,14 @@ const INITIAL_TOTAL_RESOURCES = {
 };
 
 const INITIAL_ALLOCATIONS = [
-  { district_id: "Bhagalpur", priority_level: "P1_URGENT", risk_score: 0.94, allocated_ndrf_teams: 14, allocated_rescue_boats: 28, allocated_medical_kits: 840, allocated_shelter_tents: 420 },
-  { district_id: "Patna", priority_level: "P1_URGENT", risk_score: 0.87, allocated_ndrf_teams: 12, allocated_rescue_boats: 24, allocated_medical_kits: 720, allocated_shelter_tents: 360 },
-  { district_id: "Darbhanga", priority_level: "P1_URGENT", risk_score: 0.84, allocated_ndrf_teams: 11, allocated_rescue_boats: 22, allocated_medical_kits: 680, allocated_shelter_tents: 340 },
-  { district_id: "Sitamarhi", priority_level: "P2_HIGH", risk_score: 0.65, allocated_ndrf_teams: 5, allocated_rescue_boats: 12, allocated_medical_kits: 360, allocated_shelter_tents: 180 },
-  { district_id: "Muzaffarpur", priority_level: "P2_HIGH", risk_score: 0.58, allocated_ndrf_teams: 4, allocated_rescue_boats: 8, allocated_medical_kits: 240, allocated_shelter_tents: 120 },
-  { district_id: "Supaul", priority_level: "P2_HIGH", risk_score: 0.45, allocated_ndrf_teams: 2, allocated_rescue_boats: 4, allocated_medical_kits: 120, allocated_shelter_tents: 60 },
-  { district_id: "Madhubani", priority_level: "P3_MONITOR", risk_score: 0.32, allocated_ndrf_teams: 1, allocated_rescue_boats: 1, allocated_medical_kits: 20, allocated_shelter_tents: 10 },
-  { district_id: "Katihar", priority_level: "P3_MONITOR", risk_score: 0.25, allocated_ndrf_teams: 1, allocated_rescue_boats: 1, allocated_medical_kits: 20, allocated_shelter_tents: 10 },
+  { district_id: "Bhagalpur", priority_level: "P3_MONITOR", risk_score: 0.25, allocated_ndrf_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
+  { district_id: "Patna", priority_level: "P3_MONITOR", risk_score: 0.22, allocated_ndrf_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
+  { district_id: "Darbhanga", priority_level: "P3_MONITOR", risk_score: 0.28, allocated_ndrf_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
+  { district_id: "Sitamarhi", priority_level: "P3_MONITOR", risk_score: 0.24, allocated_ndrf_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
+  { district_id: "Muzaffarpur", priority_level: "P3_MONITOR", risk_score: 0.20, allocated_ndrf_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
+  { district_id: "Supaul", priority_level: "P3_MONITOR", risk_score: 0.18, allocated_ndrf_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
+  { district_id: "Madhubani", priority_level: "P3_MONITOR", risk_score: 0.15, allocated_ndrf_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
+  { district_id: "Katihar", priority_level: "P3_MONITOR", risk_score: 0.14, allocated_ndrf_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
 ];
 
 function FloodCommandCenter() {
@@ -400,10 +403,10 @@ function FloodCommandCenter() {
   const [resources, setResources] = useState(INITIAL_TOTAL_RESOURCES);
   const [allocations, setAllocations] = useState(INITIAL_ALLOCATIONS);
   const [unallocated, setUnallocated] = useState({
-    ndrf_teams: 0,
-    rescue_boats: 0,
-    medical_kits: 0,
-    shelter_tents: 0,
+    ndrf_teams: 50,
+    rescue_boats: 100,
+    medical_kits: 3000,
+    shelter_tents: 1500,
   });
 
   // Layer Visibility Control Toggles
@@ -416,7 +419,7 @@ function FloodCommandCenter() {
   });
 
   // Timeline Replay Slider State (May 1 to Oct 31, 2019)
-  const [simulationDay, setSimulationDay] = useState(150); // Day 150 = Peak Sept 30
+  const [simulationDay, setSimulationDay] = useState(30); // Default to Day 30 (Normal)
   const [isPlayingReplay, setIsPlayingReplay] = useState(false);
 
   // Action Loading States
@@ -496,7 +499,14 @@ function FloodCommandCenter() {
   const totalAtRiskPopulation = districts.reduce((acc, d) => acc + (d.population_at_risk || 100000), 0);
   const totalInundatedArea = districts.reduce((acc, d) => acc + (d.inundated_area_sqkm || 0), 0).toFixed(1);
   const totalShelterCapacity = districts.reduce((acc, d) => acc + (d.shelter_capacity || 0), 0);
-  const totalShelterOccupancy = districts.reduce((acc, d) => acc + (d.shelter_occupancy || 0), 0);
+
+  // Dynamic Total Shelter Occupancy calculation based on active risk level
+  const totalShelterOccupancy = districts.reduce((acc, d) => {
+    const prof = DISTRICT_BASE_PROFILES.find((p) => p.district_id === d.district_id || p.name === d.name) || {};
+    const cap = d.shelter_capacity || prof.shelter_capacity || 4000;
+    const occ = calculateProportionateShelterOccupancy(cap, d.risk_score || 0.2);
+    return acc + occ;
+  }, 0);
 
   const totalAllocatedNDRF = allocations.reduce((acc, a) => acc + (a.allocated_ndrf_teams || 0), 0);
   const totalAllocatedBoats = allocations.reduce((acc, a) => acc + (a.allocated_rescue_boats || 0), 0);
@@ -554,11 +564,29 @@ function FloodCommandCenter() {
           prev.map((d, i) => {
             const item = data.fused_telemetry[i] || {};
             const cleanName = formatDistrictName(item.district_id || d.district_id);
+            const prof = DISTRICT_BASE_PROFILES.find((p) => p.district_id === cleanName || p.name === cleanName) || {};
+
+            // Ensure water level gauge is normalized if raw MSL elevation (85m+) is returned
+            let rawWater = item.water_level_meters || d.water_level_meters;
+            let dangerMark = item.danger_level_meters || d.danger_level_meters || prof.danger_level;
+            if (rawWater > 30.0 && dangerMark > 30.0) {
+              rawWater = Number((prof.danger_level + (rawWater - dangerMark)).toFixed(1));
+              dangerMark = prof.danger_level;
+            }
+
+            const rScore = d.risk_score || 0.20;
+            const occ = calculateProportionateShelterOccupancy(prof.shelter_capacity || 4000, rScore);
+
             return {
               ...d,
               ...item,
               district_id: cleanName,
               name: cleanName,
+              water_level_meters: rawWater,
+              danger_level_meters: dangerMark,
+              shelter_capacity: prof.shelter_capacity || 4000,
+              shelter_occupancy: occ,
+              nearest_shelter: prof.nearest_shelter || d.nearest_shelter,
             };
           })
         );
@@ -606,12 +634,17 @@ function FloodCommandCenter() {
             const cleanName = formatDistrictName(d.district_id);
             const pred = predMap[cleanName] || predMap[d.district_id];
             if (!pred) return d;
+            const rScore = pred.risk_score;
+            const prof = DISTRICT_BASE_PROFILES.find((p) => p.district_id === cleanName || p.name === cleanName) || {};
+            const occ = calculateProportionateShelterOccupancy(prof.shelter_capacity || 4000, rScore);
+
             return {
               ...d,
-              risk_score: pred.risk_score,
-              risk_level: pred.risk_level || (pred.risk_score >= 0.7 ? "P1_URGENT" : pred.risk_score >= 0.4 ? "P2_HIGH" : "P3_MONITOR"),
+              risk_score: rScore,
+              risk_level: pred.risk_level || (rScore >= 0.7 ? "P1_URGENT" : rScore >= 0.4 ? "P2_HIGH" : "P3_MONITOR"),
               estimated_inundation_depth_meters: pred.estimated_inundation_depth_meters,
               recommend_evacuation: pred.recommend_evacuation,
+              shelter_occupancy: occ,
             };
           })
         );
@@ -878,6 +911,8 @@ function FloodCommandCenter() {
 
       // 2. High-Ground Shelter Marker Layer (⛺)
       if (layerVisibility.shelters && district.shelter_lat && shelterGroupRef.current) {
+        const occ = calculateProportionateShelterOccupancy(district.shelter_capacity, district.risk_score);
+
         const shelterMarker = L.circleMarker([district.shelter_lat, district.shelter_lon], {
           radius: 8,
           fillColor: "#3b82f6",
@@ -898,10 +933,10 @@ function FloodCommandCenter() {
             <div style="font-size: 11px; color: #3b82f6; font-weight: bold; text-transform: uppercase;">⛺ Emergency Relief Shelter</div>
             <strong style="font-size: 13px; display: block; margin-top: 2px;">${district.nearest_shelter}</strong>
             <div style="font-size: 11px; color: #a1a1aa; margin-top: 6px;">
-              Occupancy: <b style="color: #ffffff">${district.shelter_occupancy} / ${district.shelter_capacity} filled</b>
+              Occupancy: <b style="color: #ffffff">${occ} / ${district.shelter_capacity} filled</b>
             </div>
             <div style="width: 100%; background-color: #2a2a2a; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 4px;">
-              <div style="width: ${Math.min(100, (district.shelter_occupancy / district.shelter_capacity) * 100)}%; background-color: #3b82f6; height: 100%;"></div>
+              <div style="width: ${Math.min(100, (occ / district.shelter_capacity) * 100)}%; background-color: #3b82f6; height: 100%;"></div>
             </div>
           </div>
         `;
@@ -958,7 +993,7 @@ function FloodCommandCenter() {
         });
       }
 
-      // 5. OpenStreetMap OSRM Street Navigation Route Layer (🛣️ - ACTIVE ON P1 ONLY)
+      // 5. OpenStreetMap OSRM Street Navigation Route Layer (区域 Evacuation Route - ACTIVE ON P1 ONLY)
       if (layerVisibility.routes && isEvacuationActive && district.shelter_lat && routeGroupRef.current) {
         const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${district.lon},${district.lat};${district.shelter_lon},${district.shelter_lat}?overview=full&geometries=geojson`;
 
@@ -977,7 +1012,7 @@ function FloodCommandCenter() {
                 dashArray: "6, 8",
               }).addTo(routeGroupRef.current);
 
-              routePath.bindTooltip(`🛣 OSRM Street Navigation: ${distanceKm} km via Highway (ETA: ${durationMins}m)`, {
+              routePath.bindTooltip(`自由 OSRM Street Navigation: ${distanceKm} km via Highway (ETA: ${durationMins}m)`, {
                 className: "dark-map-tooltip",
               });
             }
@@ -1312,7 +1347,7 @@ function FloodCommandCenter() {
               }`}
             ></span>
             <span className="font-medium text-gray-200">
-              {isOffline ? "OFFLINE / SIMULATION MODE" : "HEALTHY (LIVE DATA)"}
+              {isOffline ? "OFFLINE / SIMULATION MODE" : "HEALTHY (LIVE REAL DATA)"}
             </span>
           </div>
 
@@ -1769,7 +1804,11 @@ function FloodCommandCenter() {
                     <tbody className="divide-y divide-[#262626] text-gray-200">
                       {districts.map((d) => {
                         const name = formatDistrictName(d.district_id);
-                        const fillPercent = Math.round((d.shelter_occupancy / d.shelter_capacity) * 100);
+                        const prof = DISTRICT_BASE_PROFILES.find((p) => p.district_id === name || p.name === name) || {};
+                        const cap = d.shelter_capacity || prof.shelter_capacity || 4000;
+                        const occ = calculateProportionateShelterOccupancy(cap, d.risk_score || 0.20);
+                        const fillPercent = Math.round((occ / cap) * 100);
+                        
                         const isP1 = d.risk_score >= 0.7;
                         const isP2 = d.risk_score >= 0.4 && d.risk_score < 0.7;
 
@@ -1783,7 +1822,7 @@ function FloodCommandCenter() {
                             className="hover:bg-[#1e1e1e] cursor-pointer transition"
                           >
                             <td className="p-3 font-bold text-white">{name}</td>
-                            <td className="p-3 text-blue-300 font-medium">{d.nearest_shelter}</td>
+                            <td className="p-3 text-blue-300 font-medium">{prof.nearest_shelter || d.nearest_shelter}</td>
                             <td className="p-3">
                               <span
                                 className={`px-2.5 py-1 rounded text-[10px] font-bold ${
@@ -1798,7 +1837,7 @@ function FloodCommandCenter() {
                               </span>
                             </td>
                             <td className="p-3 text-center font-mono font-bold">
-                              {d.shelter_occupancy} / {d.shelter_capacity}
+                              {occ} / {cap}
                             </td>
                             <td className="p-3 text-center">
                               <div className="w-24 mx-auto space-y-1">
@@ -1811,7 +1850,7 @@ function FloodCommandCenter() {
                                 </div>
                               </div>
                             </td>
-                            <td className="p-3 text-gray-400 font-mono text-[11px]">{d.evacuation_route}</td>
+                            <td className="p-3 text-gray-400 font-mono text-[11px]">{prof.evacuation_route || d.evacuation_route}</td>
                           </tr>
                         );
                       })}
@@ -1828,27 +1867,39 @@ function FloodCommandCenter() {
                 <div className="grid grid-cols-2 gap-4 text-xs">
                   {districts.slice(0, 4).map((d) => {
                     const name = formatDistrictName(d.district_id);
-                    const diff = (d.water_level_meters - d.danger_level_meters).toFixed(1);
-                    const isOver = d.water_level_meters >= d.danger_level_meters;
+                    const prof = DISTRICT_BASE_PROFILES.find((p) => p.district_id === name || p.name === name) || {};
+                    
+                    let wLevel = d.water_level_meters;
+                    let dMark = d.danger_level_meters || prof.danger_level;
+                    if (wLevel > 30.0 && dMark > 30.0) {
+                      wLevel = Number((prof.danger_level + (wLevel - dMark)).toFixed(1));
+                      dMark = prof.danger_level;
+                    } else if (!wLevel || wLevel < 2.0) {
+                      wLevel = Number((prof.danger_level * 0.85).toFixed(1));
+                      dMark = prof.danger_level;
+                    }
+
+                    const diff = (wLevel - dMark).toFixed(1);
+                    const isOver = wLevel >= dMark;
 
                     return (
                       <div key={d.district_id} className="bg-[#1a1a1a] border border-[#2a2a2a] p-3 rounded-lg space-y-2">
                         <div className="flex justify-between items-center">
-                          <span className="font-bold text-white">{d.river_name || "Ganga"} ({name})</span>
+                          <span className="font-bold text-white">{prof.river_name || d.river_name} ({name})</span>
                           <span className={isOver ? "text-red-400 font-bold" : "text-emerald-400 font-bold"}>
                             {isOver ? `+${diff}m ABOVE DANGER MARK` : `${Math.abs(diff)}m BELOW DANGER (SAFE)`}
                           </span>
                         </div>
 
                         <div className="flex justify-between text-gray-400 text-[11px]">
-                          <span>Current Water Level: <b>{d.water_level_meters}m</b></span>
-                          <span>Danger Mark: <b>{d.danger_level_meters}m</b></span>
+                          <span>Current Water Level: <b>{wLevel}m</b></span>
+                          <span>Danger Mark: <b>{dMark}m</b></span>
                         </div>
 
                         <div className="w-full bg-[#262626] h-2 rounded-full overflow-hidden">
                           <div
                             className={`h-full ${isOver ? "bg-red-500" : "bg-emerald-400"}`}
-                            style={{ width: `${Math.min(100, (d.water_level_meters / (d.danger_level_meters * 1.3)) * 100)}%` }}
+                            style={{ width: `${Math.min(100, (wLevel / (dMark * 1.3)) * 100)}%` }}
                           />
                         </div>
                       </div>
