@@ -499,25 +499,30 @@ function FloodCommandCenter() {
     if (typeof localStorage !== "undefined") {
       localStorage.setItem("flood_sim_mode", useSimulation ? "SIMULATION" : "REAL");
     }
+    if (!useSimulation) {
+      setIsPlayingReplay(false);
+    }
   }, [useSimulation]);
 
-  // Timeline Slider & Replay Reactivity Effect: Fully syncs map, shelters, river gauges, ML matrix, and resource allocations
+  // Timeline Slider & Replay Reactivity Effect: Fully syncs map, shelters, river gauges, ML matrix, and resource allocations ONLY when useSimulation is active
   useEffect(() => {
-    const dailyData = generateHydrologyForDay(simulationDay);
-    setDistricts(dailyData);
-    syncAllocations(dailyData);
-  }, [simulationDay]);
+    if (useSimulation) {
+      const dailyData = generateHydrologyForDay(simulationDay);
+      setDistricts(dailyData);
+      syncAllocations(dailyData);
+    }
+  }, [simulationDay, useSimulation]);
 
   // Timeline Play/Pause Effect
   useEffect(() => {
     let timer;
-    if (isPlayingReplay) {
+    if (isPlayingReplay && useSimulation) {
       timer = setInterval(() => {
         setSimulationDay((prev) => (prev >= 184 ? 1 : prev + 2));
       }, 400);
     }
     return () => clearInterval(timer);
-  }, [isPlayingReplay]);
+  }, [isPlayingReplay, useSimulation]);
 
   // --------------------------------------------------------------------------
   // HELPERS & COMPUTED METRICS
@@ -1572,18 +1577,32 @@ function FloodCommandCenter() {
           {/* TAB 1: LEAFLET MAP VIEW */}
           {activeTab === "map" && (
             <div className="flex-1 flex flex-col min-h-0">
-              {/* Timeline Replay Bar */}
+              {/* Timeline Replay Bar (ACTIVE ONLY WHEN SIMULATE MODE IS ON) */}
               <div className="h-10 bg-[#141414] border-b border-[#2a2a2a] px-4 flex items-center justify-between text-xs">
                 <div className="flex items-center space-x-3">
                   <button
+                    disabled={!useSimulation}
                     onClick={() => setIsPlayingReplay(!isPlayingReplay)}
-                    className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-[10px] px-2.5 py-1 rounded flex items-center space-x-1"
+                    title={useSimulation ? "Toggle Monsoon Simulation Play/Pause" : "Enable 'Simulate Mode' (top right) to unlock timeline replay"}
+                    className={`font-bold text-[10px] px-2.5 py-1 rounded flex items-center space-x-1 transition ${
+                      useSimulation
+                        ? "bg-blue-600 hover:bg-blue-500 text-white cursor-pointer shadow"
+                        : "bg-[#222222] text-gray-500 border border-[#333333] cursor-not-allowed opacity-60"
+                    }`}
                   >
                     <span>{isPlayingReplay ? "⏸ PAUSE" : "▶ PLAY"}</span>
                   </button>
-                  <span className="text-gray-300 font-medium">
-                    2019 Bihar Monsoon Replay: <b className="text-blue-400">Day {simulationDay} / 184 (Sept 30 Peak)</b>
-                  </span>
+
+                  {useSimulation ? (
+                    <span className="text-gray-300 font-medium">
+                      2019 Bihar Monsoon Replay: <b className="text-blue-400">Day {simulationDay} / 184 (Sept 30 Peak)</b>
+                    </span>
+                  ) : (
+                    <span className="text-amber-400/90 font-semibold text-[11px] flex items-center space-x-1">
+                      <span>🔒</span>
+                      <span>Real Telemetry Active — Toggle 'Simulate Mode' (Top-Right) to unlock Replay</span>
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex-1 max-w-xs mx-4">
@@ -1591,9 +1610,12 @@ function FloodCommandCenter() {
                     type="range"
                     min="1"
                     max="184"
+                    disabled={!useSimulation}
                     value={simulationDay}
                     onChange={(e) => setSimulationDay(Number(e.target.value))}
-                    className="w-full accent-blue-500 h-1.5 bg-[#262626] rounded-lg cursor-pointer"
+                    className={`w-full h-1.5 rounded-lg ${
+                      useSimulation ? "accent-blue-500 bg-[#262626] cursor-pointer" : "bg-[#222222] cursor-not-allowed opacity-40"
+                    }`}
                   />
                 </div>
 
