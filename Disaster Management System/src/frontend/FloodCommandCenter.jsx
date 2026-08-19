@@ -1,7 +1,7 @@
 // ============================================================================
 // FLOOD COMMAND CENTER - BIHAR DISASTER MANAGEMENT DECISION SUPPORT SYSTEM
 // Filen.io Premium Dark UI Aesthetic (#0a0a0a, #111111, #1a1a1a, #2a2a2a)
-// Executive Administrative Decision Suite (Hospitals 🏥, Blockages 🚧, SitRep 📄, Layer Control)
+// Executive Administrative Decision Suite (Dynamic Status Badges & Accurate Alignment)
 // ============================================================================
 
 const ReactObj = typeof window !== "undefined" && window.React ? window.React : require("react");
@@ -1057,7 +1057,9 @@ function FloodCommandCenter() {
               <div className="grid grid-cols-3 gap-3 text-center border-b border-[#262626] pb-3">
                 <div>
                   <span className="text-[10px] text-gray-400 uppercase">State Emergency Status</span>
-                  <b className="text-red-400 font-bold block text-sm">🔴 HIGH FLOOD ALERT</b>
+                  <b className={p1Count > 0 ? "text-red-400 font-bold block text-sm" : p2Count > 0 ? "text-orange-400 font-bold block text-sm" : "text-emerald-400 font-bold block text-sm"}>
+                    {p1Count > 0 ? "🔴 HIGH FLOOD ALERT" : p2Count > 0 ? "🟠 HIGH MONSOON WATCH" : "🟢 NORMAL MONSOON STAGE"}
+                  </b>
                 </div>
                 <div>
                   <span className="text-[10px] text-gray-400 uppercase">Vulnerable Population</span>
@@ -1074,9 +1076,19 @@ function FloodCommandCenter() {
                   1. Executive Priority Directives (XGBoost Risk Ranking)
                 </span>
                 <div className="space-y-1 text-gray-300">
-                  <p>• <b>Patna & Bhagalpur Sector</b>: 4 NDRF Teams deployed; Ganga & Kosi overflow +1.1m above danger mark. Immediate evacuation along NH-31 Digha corridor active.</p>
-                  <p>• <b>Darbhanga & Sitamarhi Sector</b>: Bagmati river hydrograph cresting. DMCH Emergency Trauma Center prepared with 32 free ICU beds.</p>
-                  <p>• <b>Road Hazards</b>: 4 Major Highway closures detected (NH-31 Low-Pass, SH-19 Bridge). Alternate bypass routing active on OpenStreetMap layer.</p>
+                  {p1Count > 0 ? (
+                    <>
+                      <p>• <b>High Vulnerability Sectors</b>: NDRF Teams deployed; Ganga & Kosi overflow above danger mark. Immediate evacuation along highway corridors active.</p>
+                      <p>• <b>Medical Readiness</b>: AIIMS Patna & JLNMCH Trauma Centers prepared with active ICU bed capacity.</p>
+                      <p>• <b>Road Hazards</b>: Submerged Highway closures detected. Alternate bypass routing active on OpenStreetMap layer.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p>• <b>Monsoon Status</b>: All 8 Bihar river basins are currently within safe operational capacity (P3 Monitor Stage).</p>
+                      <p>• <b>Prepositioning</b>: NDRF Teams & Motor Boats on high standby at regional depots.</p>
+                      <p>• <b>Telemetry</b>: IMD Rainfall and India-WRIS River Gauges streaming live data continuously.</p>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -1663,9 +1675,25 @@ function FloodCommandCenter() {
                     Real-time operational monitoring across 38 districts, 8 major river basins, and relief camps
                   </p>
                 </div>
-                <div className="bg-red-500/10 border border-red-500/40 px-3 py-1.5 rounded-lg text-xs text-red-400 font-bold flex items-center space-x-2">
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
-                  <span>STATEWIDE FLOOD ALERT: HIGH MONSOON STAGE</span>
+                
+                {/* DYNAMIC ALERT BANNER ACCORDING TO REAL RISK LEVEL */}
+                <div
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-2 ${
+                    p1Count > 0
+                      ? "bg-red-500/10 border border-red-500/40 text-red-400"
+                      : p2Count > 0
+                      ? "bg-orange-500/10 border border-orange-500/40 text-orange-400"
+                      : "bg-emerald-500/10 border border-emerald-500/40 text-emerald-400"
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${p1Count > 0 ? "bg-red-500 animate-ping" : p2Count > 0 ? "bg-orange-400 animate-pulse" : "bg-emerald-400"}`}></span>
+                  <span>
+                    {p1Count > 0
+                      ? `🚨 STATEWIDE ALERT: ${p1Count} DISTRICTS IN URGENT P1 FLOOD EMERGENCY`
+                      : p2Count > 0
+                      ? `🟠 MONSOON ALERT: ${p2Count} DISTRICTS UNDER HIGH WATCH`
+                      : "🟢 ALL BASINS OPERATIONAL: NO ACTIVE FLOOD EMERGENCY"}
+                  </span>
                 </div>
               </div>
 
@@ -1727,6 +1755,7 @@ function FloodCommandCenter() {
                         const name = formatDistrictName(d.district_id);
                         const fillPercent = Math.round((d.shelter_occupancy / d.shelter_capacity) * 100);
                         const isP1 = d.risk_score >= 0.7;
+                        const isP2 = d.risk_score >= 0.4 && d.risk_score < 0.7;
 
                         return (
                           <tr
@@ -1741,15 +1770,15 @@ function FloodCommandCenter() {
                             <td className="p-3 text-blue-300 font-medium">{d.nearest_shelter}</td>
                             <td className="p-3">
                               <span
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                className={`px-2.5 py-1 rounded text-[10px] font-bold ${
                                   isP1
-                                    ? "bg-red-500/20 border border-red-500/40 text-red-400"
-                                    : d.risk_score >= 0.4
+                                    ? "bg-red-500/20 border border-red-500/40 text-red-400 animate-pulse"
+                                    : isP2
                                     ? "bg-orange-500/20 border border-orange-500/40 text-orange-400"
                                     : "bg-emerald-500/20 border border-emerald-500/40 text-emerald-400"
                                 }`}
                               >
-                                {d.shelter_status || (isP1 ? "🚨 ACTIVE" : "🟢 STANDBY")}
+                                {isP1 ? "🚨 ACTIVE EVACUATION" : isP2 ? "🟠 READY / PREPARED" : "🟢 STANDBY / NORMAL"}
                               </span>
                             </td>
                             <td className="p-3 text-center font-mono font-bold">
