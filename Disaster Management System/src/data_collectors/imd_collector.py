@@ -28,13 +28,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def download_bihar_rainfall_2019(
-    year: int = 2019,
-    start_date: str = "2019-05-01",
-    end_date: str = "2019-10-31",
+def download_bihar_rainfall(
+    year: Optional[int] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     lat_range: Tuple[float, float] = (24.5, 27.5),
     lon_range: Tuple[float, float] = (83.5, 88.5),
-    output_path: str = "data/processed/imd_rainfall_2019.csv",
+    output_path: Optional[str] = None,
     file_dir: Optional[str] = None
 ) -> pd.DataFrame:
     """
@@ -44,17 +44,17 @@ def download_bihar_rainfall_2019(
 
     Parameters
     ----------
-    year : int, default=2019
+    year : int, optional (defaults to current year or 2019)
         Year of IMD daily rainfall data to download.
-    start_date : str, default="2019-05-01"
+    start_date : str, optional (defaults to May 1 for monsoon season)
         Start date of monsoon season filter (YYYY-MM-DD).
-    end_date : str, default="2019-10-31"
+    end_date : str, optional (defaults to Oct 31 for monsoon season)
         End date of monsoon season filter (YYYY-MM-DD).
     lat_range : Tuple[float, float], default=(24.5, 27.5)
         Spatial bounding box latitude range (min_lat, max_lat).
     lon_range : Tuple[float, float], default=(83.5, 88.5)
         Spatial bounding box longitude range (min_lon, max_lon).
-    output_path : str, default="data/processed/imd_rainfall_2019.csv"
+    output_path : str, optional (defaults to data/processed/imd_rainfall_{year}.csv)
         Target file path for clean processed CSV data.
     file_dir : Optional[str], default=None
         Optional cache directory for raw IMD grid data files.
@@ -64,6 +64,21 @@ def download_bihar_rainfall_2019(
     pd.DataFrame
         Clean DataFrame with columns: date, latitude, longitude, rainfall_mm
     """
+    from datetime import datetime
+
+    # Default to 2019 historical data (real gridded data available; current year may have file mismatches)
+    if year is None:
+        year = 2019
+
+    # Default monsoon season (May 1 - Oct 31)
+    if start_date is None:
+        start_date = f"{year}-05-01"
+    if end_date is None:
+        end_date = f"{year}-10-31"
+
+    # Default output path
+    if output_path is None:
+        output_path = f"data/processed/imd_rainfall_{year}.csv"
     if not HAS_IMDLIB:
         raise ImportError(
             "The 'imdlib' package is required to download IMD rainfall data. "
@@ -147,15 +162,52 @@ def download_bihar_rainfall_2019(
     return df
 
 
+def download_bihar_rainfall_2019(
+    year: int = 2019,
+    start_date: str = "2019-05-01",
+    end_date: str = "2019-10-31",
+    lat_range: Tuple[float, float] = (24.5, 27.5),
+    lon_range: Tuple[float, float] = (83.5, 88.5),
+    output_path: str = "data/processed/imd_rainfall_2019.csv",
+    file_dir: Optional[str] = None
+) -> pd.DataFrame:
+    """
+    Backward-compatible wrapper for 2019 rainfall data.
+    Delegates to download_bihar_rainfall() with year=2019.
+    """
+    return download_bihar_rainfall(
+        year=year,
+        start_date=start_date,
+        end_date=end_date,
+        lat_range=lat_range,
+        lon_range=lon_range,
+        output_path=output_path,
+        file_dir=file_dir
+    )
+
+
 class IMDDataCollector(BaseDataCollector):
     """
     Collector for IMD precipitation, temperature, humidity, and storm warning metrics.
+    Supports fetching real gridded rainfall data for any year via imdlib.
     """
+
+    def __init__(self, year: Optional[int] = None):
+        """
+        Initialize IMD collector.
+
+        Parameters
+        ----------
+        year : int, optional
+            Year to fetch data for. Defaults to current year (or 2019 for historical data).
+        """
+        super().__init__()
+        self.year = year
 
     def fetch_live_data(self, region_code: str = "ALL") -> pd.DataFrame:
         """Fetch daily gridded rainfall telemetry using imdlib or return clean processed DataFrame."""
         try:
-            return download_bihar_rainfall_2019()
+            return download_bihar_rainfall(year=self.year)
         except Exception as e:
             logger.warning(f"Live IMD fetch failed ({e}). Falling back to simulation mode.")
             return self.generate_simulated_data(region_code=region_code)
@@ -163,7 +215,7 @@ class IMDDataCollector(BaseDataCollector):
     def generate_simulated_data(self, region_code: str = "ALL", num_samples: int = 50) -> pd.DataFrame:
         """Generates realistic simulated telemetry for testing without internet access."""
         np.random.seed(42)
-        districts = [f"District_{i+1:02d}" for i in range(10)]
+        districts = ["Patna", "Bhagalpur", "Darbhanga", "Muzaffarpur", "Sitamarhi", "Supaul", "Madhubani", "Katihar"]
         
         records = []
         for i in range(num_samples):
@@ -197,13 +249,26 @@ class IMDDataCollector(BaseDataCollector):
 
 
 if __name__ == "__main__":
+    from datetime import datetime
     try:
-        print("Running IMD rainfall data download for Bihar region (May 1 - Oct 31, 2019)...")
-        df_bihar = download_bihar_rainfall_2019()
+        current_year = datetime.now().year
+        print(f"Running IMD rainfall data download for Bihar region (May 1 - Oct 31, {current_year})...")
+
+        # Try to fetch current year data
+        try:
+            df_bihar = download_bihar_rainfall(year=current_year)
+        except Exception as e:
+            logger.info(f"Could not fetch {current_year} data ({e}). Falling back to 2019 historical data...")
+            df_bihar = download_bihar_rainfall_2019()
+
         print("\nDownload & Processing Complete!")
         print(f"Total Rows: {len(df_bihar)}")
         print(f"Columns: {list(df_bihar.columns)}")
+        print(f"Date Range: {df_bihar['date'].min()} to {df_bihar['date'].max()}")
         print("\nFirst 5 rows:")
         print(df_bihar.head())
+        print("\nSample Statistics:")
+        print(f"Rainfall Mean: {df_bihar['rainfall_mm'].mean():.2f} mm")
+        print(f"Rainfall Max: {df_bihar['rainfall_mm'].max():.2f} mm")
     except Exception as error:
         logger.error(f"Execution failed: {error}")

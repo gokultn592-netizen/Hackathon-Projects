@@ -16,6 +16,7 @@ except ImportError:
         def get(self, *args, **kwargs): return lambda f: f
 
 from src.api.routes import router
+from src.api.monitoring_routes import router as monitor_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -40,6 +41,7 @@ if HAS_FASTAPI:
     )
 
 app.include_router(router)
+app.include_router(monitor_router)
 
 
 @app.get("/")

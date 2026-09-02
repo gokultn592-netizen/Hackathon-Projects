@@ -17,7 +17,7 @@ class BhuvanDataCollector(BaseDataCollector):
 
     def generate_simulated_data(self, region_code: str = "ALL", num_samples: int = 50) -> pd.DataFrame:
         np.random.seed(202)
-        districts = [f"District_{i+1:02d}" for i in range(10)]
+        districts = ["Patna", "Bhagalpur", "Darbhanga", "Muzaffarpur", "Sitamarhi", "Supaul", "Madhubani", "Katihar"]
         
         records = []
         for i in range(num_samples):

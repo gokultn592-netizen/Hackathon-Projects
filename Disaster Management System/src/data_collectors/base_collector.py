@@ -30,11 +30,11 @@ class BaseDataCollector(ABC):
         """Generate realistic mock dataset for offline hackathon testing."""
         pass
 
-    def fetch(self, region_code: str = "ALL", use_simulation: bool = True) -> pd.DataFrame:
+    def fetch(self, region_code: str = "ALL", use_simulation: bool = False) -> pd.DataFrame:
         """
         Unified fetch wrapper that safely falls back to simulation mode if live API calls fail or credentials missing.
         """
-        if not use_simulation and self.base_url:
+        if not use_simulation:
             try:
                 logger.info(f"[{self.__class__.__name__}] Fetching live telemetry for region: {region_code}...")
                 df = self.fetch_live_data(region_code)

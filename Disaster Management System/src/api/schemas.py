@@ -14,7 +14,7 @@ class HealthCheckResponse(BaseModel):
 
 class TelemetryRequest(BaseModel):
     region_code: str = Field(default="ALL", description="Region or state code")
-    use_simulation: bool = Field(default=True, description="Force simulation fallback data if true")
+    use_simulation: bool = Field(default=False, description="Force simulation fallback data if true")
 
 
 class DistrictTelemetryData(BaseModel):

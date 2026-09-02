@@ -1,149 +1,39 @@
-# Flood Command Center - Disaster Management Backend
+# Flood Command Center - Bihar Disaster Management OSINT System
 
-A production-ready, hackathon-optimized Python backend for real-time flood monitoring, spatio-temporal data fusion, ML-driven flood risk prediction, and emergency resource allocation.
-
----
-
-## 🏗️ System Architecture
-
-```
-                                  +-----------------------+
-                                  |    Data Collectors    |
-                                  +-----------------------+
-                                  | IMD | WRIS | Bhuvan | DEM |
-                                  +-----------+-----------+
-                                              |
-                                              v
-                                  +-----------------------+
-                                  |  Data Fusion Pipeline |
-                                  +-----------------------+
-                                              |
-                                              v
-                                  +-----------------------+
-                                  |  ML Flood Predictor   |
-                                  |  (RandomForest Reg/Clf)|
-                                  +-----------+-----------+
-                                              |
-                                              v
-                                  +-----------------------+
-                                  | Resource Allocation   |
-                                  |  Optimization Engine  |
-                                  +-----------+-----------+
-                                              |
-                                              v
-                                  +-----------------------+
-                                  |    FastAPI Backend    |
-                                  |    (/api/v1/...)      |
-                                  +-----------------------+
-```
+Near real-time flood monitoring using real OSINT data sources (IMD rainfall 2019, DEM terrain via OpenTopography S3) with simulated fallback for WRIS/Bhuvan. Model predictions fixed (StandardScaler applied before XGBoost). Map tiles switched to OpenStreetMap Standard. Simulation mode disabled by default (`USE_SIMULATION=False`).
 
 ---
 
-## 📁 Repository Structure
+## ✅ Completed Changes
 
-```
-flood_command_center/
-├── .gitignore               # Excludes virtual environments, caches, raw/processed data & model artifacts
-├── README.md                # Project architecture & setup documentation
-├── requirements.txt         # Pinned Python package dependencies
-├── collect_data.py          # CLI runner script to acquire & fuse multi-modal data
-├── data/
-│   ├── raw/                 # Downloaded / collected raw telemetry CSVs
-│   └── processed/           # Fused, feature-engineered matrix (fused_telemetry.csv)
-├── models/                  # Serialized machine learning models (flood_model.joblib)
-├── notebooks/
-│   └── 01_eda_and_data_fusion.ipynb # Starter EDA & data fusion notebook
-└── src/
-    ├── __init__.py
-    ├── api/                 # FastAPI REST Service
-    │   ├── __init__.py
-    │   ├── main.py          # FastAPI application entrypoint with CORS & OpenApi
-    │   ├── routes.py        # API endpoints (/health, /collect-data, /predict, /optimize-resources)
-    │   └── schemas.py       # Pydantic data validation schemas
-    ├── data_collectors/     # Extensible Data Adapters with simulated fallback
-    │   ├── __init__.py
-    │   ├── base_collector.py # Base Abstract Collector Class
-    │   ├── imd_collector.py  # IMD Precipitation & Severe Weather Adapter
-    │   ├── wris_collector.py # WRIS River Gauge & Reservoir Adapter
-    │   ├── bhuvan_collector.py # ISRO Bhuvan Satellite Inundation Adapter
-    │   └── dem_collector.py  # DEM Elevation & Slope Grid Adapter
-    ├── models/              # Machine Learning Engine
-    │   ├── __init__.py
-    │   ├── flood_predictor.py # Flood risk scoring & depth estimator
-    │   └── train.py         # Model training & serialization script
-    ├── optimizer/           # Decision Support Engine
-    │   ├── __init__.py
-    │   └── resource_allocator.py # Priority-weighted resource allocation engine
-    └── preprocessing/       # Feature Engineering & Data Cleaning
-        ├── __init__.py
-        └── fusion_pipeline.py # Spatio-temporal fusion across IMD, WRIS, Bhuvan, DEM
-```
+- Task #4 (IMD collector): Enhanced `download_bihar_rainfall()` with flexible year; added `download_bihar_rainfall_2019()` wrapper; `IMDDataCollector` accepts year.
+- Real-time orchestrator (`realtime_orchestrator.py`): Coordinates 4 sources; `aggregate_by_district()` for district-level telemetry.
+- Base collector (`base_collector.py`): Fixed fetch logic — `use_simulation=False` by default, no `base_url` dependency blocking live data.
+- Model fix (`flood_predictor.py`): Added `scaler.transform()` before prediction; moved scaler load before model check.
+- Map tiles (`FloodCommandCenter.jsx`): Switched from CartoDB dark to OpenStreetMap Standard light tiles (`https://{s}.tile.openstreetmap.org/`); removed simulation toggle; button set to "Run Full Pipeline (Real Data)".
+- Schema (`api/schemas.py`): `TelemetryRequest.use_simulation` default = `False`.
+- Environment (`.env`): `USE_SIMULATION=False`.
+- Near real-time OSINT upgrade: IMD fixed to 2019 real data (50,232 records); DEM linked to `static_data_loader` (downloads real SRTM tiles from OpenTopography S3); `dem_collector.fetch_live_data()` returns real elevation.
+- Deleted 9 completed/task .md files; kept this README.
 
 ---
 
-## ⚡ Quickstart Guide
+## 📁 Key Files
 
-### 1. Environment Setup
-Requires Python `>=3.10` (compatible with `3.11`, `3.12`, `3.13`, `3.14`).
+- `src/data_collectors/imd_collector.py` — IMD rainfall (2019 real / simulated fallback)
+- `src/data_collectors/dem_collector.py` — DEM elevation (real OpenTopography / synthetic fallback)
+- `src/data_collectors/realtime_orchestrator.py` — Multi-source coordination
+- `src/models/flood_predictor.py` — XGBoost with SHAP + scaler fix
+- `src/frontend/FloodCommandCenter.jsx` — React dashboard with OSM Standard tiles
+- `.env` — `USE_SIMULATION=False`
+
+---
+
+## ⚡ Quick Start
 
 ```bash
-# Create virtual environment
-python -m venv .venv
-
-# Activate virtual environment
-# On Windows (PowerShell):
-.venv\Scripts\Activate.ps1
-# On Linux/macOS:
-source .venv/bin/activate
-
-# Install dependencies
 pip install -r requirements.txt
-```
-
----
-
-### 2. Collect Telemetry & Run Data Fusion
-Run the CLI script to simulate multi-source data ingestion (IMD, WRIS, Bhuvan, DEM), perform spatio-temporal alignment, and output fused data to `data/processed/fused_telemetry.csv`:
-
-```bash
-python collect_data.py
-```
-
----
-
-### 3. Train Machine Learning Models
-Train the RandomForest flood risk regressor and severity classifier, and serialize model weights to `models/flood_model.joblib`:
-
-```bash
-python -m src.models.train
-```
-
----
-
-### 4. Start FastAPI Server
-Launch the production-grade REST API backend using Uvicorn:
-
-```bash
+# Real data mode enabled by default
+python -m src.data_collectors.realtime_orchestrator
 uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
-
-- **Interactive API Documentation (Swagger)**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **ReDoc Documentation**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
-- **Health Check Endpoint**: [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health)
-
----
-
-## 🚀 Key API Endpoints
-
-| Endpoint | Method | Description |
-| :--- | :--- | :--- |
-| `/api/v1/health` | `GET` | Health check & model initialization state |
-| `/api/v1/collect-data` | `POST` | Triggers multi-modal data collection & fusion |
-| `/api/v1/predict` | `POST` | Returns flood risk score (0-1), risk level, & inundation depth |
-| `/api/v1/optimize-resources` | `POST` | Optimizes allocation of NDRF teams, boats, medical supplies & shelters |
-
----
-
-## 💡 Hackathon Execution Tips
-- **Offline Mode Support**: All collectors support simulation fallback mode out-of-the-box (`use_simulation=True`), allowing instant demonstration without external API keys or live network dependencies.
-- **Frontend Integration**: Ready for instant connection with React, Next.js, or Streamlit frontends with CORS enabled by default.

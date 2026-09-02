@@ -828,9 +828,11 @@ function FloodCommandCenter() {
         zoomControl: true,
       });
 
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        attribution: '&copy; <a href="https://carto.com/">CARTO</a> & OpenStreetMap',
-        maxZoom: 18,
+      // OpenStreetMap Standard (Light) - Google Maps-style tiles
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19,
+        noWrap: true,
       }).addTo(map);
 
       // Create Dedicated LayerGroups on Map
@@ -1408,18 +1410,8 @@ function FloodCommandCenter() {
           </a>
         </div>
 
-        {/* Right Simulation Toggle & Refresh */}
+        {/* Right: Refresh Button */}
         <div className="flex items-center space-x-3">
-          <label className="flex items-center cursor-pointer space-x-2 text-xs bg-[#1a1a1a] border border-[#2a2a2a] px-2.5 py-1.5 rounded-lg hover:border-[#3b82f6]/40 transition">
-            <span className="text-gray-300 font-semibold">Simulate Mode</span>
-            <input
-              type="checkbox"
-              checked={useSimulation}
-              onChange={(e) => setUseSimulation(e.target.checked)}
-              className="accent-blue-500 rounded cursor-pointer"
-            />
-          </label>
-
           <button
             onClick={checkHealth}
             title="Refresh System Health"
@@ -1565,7 +1557,7 @@ function FloodCommandCenter() {
               ) : (
                 <>
                   <span>⚡</span>
-                  <span>Run Full Pipeline</span>
+                  <span>Run Full Pipeline (Real Data)</span>
                 </>
               )}
             </button>
@@ -1598,9 +1590,9 @@ function FloodCommandCenter() {
                       2019 Bihar Monsoon Replay: <b className="text-blue-400">Day {simulationDay} / 184 (Sept 30 Peak)</b>
                     </span>
                   ) : (
-                    <span className="text-amber-400/90 font-semibold text-[11px] flex items-center space-x-1">
-                      <span>🔒</span>
-                      <span>Real Telemetry Active — Toggle 'Simulate Mode' (Top-Right) to unlock Replay</span>
+                    <span className="text-emerald-400/90 font-semibold text-[11px] flex items-center space-x-1">
+                      <span>📡</span>
+                      <span>Real Telemetry Active - Live OSINT Data (IMD, WRIS, Bhuvan)</span>
                     </span>
                   )}
                 </div>

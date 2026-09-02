@@ -1,10 +1,12 @@
 """
-XGBoost ML Flood Predictor Engine with SHAP Explainability
+XGBoost ML Flood Predictor Engine with SHAP Explainability and Model Monitoring
 
 Loads SMOTE-resampled spatio-temporal telemetry from data/processed/,
 trains an XGBClassifier optimized for RECALL (minimizing missed flood disasters),
 evaluates metrics, plots feature importances, computes SHAP explanations,
 and serializes model artifacts to models/xgboost_flood_model.pkl.
+
+Includes model monitoring capabilities for drift detection and performance tracking.
 """
 
 import os
@@ -27,6 +29,15 @@ from sklearn.metrics import (
     roc_auc_score,
     confusion_matrix
 )
+
+# Import model monitoring
+try:
+    from .model_monitor import get_model_monitor, log_model_predictions
+    HAS_MODEL_MONITOR = True
+except ImportError:
+    HAS_MODEL_MONITOR = False
+    logger = logging.getLogger(__name__)
+    logger.warning("Model monitoring not available - .model_monitor module not found")
 
 try:
     from src.preprocessing.fusion_engine import run_data_fusion
@@ -86,6 +97,15 @@ class XGBFloodPredictor:
 
     def load_model(self) -> bool:
         """Loads trained XGBoost model and SHAP explainer from disk if available."""
+        # Always try to load scaler first
+        scaler_path = os.path.join(self.processed_dir, "scaler.pkl")
+        if os.path.exists(scaler_path):
+            try:
+                self.scaler = joblib.load(scaler_path)
+                logger.info(f"Loaded scaler from {scaler_path}")
+            except Exception as e:
+                logger.warning(f"Notice: Scaler file load warning: {e}")
+
         if os.path.exists(self.model_path):
             try:
                 data = joblib.load(self.model_path)
@@ -102,14 +122,6 @@ class XGBFloodPredictor:
                     return True
             except Exception as e:
                 logger.warning(f"Failed to load model file {self.model_path}: {e}")
-
-        # Try loading scaler if present
-        scaler_path = os.path.join(self.processed_dir, "scaler.pkl")
-        if os.path.exists(scaler_path):
-            try:
-                self.scaler = joblib.load(scaler_path)
-            except Exception as e:
-                logger.warning(f"Notice: Scaler file load warning: {e}")
 
         logger.info("No pre-trained XGBoost model artifact found on disk.")
         return False
@@ -306,7 +318,10 @@ class XGBFloodPredictor:
             flat = features.ravel()
             vec[:min(len(flat), len(vec))] = flat[:len(vec)]
 
+        # Scale input features (model was trained on scaled data)
         X_input = vec.reshape(1, -1)
+        if self.scaler is not None:
+            X_input = self.scaler.transform(X_input)
         prob = float(self.model.predict_proba(X_input)[0, 1])
 
         # Risk level categorization
@@ -343,7 +358,7 @@ class XGBFloodPredictor:
                     for i, name in enumerate(self.feature_names)
                 }
 
-        return {
+        result = {
             "latitude": float(lat),
             "longitude": float(lon),
             "flood_probability": round(prob, 4),
@@ -351,6 +366,15 @@ class XGBFloodPredictor:
             "confidence": confidence,
             "shap_explanation": shap_explanation
         }
+
+        # Log prediction for model monitoring if available
+        if HAS_MODEL_MONITOR:
+            try:
+                log_model_predictions([result])
+            except Exception as e:
+                logger.warning(f"Failed to log prediction for monitoring: {e}")
+
+        return result
 
 
 XGBFloodClassifier = XGBFloodPredictor

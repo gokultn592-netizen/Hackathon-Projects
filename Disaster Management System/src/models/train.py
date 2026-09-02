@@ -13,13 +13,13 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 from src.data_collectors import IMDDataCollector, WRISDataCollector, BhuvanDataCollector, DEMDataCollector
 from src.preprocessing import DataFusionPipeline
-from src.models.flood_predictor import FloodPredictorModel, FEATURE_COLUMNS
+from src.models.flood_predictor import FloodPredictorModel
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def generate_synthetic_training_dataset(n_samples: int = 300) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
+def generate_synthetic_training_dataset(n_samples: int = 300) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Generate synthetic telemetry records for initial offline model training."""
     imd = IMDDataCollector().fetch(use_simulation=True)
     wris = WRISDataCollector().fetch(use_simulation=True)

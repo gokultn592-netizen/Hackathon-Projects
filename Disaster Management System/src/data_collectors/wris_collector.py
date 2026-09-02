@@ -242,7 +242,7 @@ class WRISDataCollector(BaseDataCollector):
     def generate_simulated_data(self, region_code: str = "ALL", num_samples: int = 50) -> pd.DataFrame:
         """Generates realistic simulated telemetry for testing without internet access."""
         np.random.seed(101)
-        districts = [f"District_{i+1:02d}" for i in range(10)]
+        districts = ["Patna", "Bhagalpur", "Darbhanga", "Muzaffarpur", "Sitamarhi", "Supaul", "Madhubani", "Katihar"]
         rivers = ["Ganga", "Brahmaputra", "Godavari", "Krishna", "Kaveri", "Mahanadi", "Narmada", "Tapi"]
         
         records = []
