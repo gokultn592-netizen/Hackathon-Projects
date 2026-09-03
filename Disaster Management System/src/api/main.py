@@ -2,18 +2,10 @@
 FastAPI Server Entrypoint - Flood Command Center Backend
 """
 import logging
-
-try:
-    from fastapi import FastAPI
-    from fastapi.middleware.cors import CORSMiddleware
-    HAS_FASTAPI = True
-except ImportError:
-    HAS_FASTAPI = False
-    class FastAPI:
-        def __init__(self, *args, **kwargs): pass
-        def add_middleware(self, *args, **kwargs): pass
-        def include_router(self, *args, **kwargs): pass
-        def get(self, *args, **kwargs): return lambda f: f
+import os
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.routes import router
 from src.api.monitoring_routes import router as monitor_router
@@ -23,22 +15,62 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
 
+# Environment validation - fail fast if required vars are missing
+REQUIRED_ENV_VARS = [
+    "HOST",
+    "PORT",
+    "ENVIRONMENT",
+    "LOG_LEVEL"
+]
+missing = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
+if missing:
+    raise RuntimeError(f"Missing critical env vars: {', '.join(missing)}")
+
+# Validate allowed origins from environment
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Lifespan context manager for proper startup/shutdown handling.
+    Loads heavy ML models and resources once at startup.
+    """
+    # Startup: Initialize singleton instances
+    logger = logging.getLogger(__name__)
+    logger.info("Initializing Flood Command Center services...")
+
+    from src.models import FloodPredictorModel
+    from src.optimizer import ResourceAllocator
+    from src.preprocessing import DataFusionPipeline
+
+    app.state.predictor = FloodPredictorModel()
+    app.state.optimizer = ResourceAllocator()
+    app.state.fusion_pipeline = DataFusionPipeline()
+
+    logger.info("Flood Command Center services initialized successfully.")
+    yield
+
+    # Shutdown: Cleanup (if needed)
+    logger.info("Shutting down Flood Command Center services.")
+
+
 app = FastAPI(
     title="Flood Command Center Backend API",
     description="Production-grade, hackathon-appropriate disaster management platform backend providing data fusion, flood risk ML predictions, and resource allocation optimization.",
     version="0.1.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
-if HAS_FASTAPI:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(router)
 app.include_router(monitor_router)
@@ -54,8 +86,7 @@ def root():
 
 
 if __name__ == "__main__":
-    if HAS_FASTAPI:
-        import uvicorn
-        uvicorn.run("src.api.main:app", host="0.0.0.0", port=8000, reload=True)
-    else:
-        print("FastAPI is not installed in the current environment. Run: pip install -r requirements.txt")
+    import uvicorn
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run("src.api.main:app", host=host, port=port, reload=True)

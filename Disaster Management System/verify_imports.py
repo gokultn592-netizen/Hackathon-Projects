@@ -7,10 +7,6 @@ Ensures the codebase can be imported correctly with proper PYTHONPATH setup.
 import sys
 import os
 
-# Set PYTHONPATH to include src and current directory
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
-sys.path.insert(0, os.path.dirname(__file__))
-
 # Handle unicode on Windows
 if sys.platform == 'win32':
     import io

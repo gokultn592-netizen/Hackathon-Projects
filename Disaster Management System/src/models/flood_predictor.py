@@ -39,11 +39,7 @@ except ImportError:
     logger = logging.getLogger(__name__)
     logger.warning("Model monitoring not available - .model_monitor module not found")
 
-try:
-    from src.preprocessing.fusion_engine import run_data_fusion
-except ImportError:
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-    from src.preprocessing.fusion_engine import run_data_fusion
+from src.preprocessing.fusion_engine import run_data_fusion
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

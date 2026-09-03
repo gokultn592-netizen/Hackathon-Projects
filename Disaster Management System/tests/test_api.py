@@ -2,10 +2,7 @@
 FastAPI Routes Verification Test
 """
 import os
-import sys
 import unittest
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.api.routes import health_check, collect_and_fuse_telemetry, predict_flood_risk, optimize_resources
 from src.api.schemas import TelemetryRequest, FloodPredictionRequest, DistrictTelemetryData, ResourceAllocationRequest, DistrictRiskScoreInput

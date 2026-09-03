@@ -32,11 +32,7 @@ try:
 except ImportError:
     HAS_GEOPANDAS = False
 
-try:
-    from src.data_collectors.static_data_loader import StaticDataLoader
-except ImportError:
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-    from src.data_collectors.static_data_loader import StaticDataLoader
+from src.data_collectors.static_data_loader import StaticDataLoader
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

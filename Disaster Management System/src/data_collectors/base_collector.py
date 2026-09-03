@@ -32,16 +32,22 @@ class BaseDataCollector(ABC):
 
     def fetch(self, region_code: str = "ALL", use_simulation: bool = False) -> pd.DataFrame:
         """
-        Unified fetch wrapper that safely falls back to simulation mode if live API calls fail or credentials missing.
+        Unified fetch wrapper. If use_simulation=False and live fetch fails, raises an exception.
+        No silent fallback to simulation - fail loudly to expose integration issues.
         """
-        if not use_simulation:
-            try:
-                logger.info(f"[{self.__class__.__name__}] Fetching live telemetry for region: {region_code}...")
-                df = self.fetch_live_data(region_code)
-                if not df.empty:
-                    return df
-            except Exception as e:
-                logger.warning(f"[{self.__class__.__name__}] Live fetch failed: {e}. Falling back to simulation mode.")
+        if use_simulation:
+            logger.info(f"[{self.__class__.__name__}] Generating simulated telemetry dataset for region: {region_code}.")
+            return self.generate_simulated_data(region_code)
 
-        logger.info(f"[{self.__class__.__name__}] Generating simulated telemetry dataset for region: {region_code}.")
-        return self.generate_simulated_data(region_code)
+        # Real data mode - must succeed or raise
+        logger.info(f"[{self.__class__.__name__}] Fetching live telemetry for region: {region_code}...")
+        df = self.fetch_live_data(region_code)
+
+        if df.empty:
+            raise RuntimeError(
+                f"[{self.__class__.__name__}] Failed to fetch real data from live source for region {region_code}. "
+                f"Empty dataframe returned. Set use_simulation=True to use mock data for testing."
+            )
+
+        logger.info(f"[{self.__class__.__name__}] Successfully fetched {len(df)} real data records.")
+        return df

@@ -3,21 +3,7 @@ FastAPI Application Routes
 """
 import logging
 from typing import List, Dict, Any
-
-try:
-    from fastapi import APIRouter, HTTPException, Depends
-    HAS_FASTAPI = True
-except ImportError:
-    HAS_FASTAPI = False
-    class APIRouter:
-        def __init__(self, *args, **kwargs): pass
-        def get(self, *args, **kwargs): return lambda f: f
-        def post(self, *args, **kwargs): return lambda f: f
-    class HTTPException(Exception):
-        def __init__(self, status_code: int, detail: str):
-            self.status_code = status_code
-            self.detail = detail
-            super().__init__(detail)
+from fastapi import APIRouter, HTTPException, Depends, Request
 
 from src.api.schemas import (
     HealthCheckResponse,
@@ -37,44 +23,29 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["Flood Command Center API"])
 
-# Initialize singleton instances
-predictor = FloodPredictorModel()
-optimizer = ResourceAllocator()
-fusion_pipeline = DataFusionPipeline()
-
 # Pydantic models for advanced endpoints
-try:
-    from pydantic import BaseModel
+from pydantic import BaseModel
 
-    class EvacuationRequest(BaseModel):
-        villages: List[Dict[str, Any]]
-        shelters: List[Dict[str, Any]]
+class EvacuationRequest(BaseModel):
+    villages: List[Dict[str, Any]]
+    shelters: List[Dict[str, Any]]
 
-    class NDRFDeploymentRequest(BaseModel):
-        villages: List[Dict[str, Any]]
-        ndrf_teams: List[Dict[str, Any]]
+class NDRFDeploymentRequest(BaseModel):
+    villages: List[Dict[str, Any]]
+    ndrf_teams: List[Dict[str, Any]]
 
-    class PriorityRequest(BaseModel):
-        villages: List[Dict[str, Any]]
-
-except ImportError:
-    # Fallback for when pydantic is not available
-    class BaseModel:
-        pass
-
-    EvacuationRequest = dict
-    NDRFDeploymentRequest = dict
-    PriorityRequest = dict
-
+class PriorityRequest(BaseModel):
+    villages: List[Dict[str, Any]]
 
 @router.get("/health", response_model=HealthCheckResponse)
-def health_check():
+def health_check(request: Request):
     """Health check endpoint exposing service state & model initialization."""
+    predictor = request.app.state.predictor
     return HealthCheckResponse(
         status="HEALTHY",
         service="flood_command_center_backend",
         version="0.1.0",
-        model_loaded=predictor.is_trained
+        model_loaded=predictor.is_trained if hasattr(predictor, 'is_trained') else False
     )
 
 
@@ -232,64 +203,62 @@ def audit_data_sources():
 
 
 @router.post("/collect-data")
-def collect_and_fuse_telemetry(req: TelemetryRequest):
+def collect_and_fuse_telemetry(req: TelemetryRequest, request: Request):
     """
     Triggers multi-source telemetry acquisition (IMD, WRIS, Bhuvan, DEM) and runs data fusion.
+    Raises RuntimeError on failure - FastAPI handles the exception with full stack trace.
     """
-    try:
-        imd_df = IMDDataCollector().fetch(region_code=req.region_code, use_simulation=req.use_simulation)
-        wris_df = WRISDataCollector().fetch(region_code=req.region_code, use_simulation=req.use_simulation)
-        bhuvan_df = BhuvanDataCollector().fetch(region_code=req.region_code, use_simulation=req.use_simulation)
-        dem_df = DEMDataCollector().fetch(region_code=req.region_code, use_simulation=req.use_simulation)
+    fusion_pipeline = request.app.state.fusion_pipeline
+    imd_df = IMDDataCollector().fetch(region_code=req.region_code, use_simulation=req.use_simulation)
+    wris_df = WRISDataCollector().fetch(region_code=req.region_code, use_simulation=req.use_simulation)
+    bhuvan_df = BhuvanDataCollector().fetch(region_code=req.region_code, use_simulation=req.use_simulation)
+    dem_df = DEMDataCollector().fetch(region_code=req.region_code, use_simulation=req.use_simulation)
 
-        fused_df = fusion_pipeline.process_and_fuse(imd_df, wris_df, bhuvan_df, dem_df)
-        
-        return {
-            "status": "SUCCESS",
-            "records_fused": len(fused_df),
-            "fused_telemetry": fused_df.to_dict(orient="records")
-        }
-    except Exception as e:
-        logger.error(f"Data collection & fusion failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    fused_df = fusion_pipeline.process_and_fuse(imd_df, wris_df, bhuvan_df, dem_df)
+
+    return {
+        "status": "SUCCESS",
+        "records_fused": len(fused_df),
+        "fused_telemetry": fused_df.to_dict(orient="records")
+    }
 
 
 @router.post("/predict", response_model=FloodPredictionResponse)
-def predict_flood_risk(req: FloodPredictionRequest):
+def predict_flood_risk(req: FloodPredictionRequest, request: Request):
     """
     Calculates flood risk scores, severity levels, and estimated inundation depth for each district.
+    Raises ValueError for bad inputs, RuntimeError for model errors.
     """
-    try:
-        predictions = []
-        for item in req.telemetry:
-            res = predictor.predict_district(item.model_dump())
-            predictions.append(res)
+    if not req.telemetry:
+        raise HTTPException(status_code=400, detail="Telemetry data is required")
 
-        return FloodPredictionResponse(
-            status="SUCCESS",
-            total_districts_evaluated=len(predictions),
-            predictions=predictions
-        )
-    except Exception as e:
-        logger.error(f"Flood prediction endpoint error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    predictor = request.app.state.predictor
+    predictions = []
+    for item in req.telemetry:
+        res = predictor.predict_district(item.model_dump())
+        predictions.append(res)
+
+    return FloodPredictionResponse(
+        status="SUCCESS",
+        total_districts_evaluated=len(predictions),
+        predictions=predictions
+    )
 
 
 @router.post("/optimize-resources", response_model=ResourceAllocationResponse)
-def optimize_resources(req: ResourceAllocationRequest):
+def optimize_resources(req: ResourceAllocationRequest, request: Request):
     """
     Runs the emergency resource optimization engine to allocate teams, boats, and medical supplies.
     Uses priority-based allocation based on risk scores and district characteristics.
     """
-    try:
-        scores_input = [item.model_dump() for item in req.district_scores]
-        resources_input = req.available_resources.model_dump() if req.available_resources else {}
+    if not req.district_scores:
+        raise HTTPException(status_code=400, detail="District scores are required")
 
-        res = optimizer.optimize_allocation(scores_input, resources_input)
-        return res
-    except Exception as e:
-        logger.error(f"Resource optimization endpoint error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    optimizer = request.app.state.optimizer
+    scores_input = [item.model_dump() for item in req.district_scores]
+    resources_input = req.available_resources.model_dump() if req.available_resources else {}
+
+    return optimizer.optimize_allocation(scores_input, resources_input)
 
 
 @router.post("/optimize-advanced/evacuation-routes")
@@ -298,14 +267,13 @@ def optimize_evacuation_routes(req: EvacuationRequest):
     Advanced evacuation routing using Dijkstra's shortest path algorithm.
     Assigns villages to nearest available shelter with capacity while respecting road network constraints.
     """
-    try:
-        villages = req.villages if hasattr(req, 'villages') else req.get('villages', [])
-        shelters = req.shelters if hasattr(req, 'shelters') else req.get('shelters', [])
-        res = assign_evacuation_routes(villages, shelters)
-        return res
-    except Exception as e:
-        logger.error(f"Evacuation routing error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    villages = req.villages if hasattr(req, 'villages') else req.get('villages', [])
+    shelters = req.shelters if hasattr(req, 'shelters') else req.get('shelters', [])
+
+    if not villages:
+        raise HTTPException(status_code=400, detail="Villages are required")
+
+    return assign_evacuation_routes(villages, shelters)
 
 
 @router.post("/optimize-advanced/deploy-ndrf-teams")
@@ -314,14 +282,13 @@ def optimize_ndrf_deployment(req: NDRFDeploymentRequest):
     Advanced NDRF team deployment using Hungarian algorithm (linear_sum_assignment).
     Matches teams to villages based on urgency and travel distance for optimal response.
     """
-    try:
-        villages = req.villages if hasattr(req, 'villages') else req.get('villages', [])
-        ndrf_teams = req.ndrf_teams if hasattr(req, 'ndrf_teams') else req.get('ndrf_teams', [])
-        res = deploy_ndrf_teams(villages, ndrf_teams)
-        return res
-    except Exception as e:
-        logger.error(f"NDRF deployment error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    villages = req.villages if hasattr(req, 'villages') else req.get('villages', [])
+    ndrf_teams = req.ndrf_teams if hasattr(req, 'ndrf_teams') else req.get('ndrf_teams', [])
+
+    if not villages:
+        raise HTTPException(status_code=400, detail="Villages are required")
+
+    return deploy_ndrf_teams(villages, ndrf_teams)
 
 
 @router.post("/optimize-advanced/priority-list")
@@ -331,14 +298,13 @@ def generate_priority_ranking(req: PriorityRequest):
     Priority Index = (flood_probability * population_density) / max(1.0, elevation)
     Returns villages ranked by urgency tier (P1_CRITICAL, P2_HIGH, P3_MEDIUM, P4_LOW).
     """
-    try:
-        villages = req.villages if hasattr(req, 'villages') else req.get('villages', [])
-        res = generate_priority_list(villages)
-        return {
-            "status": "SUCCESS",
-            "villages_ranked": len(res),
-            "priority_list": res
-        }
-    except Exception as e:
-        logger.error(f"Priority ranking error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    villages = req.villages if hasattr(req, 'villages') else req.get('villages', [])
+
+    if not villages:
+        raise HTTPException(status_code=400, detail="Villages are required")
+
+    return {
+        "status": "SUCCESS",
+        "villages_ranked": len(villages),
+        "priority_list": villages
+    }

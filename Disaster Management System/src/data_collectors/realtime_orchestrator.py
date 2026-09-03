@@ -12,17 +12,10 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 
-try:
-    from .imd_collector import IMDDataCollector, download_bihar_rainfall
-    from .wris_api_collector import WRISAPICollector
-    from .bhuvan_collector import BhuvanDataCollector
-    from .dem_collector import DEMDataCollector
-except ImportError:
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-    from src.data_collectors.imd_collector import IMDDataCollector, download_bihar_rainfall
-    from src.data_collectors.wris_api_collector import WRISAPICollector
-    from src.data_collectors.bhuvan_collector import BhuvanDataCollector
-    from src.data_collectors.dem_collector import DEMDataCollector
+from src.data_collectors.imd_collector import IMDDataCollector, download_bihar_rainfall
+from src.data_collectors.wris_api_collector import WRISAPICollector
+from src.data_collectors.bhuvan_collector import BhuvanDataCollector
+from src.data_collectors.dem_collector import DEMDataCollector
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

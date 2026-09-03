@@ -12,11 +12,7 @@ from typing import Optional, Tuple, Dict, Any, List
 import numpy as np
 import pandas as pd
 
-try:
-    from .base_collector import BaseDataCollector
-except ImportError:
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-    from src.data_collectors.base_collector import BaseDataCollector
+from src.data_collectors.base_collector import BaseDataCollector
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

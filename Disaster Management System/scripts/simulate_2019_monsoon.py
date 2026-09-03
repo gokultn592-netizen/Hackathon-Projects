@@ -14,8 +14,6 @@ from typing import Dict, Any, List
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
 from src.models import predict, predict_v2, predict_v3
 from src.optimizer import (
     assign_evacuation_routes,

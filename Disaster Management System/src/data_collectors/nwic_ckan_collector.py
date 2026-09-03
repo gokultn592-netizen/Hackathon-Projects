@@ -18,17 +18,8 @@ import urllib3
 # Suppress unverified HTTPS warnings for government portal certificates if required
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-try:
-    from .base_collector import BaseDataCollector
-except ImportError:
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-    from src.data_collectors.base_collector import BaseDataCollector
-
-try:
-    from .wris_collector import generate_sample_wris_raw_data
-except ImportError:
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-    from src.data_collectors.wris_collector import generate_sample_wris_raw_data
+from src.data_collectors.base_collector import BaseDataCollector
+from src.data_collectors.wris_collector import generate_sample_wris_raw_data
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

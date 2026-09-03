@@ -11,9 +11,6 @@ import sys
 import logging
 import pandas as pd
 
-# Add root directory to python path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
 from src.data_collectors import (
     IMDDataCollector,
     WRISDataCollector,

@@ -17,11 +17,7 @@ import requests
 import pandas as pd
 import numpy as np
 
-try:
-    from .base_collector import BaseDataCollector
-except ImportError:
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-    from src.data_collectors.base_collector import BaseDataCollector
+from src.data_collectors.base_collector import BaseDataCollector
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
