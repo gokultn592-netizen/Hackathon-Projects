@@ -1,0 +1,260 @@
+{
+  "simulation_title": "2019 Bihar Monsoon Flood Command Center End-to-End Simulation",
+  "simulation_time_period": "May 1, 2019 - October 31, 2019",
+  "peak_flood_date_simulated": "2019-09-30",
+  "total_monsoon_records_evaluated": 50232,
+  "peak_date_records_evaluated": 273,
+  "risk_classification_summary": {
+    "CRITICAL_count": 269,
+    "HIGH_count": 0,
+    "MEDIUM_count": 3,
+    "LOW_count": 1
+  },
+  "top_10_priority_villages": [
+    {
+      "rank": 1,
+      "village_id": "V_4937",
+      "lat": 24.75,
+      "lon": 84.75,
+      "priority_index": 2763.6236,
+      "flood_probability": 0.9999,
+      "urgency_tier": "P1_CRITICAL"
+    },
+    {
+      "rank": 2,
+      "village_id": "V_1073",
+      "lat": 24.5,
+      "lon": 84.75,
+      "priority_index": 2064.787,
+      "flood_probability": 0.9998,
+      "urgency_tier": "P1_CRITICAL"
+    },
+    {
+      "rank": 3,
+      "village_id": "V_4753",
+      "lat": 24.75,
+      "lon": 84.5,
+      "priority_index": 1613.4,
+      "flood_probability": 1.0,
+      "urgency_tier": "P1_CRITICAL"
+    },
+    {
+      "rank": 4,
+      "village_id": "V_6593",
+      "lat": 24.75,
+      "lon": 87.0,
+      "priority_index": 1610.3,
+      "flood_probability": 1.0,
+      "urgency_tier": "P1_CRITICAL"
+    },
+    {
+      "rank": 5,
+      "village_id": "V_7329",
+      "lat": 24.75,
+      "lon": 88.0,
+      "priority_index": 1610.3,
+      "flood_probability": 1.0,
+      "urgency_tier": "P1_CRITICAL"
+    },
+    {
+      "rank": 6,
+      "village_id": "V_7513",
+      "lat": 24.75,
+      "lon": 88.25,
+      "priority_index": 1610.3,
+      "flood_probability": 1.0,
+      "urgency_tier": "P1_CRITICAL"
+    },
+    {
+      "rank": 7,
+      "village_id": "V_7145",
+      "lat": 24.75,
+      "lon": 87.75,
+      "priority_index": 1610.139,
+      "flood_probability": 0.9999,
+      "urgency_tier": "P1_CRITICAL"
+    },
+    {
+      "rank": 8,
+      "village_id": "V_6777",
+      "lat": 24.75,
+      "lon": 87.25,
+      "priority_index": 1609.9779,
+      "flood_probability": 0.9998,
+      "urgency_tier": "P1_CRITICAL"
+    },
+    {
+      "rank": 9,
+      "village_id": "V_6961",
+      "lat": 24.75,
+      "lon": 87.5,
+      "priority_index": 1609.9779,
+      "flood_probability": 0.9998,
+      "urgency_tier": "P1_CRITICAL"
+    },
+    {
+      "rank": 10,
+      "village_id": "V_7697",
+      "lat": 24.75,
+      "lon": 88.5,
+      "priority_index": 1608.0456,
+      "flood_probability": 0.9986,
+      "urgency_tier": "P1_CRITICAL"
+    }
+  ],
+  "evacuation_routing_summary": {
+    "total_evacuees_assigned": 47500,
+    "villages_serviced": 273,
+    "sample_routes": [
+      {
+        "village_id": "V_521",
+        "village_name": "Grid_Node_2450_8400",
+        "assigned_shelter_id": "S_Patna_Central",
+        "assigned_shelter_name": "Patna Relief Camp Central",
+        "evacuated_population": 1041,
+        "distance_km": 166.45,
+        "evacuation_path": [
+          "V_521",
+          "V_4569",
+          "V_8617",
+          "V_12665",
+          "V_16713",
+          "S_Patna_Central"
+        ],
+        "fully_evacuated": true
+      },
+      {
+        "village_id": "V_889",
+        "village_name": "Grid_Node_2450_8450",
+        "assigned_shelter_id": "S_Patna_Central",
+        "assigned_shelter_name": "Patna Relief Camp Central",
+        "evacuated_population": 2090,
+        "distance_km": 143.57,
+        "evacuation_path": [
+          "V_889",
+          "V_4753",
+          "V_8801",
+          "V_12849",
+          "S_Patna_Central"
+        ],
+        "fully_evacuated": true
+      },
+      {
+        "village_id": "V_1441",
+        "village_name": "Grid_Node_2450_8525",
+        "assigned_shelter_id": "S_Patna_Central",
+        "assigned_shelter_name": "Patna Relief Camp Central",
+        "evacuated_population": 2972,
+        "distance_km": 124.45,
+        "evacuation_path": [
+          "V_1441",
+          "V_5305",
+          "V_9169",
+          "V_13033",
+          "S_Patna_Central"
+        ],
+        "fully_evacuated": true
+      },
+      {
+        "village_id": "V_1993",
+        "village_name": "Grid_Node_2450_8600",
+        "assigned_shelter_id": "S_Bhagalpur_South",
+        "assigned_shelter_name": "Bhagalpur Emergency Shelter",
+        "evacuated_population": 1127,
+        "distance_km": 136.97,
+        "evacuation_path": [
+          "V_1993",
+          "V_6041",
+          "V_10089",
+          "V_10273",
+          "S_Bhagalpur_South"
+        ],
+        "fully_evacuated": true
+      },
+      {
+        "village_id": "V_2545",
+        "village_name": "Grid_Node_2450_8675",
+        "assigned_shelter_id": "S_Bhagalpur_South",
+        "assigned_shelter_name": "Bhagalpur Emergency Shelter",
+        "evacuated_population": 1436,
+        "distance_km": 92.02,
+        "evacuation_path": [
+          "V_2545",
+          "V_6409",
+          "V_10457",
+          "S_Bhagalpur_South"
+        ],
+        "fully_evacuated": true
+      }
+    ]
+  },
+  "ndrf_deployment_summary": {
+    "teams_deployed": 5,
+    "personnel_deployed": 165,
+    "deployments": [
+      {
+        "team_id": "NDRF_Unit_9th_Battalion_Patna",
+        "team_size": 45,
+        "assigned_village_id": "V_16897",
+        "assigned_village_name": "Grid_Node_2550_8525",
+        "travel_distance_km": 15.66,
+        "urgency_score": 1922.43,
+        "flood_probability": 1.0
+      },
+      {
+        "team_id": "NDRF_Unit_Muzaffarpur_Alpha",
+        "team_size": 35,
+        "assigned_village_id": "V_24809",
+        "assigned_village_name": "Grid_Node_2600_8550",
+        "travel_distance_km": 17.29,
+        "urgency_score": 1757.24,
+        "flood_probability": 1.0
+      },
+      {
+        "team_id": "NDRF_Unit_Darbhanga_Bravo",
+        "team_size": 30,
+        "assigned_village_id": "V_29041",
+        "assigned_village_name": "Grid_Node_2625_8600",
+        "travel_distance_km": 14.94,
+        "urgency_score": 1892.67,
+        "flood_probability": 1.0
+      },
+      {
+        "team_id": "NDRF_Unit_Bhagalpur_Charlie",
+        "team_size": 30,
+        "assigned_village_id": "V_14321",
+        "assigned_village_name": "Grid_Node_2525_8700",
+        "travel_distance_km": 1.11,
+        "urgency_score": 2468.41,
+        "flood_probability": 0.9998
+      },
+      {
+        "team_id": "NDRF_Unit_Purnia_Delta",
+        "team_size": 25,
+        "assigned_village_id": "V_22417",
+        "assigned_village_name": "Grid_Node_2575_8750",
+        "travel_distance_km": 3.74,
+        "urgency_score": 1228.4,
+        "flood_probability": 1.0
+      }
+    ]
+  },
+  "cost_penalty_analysis": {
+    "status": "SUCCESS",
+    "total_evaluated_villages": 273,
+    "confusion_matrix": {
+      "true_positives": 154,
+      "false_positives": 117,
+      "false_negatives": 0,
+      "true_negatives": 2
+    },
+    "recall_score": 1.0,
+    "precision_score": 0.5683,
+    "cost_per_false_alarm": 10000.0,
+    "cost_per_missed_flood": 250000.0,
+    "false_alarm_penalty_cost": 1170000.0,
+    "missed_flood_penalty_cost": 0.0,
+    "total_penalty_cost": 1170000.0,
+    "recommendation": "Maintain low decision threshold (<0.35) because missed flood penalties outweigh false alarms by 25:1."
+  }
+}

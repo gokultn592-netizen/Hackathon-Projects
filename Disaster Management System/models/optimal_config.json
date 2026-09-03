@@ -1,0 +1,19 @@
+{
+  "scale_pos_weight": 7.0,
+  "threshold": 0.25,
+  "accuracy": 0.2928,
+  "precision": 0.2912,
+  "recall": 0.9983,
+  "f1_score": 0.4509,
+  "roc_auc": 0.5475,
+  "confusion_matrix": [
+    [
+      25,
+      7100
+    ],
+    [
+      5,
+      2917
+    ]
+  ]
+}

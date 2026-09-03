@@ -34,13 +34,15 @@ env/
 env.bak/
 venv.bak/
 
-# Project Data & Models (keep directory structure with .gitkeep)
-data/raw/*
-!data/raw/.gitkeep
-data/processed/*
-!data/processed/.gitkeep
-models/*
-!models/.gitkeep
+# Project Data & Models
+data/raw/*.tif
+data/raw/srtm_tiles/
+models/.gitkeep
+data/processed/static_features.csv
+
+# Keep these (processed data + model artifacts)
+# data/processed/ → fully tracked
+# models/*.pkl, *.json, *.png → fully tracked
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/

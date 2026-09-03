@@ -1,0 +1,15 @@
+SlNo,Station,Agency,State LGD Code,State,District LGD Code,District,Tehsil,Block,Village,River,Basin,Tributary,Subtributary,SubSubtributary,Local River,Latitude,Longitude,Is_DischargeDataAvailable,RL_of_zeroGauge,MeanSeaLevel,Data Acquisition Time,River Water Level Telemetry Hourly (meter)
+1,Arwal Sahar Bridge,Bihar,10,Bihar,193,BHOJPUR,-,-,-,-,-,-,-,-,-,25.25138889,84.63777778,No,0,0,01-01-1970 06:00,0
+2,Arwal Sahar Bridge,Bihar,10,Bihar,193,BHOJPUR,-,-,-,-,-,-,-,-,-,25.25138889,84.63777778,No,0,0,01-01-1970 07:00,67.22
+3,Arwal Sahar Bridge,Bihar,10,Bihar,193,BHOJPUR,-,-,-,-,-,-,-,-,-,25.25138889,84.63777778,No,0,0,01-01-1970 08:00,67.22
+4,Arwal Sahar Bridge,Bihar,10,Bihar,193,BHOJPUR,-,-,-,-,-,-,-,-,-,25.25138889,84.63777778,No,0,0,04-01-1970 07:00,67.22
+5,Arwal Sahar Bridge,Bihar,10,Bihar,193,BHOJPUR,-,-,-,-,-,-,-,-,-,25.25138889,84.63777778,No,0,0,04-01-1970 08:00,67.22
+6,Arwal Sahar Bridge,Bihar,10,Bihar,193,BHOJPUR,-,-,-,-,-,-,-,-,-,25.25138889,84.63777778,No,0,0,04-01-1970 11:00,67.22
+7,Baisi_1,Bihar,10,Bihar,214,PURNIA,-,-,-,-,-,-,-,-,-,25.86277778,87.73888889,No,0,0,13-08-1970 20:00,2.429
+8,Bhaunr_1,Bihar,10,Bihar,198,JAMUI,-,-,-,-,-,-,-,-,-,24.83055556,86.21361111,No,0,0,31-12-1969 20:00,0
+9,Bibiganj_1,Bihar,10,Bihar,203,KISHANGANJ,-,-,-,-,-,-,-,-,-,26.27305556,87.75833333,No,0,0,14-01-1970 00:00,1.912
+10,Jamuawan,Bihar,10,Bihar,196,GAYA,-,-,-,-,-,-,-,-,-,24.80833333,85.30277778,No,0,0,24-03-1970 23:00,100.55
+11,Katharatanr,Bihar,10,Bihar,198,JAMUI,-,-,-,-,-,-,-,-,-,24.76666667,86.29277778,No,0,0,04-04-1970 03:00,154.443
+12,Kharuara_1,Bihar,10,Bihar,212,PATNA,-,-,-,-,-,-,-,-,-,25.42222222,85.53527778,No,0,0,01-01-1970 06:00,0
+13,Kundar Weir,Bihar,10,Bihar,198,JAMUI,-,-,-,-,-,-,-,-,-,24.99722222,86.21305556,No,0,0,06-10-1970 20:00,0.209
+14,Patauna (on Nakti River),Bihar,10,Bihar,198,JAMUI,-,-,-,-,-,-,-,-,-,24.96638889,86.24277778,No,0,0,12-04-1970 19:00,68.13
