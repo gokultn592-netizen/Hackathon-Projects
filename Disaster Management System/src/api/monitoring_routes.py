@@ -21,7 +21,7 @@ except ImportError:
             super().__init__(detail)
 
 try:
-    from ..models.model_monitor import (
+    from src.models.model_monitor import (
         get_model_monitor,
         check_model_drift,
         check_retrain_needed,
@@ -33,7 +33,7 @@ except ImportError:
     logger = logging.getLogger(__name__)
     logger.warning("Model monitoring not available")
 
-from ..models.flood_predictor import _get_global_predictor
+from src.models.flood_predictor import _get_global_predictor
 
 logger = logging.getLogger(__name__)
 

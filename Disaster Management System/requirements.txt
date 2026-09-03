@@ -28,3 +28,7 @@ tqdm>=4.65.0
 # Testing
 pytest>=7.4.0
 
+
+# Graph & Visualization (needed by optimizer & predictor)
+networkx>=3.0
+matplotlib>=3.7.0

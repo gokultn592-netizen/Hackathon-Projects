@@ -31,7 +31,7 @@ from src.api.schemas import (
 from src.data_collectors import IMDDataCollector, WRISDataCollector, BhuvanDataCollector, DEMDataCollector
 from src.preprocessing import DataFusionPipeline
 from src.models import FloodPredictorModel
-from src.optimizer import ResourceAllocator
+from src.optimizer import ResourceAllocator, assign_evacuation_routes, deploy_ndrf_teams, generate_priority_list
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,30 @@ router = APIRouter(prefix="/api/v1", tags=["Flood Command Center API"])
 predictor = FloodPredictorModel()
 optimizer = ResourceAllocator()
 fusion_pipeline = DataFusionPipeline()
+
+# Pydantic models for advanced endpoints
+try:
+    from pydantic import BaseModel
+
+    class EvacuationRequest(BaseModel):
+        villages: List[Dict[str, Any]]
+        shelters: List[Dict[str, Any]]
+
+    class NDRFDeploymentRequest(BaseModel):
+        villages: List[Dict[str, Any]]
+        ndrf_teams: List[Dict[str, Any]]
+
+    class PriorityRequest(BaseModel):
+        villages: List[Dict[str, Any]]
+
+except ImportError:
+    # Fallback for when pydantic is not available
+    class BaseModel:
+        pass
+
+    EvacuationRequest = dict
+    NDRFDeploymentRequest = dict
+    PriorityRequest = dict
 
 
 @router.get("/health", response_model=HealthCheckResponse)
@@ -255,6 +279,7 @@ def predict_flood_risk(req: FloodPredictionRequest):
 def optimize_resources(req: ResourceAllocationRequest):
     """
     Runs the emergency resource optimization engine to allocate teams, boats, and medical supplies.
+    Uses priority-based allocation based on risk scores and district characteristics.
     """
     try:
         scores_input = [item.model_dump() for item in req.district_scores]
@@ -264,4 +289,56 @@ def optimize_resources(req: ResourceAllocationRequest):
         return res
     except Exception as e:
         logger.error(f"Resource optimization endpoint error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/optimize-advanced/evacuation-routes")
+def optimize_evacuation_routes(req: EvacuationRequest):
+    """
+    Advanced evacuation routing using Dijkstra's shortest path algorithm.
+    Assigns villages to nearest available shelter with capacity while respecting road network constraints.
+    """
+    try:
+        villages = req.villages if hasattr(req, 'villages') else req.get('villages', [])
+        shelters = req.shelters if hasattr(req, 'shelters') else req.get('shelters', [])
+        res = assign_evacuation_routes(villages, shelters)
+        return res
+    except Exception as e:
+        logger.error(f"Evacuation routing error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/optimize-advanced/deploy-ndrf-teams")
+def optimize_ndrf_deployment(req: NDRFDeploymentRequest):
+    """
+    Advanced NDRF team deployment using Hungarian algorithm (linear_sum_assignment).
+    Matches teams to villages based on urgency and travel distance for optimal response.
+    """
+    try:
+        villages = req.villages if hasattr(req, 'villages') else req.get('villages', [])
+        ndrf_teams = req.ndrf_teams if hasattr(req, 'ndrf_teams') else req.get('ndrf_teams', [])
+        res = deploy_ndrf_teams(villages, ndrf_teams)
+        return res
+    except Exception as e:
+        logger.error(f"NDRF deployment error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/optimize-advanced/priority-list")
+def generate_priority_ranking(req: PriorityRequest):
+    """
+    Generate village risk priority ranking based on:
+    Priority Index = (flood_probability * population_density) / max(1.0, elevation)
+    Returns villages ranked by urgency tier (P1_CRITICAL, P2_HIGH, P3_MEDIUM, P4_LOW).
+    """
+    try:
+        villages = req.villages if hasattr(req, 'villages') else req.get('villages', [])
+        res = generate_priority_list(villages)
+        return {
+            "status": "SUCCESS",
+            "villages_ranked": len(res),
+            "priority_list": res
+        }
+    except Exception as e:
+        logger.error(f"Priority ranking error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
