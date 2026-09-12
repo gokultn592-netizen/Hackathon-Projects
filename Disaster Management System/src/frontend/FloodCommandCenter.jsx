@@ -1,5 +1,5 @@
 // ============================================================================
-// FLOOD COMMAND CENTER - BIHAR DISASTER MANAGEMENT DECISION SUPPORT SYSTEM
+// FLOOD COMMAND CENTER - RED RIVER BASIN FLOOD DECISION SUPPORT SYSTEM
 // Filen.io Premium Dark UI Aesthetic (#0a0a0a, #111111, #1a1a1a, #2a2a2a)
 // Executive Administrative Decision Suite (Dynamic Gauge Normalization & Occupancy Scaling)
 // ============================================================================
@@ -13,248 +13,248 @@ const API_BASE_URL = "http://localhost:8000/api/v1";
 // DISTRICT NAME MAPPER & METADATA
 // ----------------------------------------------------------------------------
 const DISTRICT_NAME_MAP = {
-  District_01: "Patna",
-  District_02: "Bhagalpur",
-  District_03: "Darbhanga",
-  District_04: "Muzaffarpur",
-  District_05: "Sitamarhi",
-  District_06: "Supaul",
-  District_07: "Madhubani",
-  District_08: "Katihar",
-  District_1: "Patna",
-  District_2: "Bhagalpur",
-  District_3: "Darbhanga",
-  District_4: "Muzaffarpur",
-  District_5: "Sitamarhi",
-  District_6: "Supaul",
-  District_7: "Madhubani",
-  District_8: "Katihar",
+  District_01: "Shreveport",
+  District_02: "Texarkana",
+  District_03: "Bossier City",
+  District_04: "Mansfield",
+  District_05: "Coushatta",
+  District_06: "Mount Pleasant",
+  District_07: "Linden",
+  District_08: "Hope",
+  District_1: "Shreveport",
+  District_2: "Texarkana",
+  District_3: "Bossier City",
+  District_4: "Mansfield",
+  District_5: "Coushatta",
+  District_6: "Mount Pleasant",
+  District_7: "Linden",
+  District_8: "Hope",
 };
 
 function formatDistrictName(id) {
-  if (!id) return "Patna";
+  if (!id) return "Shreveport";
   return DISTRICT_NAME_MAP[id] || id;
 }
 
 // ----------------------------------------------------------------------------
-// ACCURATE BIHAR ADMINISTRATIVE GEOGRAPHY & INFRASTRUCTURE DATA
+// RED RIVER BASIN US COUNTY GEOGRAPHY & INFRASTRUCTURE & INFRASTRUCTURE DATA
 // ----------------------------------------------------------------------------
 const DISTRICT_BASE_PROFILES = [
   {
-    district_id: "Patna",
-    name: "Patna",
-    river_name: "Ganga (Digha Ghat)",
-    lat: 25.5937,
-    lon: 85.1376,
-    shelter_lat: 25.6450,
-    shelter_lon: 85.0800,
-    hospital_name: "AIIMS Patna (Emergency Trauma Center)",
-    hospital_lat: 25.5600,
-    hospital_lon: 85.0450,
-    hospital_icu_capacity: 200,
-    hospital_icu_free: 155,
-    hospital_status: "🟢 OPERATIONAL (HIGH GROUND)",
-    hazard_road: "🚧 Digha Low-Pass NH-31 Submerged (0.8m Water)",
-    hazard_lat: 25.6200,
-    hazard_lon: 85.1000,
-    peak_rain_24h: 165.0,
-    peak_water_level: 9.2,
-    danger_level: 7.5,
-    population_at_risk: 185000,
-    nearest_shelter: "Patna Relief Camp #4 (Digha Ridge High Ground)",
-    shelter_capacity: 5000,
-    evacuation_route: "NH-31 via Atal Path Elevated Corridor (12.4 km)",
-    evacuation_eta_mins: 22,
-    elevation: 32.0,
-  },
-  {
-    district_id: "Bhagalpur",
-    name: "Bhagalpur",
-    river_name: "Ganga / Kosi (Kahalgoan)",
-    lat: 25.2425,
-    lon: 87.0022,
-    shelter_lat: 25.1750,
-    shelter_lon: 86.9150,
-    hospital_name: "JLNMCH Medical College Bhagalpur",
-    hospital_lat: 25.2200,
-    hospital_lon: 86.9700,
-    hospital_icu_capacity: 150,
-    hospital_icu_free: 18,
-    hospital_status: "⚠️ HIGH OCCUPANCY (GENERATOR BACKUP)",
-    hazard_road: "🚧 SH-19 Low-Lying Bridge Breach (Submerged)",
-    hazard_lat: 25.2000,
-    hazard_lon: 86.9400,
-    peak_rain_24h: 195.0,
-    peak_water_level: 9.8,
-    danger_level: 8.0,
-    population_at_risk: 210000,
-    nearest_shelter: "Bhagalpur Stadium High Ground Complex",
-    shelter_capacity: 8000,
-    evacuation_route: "SH-19 South toward Amarpur Ridge Highway (8.7 km)",
-    evacuation_eta_mins: 16,
-    elevation: 28.0,
-  },
-  {
-    district_id: "Darbhanga",
-    name: "Darbhanga",
-    river_name: "Bagmati / Kamla (Hayaghat)",
-    lat: 26.1542,
-    lon: 85.8918,
-    shelter_lat: 26.2200,
-    shelter_lon: 85.8150,
-    hospital_name: "Darbhanga Medical College Hospital (DMCH)",
-    hospital_lat: 26.1400,
-    hospital_lon: 85.8900,
-    hospital_icu_capacity: 120,
-    hospital_icu_free: 32,
-    hospital_status: "🟢 OPERATIONAL",
-    hazard_road: "🚧 Kamla River Causeway Overflow",
-    hazard_lat: 26.1800,
-    hazard_lon: 85.8400,
-    peak_rain_24h: 175.0,
-    peak_water_level: 8.9,
-    danger_level: 7.8,
-    population_at_risk: 145000,
-    nearest_shelter: "Darbhanga University Auditorium High Ground",
-    shelter_capacity: 4500,
-    evacuation_route: "NH-528 Bypass via Laheriasarai Highway (10.2 km)",
-    evacuation_eta_mins: 19,
-    elevation: 39.0,
-  },
-  {
-    district_id: "Muzaffarpur",
-    name: "Muzaffarpur",
-    river_name: "Burhi Gandak (Sikandarpur)",
-    lat: 26.1209,
-    lon: 85.3647,
-    shelter_lat: 26.1800,
-    shelter_lon: 85.2800,
-    hospital_name: "SKMCH Muzaffarpur Emergency Wing",
-    hospital_lat: 26.1100,
-    hospital_lon: 85.3900,
+    district_id: "Shreveport",
+    name: "Shreveport",
+    river_name: "Red River (Caddo Parish)",
+    lat: 32.5149,
+    lon: -93.7477,
+    shelter_lat: 32.5500,
+    shelter_lon: -93.7800,
+    hospital_name: "Ochsner LSU Health Shreveport (Emergency Trauma)",
+    hospital_lat: 32.4800,
+    hospital_lon: -93.7900,
     hospital_icu_capacity: 180,
-    hospital_icu_free: 60,
-    hospital_status: "🟢 OPERATIONAL",
-    hazard_road: "🚧 Burhi Gandak Embankment Sector 4 Road Breached",
-    hazard_lat: 26.1500,
-    hazard_lon: 85.3200,
-    peak_rain_24h: 125.0,
-    peak_water_level: 6.9,
-    danger_level: 6.8,
-    population_at_risk: 92000,
-    nearest_shelter: "Muzaffarpur Zila High School",
-    shelter_capacity: 3000,
-    evacuation_route: "NH-28 East towards Motipur (15.1 km)",
-    evacuation_eta_mins: 25,
-    elevation: 47.0,
+    hospital_icu_free: 95,
+    hospital_status: "🟢 OPERATIONAL (HIGH GROUND)",
+    hazard_road: "🚧 I-20 Low-Pass at Cross Lake Submerged (1.2m Water)",
+    hazard_lat: 32.5350,
+    hazard_lon: -93.7200,
+    peak_rain_24h: 165.0,
+    peak_water_level: 12.5,
+    danger_level: 10.0,
+    population_at_risk: 195000,
+    nearest_shelter: "Shreveport Convention Center High Ground",
+    shelter_capacity: 5200,
+    evacuation_route: "I-49 North via Youree Drive Elevated Corridor (14.2 km)",
+    evacuation_eta_mins: 24,
+    elevation: 57.0,
   },
   {
-    district_id: "Sitamarhi",
-    name: "Sitamarhi",
-    river_name: "Lakhandei / Bagmati (Runnisaidpur)",
-    lat: 26.5976,
-    lon: 85.4886,
-    shelter_lat: 26.6500,
-    shelter_lon: 85.4100,
-    hospital_name: "Sitamarhi Sadar Hospital",
-    hospital_lat: 26.5900,
-    hospital_lon: 85.4900,
-    hospital_icu_capacity: 80,
-    hospital_icu_free: 22,
-    hospital_status: "🟢 OPERATIONAL",
-    hazard_road: "🚧 Lakhandei River Bridge Low Approach Blocked",
-    hazard_lat: 26.6200,
-    hazard_lon: 85.4400,
-    peak_rain_24h: 145.0,
-    peak_water_level: 7.6,
-    danger_level: 7.2,
-    population_at_risk: 110000,
-    nearest_shelter: "Sitamarhi Town Hall Shelter",
-    shelter_capacity: 3500,
-    evacuation_route: "NH-77 South via Riga Road (11.0 km)",
+    district_id: "Texarkana",
+    name: "Texarkana",
+    river_name: "Sulphur River (Bowie County)",
+    lat: 33.4253,
+    lon: -94.0477,
+    shelter_lat: 33.3900,
+    shelter_lon: -94.0200,
+    hospital_name: "Christus St. Michael Health System",
+    hospital_lat: 33.4100,
+    hospital_lon: -94.0600,
+    hospital_icu_capacity: 140,
+    hospital_icu_free: 42,
+    hospital_status: "⚠️ HIGH OCCUPANCY (GENERATOR BACKUP)",
+    hazard_road: "🚧 US-59 Low-Lying Bridge Breach (Submerged)",
+    hazard_lat: 33.4000,
+    hazard_lon: -94.0300,
+    peak_rain_24h: 195.0,
+    peak_water_level: 14.2,
+    danger_level: 11.5,
+    population_at_risk: 220000,
+    nearest_shelter: "Texarkana College High Ground Complex",
+    shelter_capacity: 8500,
+    evacuation_route: "US-59 South toward Redwater Ridge Highway (10.1 km)",
     evacuation_eta_mins: 18,
-    elevation: 52.0,
+    elevation: 92.0,
   },
   {
-    district_id: "Supaul",
-    name: "Supaul",
-    river_name: "Kosi Barrage (Birpur)",
-    lat: 26.1260,
-    lon: 86.5972,
-    shelter_lat: 26.1800,
-    shelter_lon: 86.6800,
-    hospital_name: "Supaul Sub-Divisional Hospital",
-    hospital_lat: 26.1200,
-    hospital_lon: 86.6000,
-    hospital_icu_capacity: 90,
-    hospital_icu_free: 40,
+    district_id: "Bossier City",
+    name: "Bossier City",
+    river_name: "Cypress Creek / Red River (Bossier Parish)",
+    lat: 32.4335,
+    lon: -93.7432,
+    shelter_lat: 32.4700,
+    shelter_lon: -93.7100,
+    hospital_name: "Willis-Knighton South Medical Center",
+    hospital_lat: 32.4200,
+    hospital_lon: -93.7300,
+    hospital_icu_capacity: 130,
+    hospital_icu_free: 55,
     hospital_status: "🟢 OPERATIONAL",
-    hazard_road: "🚧 Kosi Canal Feeder Road Inundated",
-    hazard_lat: 26.1500,
-    hazard_lon: 86.6400,
-    peak_rain_24h: 110.0,
+    hazard_road: "🚧 Cypress Creek Causeway Overflow",
+    hazard_lat: 32.4500,
+    hazard_lon: -93.7500,
+    peak_rain_24h: 175.0,
+    peak_water_level: 11.8,
+    danger_level: 9.8,
+    population_at_risk: 155000,
+    nearest_shelter: "Bossier Civic Center High Ground",
+    shelter_capacity: 4800,
+    evacuation_route: "LA-511 Bypass via Airline Drive Highway (11.5 km)",
+    evacuation_eta_mins: 21,
+    elevation: 48.0,
+  },
+  {
+    district_id: "Mansfield",
+    name: "Mansfield",
+    river_name: "Little River (DeSoto Parish)",
+    lat: 32.0365,
+    lon: -93.6977,
+    shelter_lat: 32.0800,
+    shelter_lon: -93.6500,
+    hospital_name: "DeSoto Regional Health System Emergency Wing",
+    hospital_lat: 32.0300,
+    hospital_lon: -93.6800,
+    hospital_icu_capacity: 160,
+    hospital_icu_free: 72,
+    hospital_status: "🟢 OPERATIONAL",
+    hazard_road: "🚧 Little River Embankment Road Breached",
+    hazard_lat: 32.0600,
+    hazard_lon: -93.7100,
+    peak_rain_24h: 130.0,
+    peak_water_level: 8.2,
+    danger_level: 7.0,
+    population_at_risk: 98000,
+    nearest_shelter: "Mansfield High School Shelter",
+    shelter_capacity: 3200,
+    evacuation_route: "US-171 East toward Stonewall (16.3 km)",
+    evacuation_eta_mins: 28,
+    elevation: 85.0,
+  },
+  {
+    district_id: "Coushatta",
+    name: "Coushatta",
+    river_name: "Red River North Fork (Red River Parish)",
+    lat: 31.9977,
+    lon: -93.3369,
+    shelter_lat: 32.0200,
+    shelter_lon: -93.3000,
+    hospital_name: "Red River Parish Medical Center",
+    hospital_lat: 31.9900,
+    hospital_lon: -93.3400,
+    hospital_icu_capacity: 85,
+    hospital_icu_free: 28,
+    hospital_status: "🟢 OPERATIONAL",
+    hazard_road: "🚧 Red River Bridge Low Approach Blocked",
+    hazard_lat: 32.0100,
+    hazard_lon: -93.3200,
+    peak_rain_24h: 150.0,
+    peak_water_level: 9.5,
+    danger_level: 8.2,
+    population_at_risk: 115000,
+    nearest_shelter: "Coushatta Town Hall Shelter",
+    shelter_capacity: 3600,
+    evacuation_route: "US-371 South via Martin Road (12.8 km)",
+    evacuation_eta_mins: 20,
+    elevation: 42.0,
+  },
+  {
+    district_id: "Mount Pleasant",
+    name: "Mount Pleasant",
+    river_name: "Sulphur River East Fork (Titus County)",
+    lat: 33.1562,
+    lon: -94.9686,
+    shelter_lat: 33.2000,
+    shelter_lon: -94.9400,
+    hospital_name: "Mount Pleasant Regional Hospital Sub-Divisional",
+    hospital_lat: 33.1500,
+    hospital_lon: -94.9700,
+    hospital_icu_capacity: 95,
+    hospital_icu_free: 38,
+    hospital_status: "🟢 OPERATIONAL",
+    hazard_road: "🚧 Sulphur Canal Feeder Road Inundated",
+    hazard_lat: 33.1700,
+    hazard_lon: -94.9500,
+    peak_rain_24h: 115.0,
+    peak_water_level: 7.5,
+    danger_level: 6.8,
+    population_at_risk: 68000,
+    nearest_shelter: "Mount Pleasant Community Center",
+    shelter_capacity: 2600,
+    evacuation_route: "TX-49 East towards Talco (15.5 km)",
+    evacuation_eta_mins: 23,
+    elevation: 110.0,
+  },
+  {
+    district_id: "Linden",
+    name: "Linden",
+    river_name: "Cypress Creek (Cass County)",
+    lat: 33.0025,
+    lon: -94.3707,
+    shelter_lat: 33.0500,
+    shelter_lon: -94.3400,
+    hospital_name: "Linden County Hospital",
+    hospital_lat: 32.9900,
+    hospital_lon: -94.3600,
+    hospital_icu_capacity: 110,
+    hospital_icu_free: 58,
+    hospital_status: "🟢 OPERATIONAL",
+    hazard_road: "🚧 TX-8 Railway Underpass Flooded",
+    hazard_lat: 33.0200,
+    hazard_lon: -94.3800,
+    peak_rain_24h: 90.0,
     peak_water_level: 6.2,
-    danger_level: 6.5,
-    population_at_risk: 65000,
-    nearest_shelter: "Supaul Block Community Center",
-    shelter_capacity: 2500,
-    evacuation_route: "SH-66 East towards Pipra (14.2 km)",
-    evacuation_eta_mins: 22,
-    elevation: 56.0,
-  },
-  {
-    district_id: "Madhubani",
-    name: "Madhubani",
-    river_name: "Kamla Balan (Jhanjharpur)",
-    lat: 26.3496,
-    lon: 86.0718,
-    shelter_lat: 26.4100,
-    shelter_lon: 86.1400,
-    hospital_name: "Madhubani District Hospital",
-    hospital_lat: 26.3400,
-    hospital_lon: 86.0700,
-    hospital_icu_capacity: 100,
-    hospital_icu_free: 50,
-    hospital_status: "🟢 OPERATIONAL",
-    hazard_road: "🚧 SH-52 Railway Underpass Flooded",
-    hazard_lat: 26.3800,
-    hazard_lon: 86.1000,
-    peak_rain_24h: 85.0,
-    peak_water_level: 5.1,
-    danger_level: 6.0,
-    population_at_risk: 42000,
-    nearest_shelter: "Madhubani District Sports Complex",
-    shelter_capacity: 3000,
-    evacuation_route: "NH-57 Bypass (6.5 km)",
-    evacuation_eta_mins: 12,
-    elevation: 62.0,
-  },
-  {
-    district_id: "Katihar",
-    name: "Katihar",
-    river_name: "Mahananda / Ganga (Baltara)",
-    lat: 25.5413,
-    lon: 87.5755,
-    shelter_lat: 25.6000,
-    shelter_lon: 87.6500,
-    hospital_name: "Katihar Medical College Hospital",
-    hospital_lat: 25.5300,
-    hospital_lon: 87.5800,
-    hospital_icu_capacity: 150,
-    hospital_icu_free: 75,
-    hospital_status: "🟢 OPERATIONAL",
-    hazard_road: "🚧 Mahananda Embankment Road Caution",
-    hazard_lat: 25.5700,
-    hazard_lon: 87.6100,
-    peak_rain_24h: 75.0,
-    peak_water_level: 4.4,
     danger_level: 5.5,
-    population_at_risk: 28000,
-    nearest_shelter: "Katihar Railway Indoor Stadium",
-    shelter_capacity: 4000,
-    evacuation_route: "NH-31 East (8.0 km)",
+    population_at_risk: 45000,
+    nearest_shelter: "Linden Civic Sports Complex",
+    shelter_capacity: 3100,
+    evacuation_route: "US-59 North Bypass (7.8 km)",
     evacuation_eta_mins: 14,
-    elevation: 34.0,
+    elevation: 78.0,
+  },
+  {
+    district_id: "Hope",
+    name: "Hope",
+    river_name: "Red River South Fork (Hempstead County)",
+    lat: 33.6675,
+    lon: -93.5916,
+    shelter_lat: 33.7000,
+    shelter_lon: -93.5600,
+    hospital_name: "Hope Medical Center Emergency Trauma",
+    hospital_lat: 33.6600,
+    hospital_lon: -93.5800,
+    hospital_icu_capacity: 150,
+    hospital_icu_free: 82,
+    hospital_status: "🟢 OPERATIONAL",
+    hazard_road: "🚧 Red River Embankment South Road Caution",
+    hazard_lat: 33.6900,
+    hazard_lon: -93.6000,
+    peak_rain_24h: 80.0,
+    peak_water_level: 5.8,
+    danger_level: 5.0,
+    population_at_risk: 30000,
+    nearest_shelter: "Hope Convention Center High Ground",
+    shelter_capacity: 4200,
+    evacuation_route: "I-30 East (9.2 km)",
+    evacuation_eta_mins: 16,
+    elevation: 65.0,
   },
 ];
 
@@ -272,7 +272,7 @@ function calculateProportionateShelterOccupancy(capacity, riskScore) {
   }
 }
 
-// Smooth Calibrated 2019 Bihar Monsoon Simulation Engine
+// Smooth Calibrated Red River Basin Hydrologic Simulation Engine
 function generateHydrologyForDay(dayNumber) {
   let seasonFactor = 0.2;
   if (dayNumber <= 60) {
@@ -323,7 +323,7 @@ function generateHydrologyForDay(dayNumber) {
       rainfall_24h_mm: rain,
       rainfall_3d_accum_mm: rain3d,
       rainfall_intensity_mmhr: Number((rain / 8.0).toFixed(1)),
-      imd_warning_level: isP1 ? "WARNING" : isP2 ? "ALERT" : "NORMAL",
+      nws_warning_level: isP1 ? "WARNING" : isP2 ? "ALERT" : "NORMAL",
       humidity_percent: Math.round(65 + seasonFactor * 30),
       temperature_celsius: Number((32.0 - seasonFactor * 5.0).toFixed(1)),
       water_level_meters: waterLevel,
@@ -353,7 +353,7 @@ function generateHydrologyForDay(dayNumber) {
       shap_explainability: [
         { feature: "rainfall_3d_accum_mm", contribution: Math.round(seasonFactor * 38), label: `3-Day Rainfall (${rain3d}mm)` },
         { feature: "water_level_above_danger", contribution: Math.round(seasonFactor * 30), label: `River Level (${waterLevel}m)` },
-        { feature: "ndwi_water_index", contribution: Math.round(seasonFactor * 20), label: "ISRO NDWI Water Index" },
+        { feature: "ndwi_water_index", contribution: Math.round(seasonFactor * 20), label: "NASA/USGS NDWI Water Index" },
         { feature: "mean_elevation_meters", contribution: -12, label: "Basin Terrain Elevation" },
       ],
     };
@@ -364,21 +364,21 @@ function generateHydrologyForDay(dayNumber) {
 const INITIAL_SIMULATION_DISTRICTS = generateHydrologyForDay(30);
 
 const INITIAL_TOTAL_RESOURCES = {
-  ndrf_teams: 50,
+  fema_teams: 50,
   rescue_boats: 100,
   medical_kits: 3000,
   shelter_tents: 1500,
 };
 
 const INITIAL_ALLOCATIONS = [
-  { district_id: "Bhagalpur", priority_level: "P3_MONITOR", risk_score: 0.25, allocated_ndrf_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
-  { district_id: "Patna", priority_level: "P3_MONITOR", risk_score: 0.22, allocated_ndrf_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
-  { district_id: "Darbhanga", priority_level: "P3_MONITOR", risk_score: 0.28, allocated_ndrf_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
-  { district_id: "Sitamarhi", priority_level: "P3_MONITOR", risk_score: 0.24, allocated_ndrf_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
-  { district_id: "Muzaffarpur", priority_level: "P3_MONITOR", risk_score: 0.20, allocated_ndrf_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
-  { district_id: "Supaul", priority_level: "P3_MONITOR", risk_score: 0.18, allocated_ndrf_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
-  { district_id: "Madhubani", priority_level: "P3_MONITOR", risk_score: 0.15, allocated_ndrf_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
-  { district_id: "Katihar", priority_level: "P3_MONITOR", risk_score: 0.14, allocated_ndrf_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
+  { district_id: "Texarkana", priority_level: "P3_MONITOR", risk_score: 0.25, allocated_fema_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
+  { district_id: "Shreveport", priority_level: "P3_MONITOR", risk_score: 0.22, allocated_fema_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
+  { district_id: "Bossier City", priority_level: "P3_MONITOR", risk_score: 0.28, allocated_fema_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
+  { district_id: "Mansfield", priority_level: "P3_MONITOR", risk_score: 0.24, allocated_fema_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
+  { district_id: "Coushatta", priority_level: "P3_MONITOR", risk_score: 0.20, allocated_fema_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
+  { district_id: "Mount Pleasant", priority_level: "P3_MONITOR", risk_score: 0.18, allocated_fema_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
+  { district_id: "Linden", priority_level: "P3_MONITOR", risk_score: 0.15, allocated_fema_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
+  { district_id: "Hope", priority_level: "P3_MONITOR", risk_score: 0.14, allocated_fema_teams: 0, allocated_rescue_boats: 0, allocated_medical_kits: 0, allocated_shelter_tents: 0 },
 ];
 
 function FloodCommandCenter() {
@@ -395,7 +395,7 @@ function FloodCommandCenter() {
   // REAL DATA MODE BY DEFAULT (user requested real data by default!)
   const [useSimulation, setUseSimulation] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
-  const [selectedDistrictId, setSelectedDistrictId] = useState("Patna");
+  const [selectedDistrictId, setSelectedDistrictId] = useState("Shreveport");
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [sitRepModalOpen, setSitRepModalOpen] = useState(false);
 
@@ -403,7 +403,7 @@ function FloodCommandCenter() {
   const [resources, setResources] = useState(INITIAL_TOTAL_RESOURCES);
   const [allocations, setAllocations] = useState(INITIAL_ALLOCATIONS);
   const [unallocated, setUnallocated] = useState({
-    ndrf_teams: 50,
+    fema_teams: 50,
     rescue_boats: 100,
     medical_kits: 3000,
     shelter_tents: 1500,
@@ -455,7 +455,7 @@ function FloodCommandCenter() {
   // Helper to compute dynamic resource allocations based on current district risk scores
   const syncAllocations = (districtList) => {
     const sorted = [...districtList].sort((a, b) => b.risk_score - a.risk_score);
-    let remNDRF = resources.ndrf_teams;
+    let remFEMA_USACE = resources.fema_teams;
     let remBoats = resources.rescue_boats;
     let remMedical = resources.medical_kits;
     let remTents = resources.shelter_tents;
@@ -463,12 +463,12 @@ function FloodCommandCenter() {
     const newAlloc = sorted.map((d) => {
       const p = d.risk_score >= 0.7 ? "P1_URGENT" : d.risk_score >= 0.4 ? "P2_HIGH" : "P3_MONITOR";
       const w = d.risk_score;
-      const ndrf = Math.min(remNDRF, Math.max(0, Math.round(15 * w)));
+      const ndrf = Math.min(remFEMA_USACE, Math.max(0, Math.round(15 * w)));
       const boats = Math.min(remBoats, Math.max(0, Math.round(30 * w)));
       const med = Math.min(remMedical, Math.round(900 * w));
       const tents = Math.min(remTents, Math.round(450 * w));
 
-      remNDRF -= ndrf;
+      remFEMA_USACE -= ndrf;
       remBoats -= boats;
       remMedical -= med;
       remTents -= tents;
@@ -477,7 +477,7 @@ function FloodCommandCenter() {
         district_id: formatDistrictName(d.district_id),
         priority_level: p,
         risk_score: d.risk_score,
-        allocated_ndrf_teams: ndrf,
+        allocated_fema_teams: ndrf,
         allocated_rescue_boats: boats,
         allocated_medical_kits: med,
         allocated_shelter_tents: tents,
@@ -487,7 +487,7 @@ function FloodCommandCenter() {
 
     setAllocations(newAlloc);
     setUnallocated({
-      ndrf_teams: Math.max(0, remNDRF),
+      fema_teams: Math.max(0, remFEMA_USACE),
       rescue_boats: Math.max(0, remBoats),
       medical_kits: Math.max(0, remMedical),
       shelter_tents: Math.max(0, remTents),
@@ -554,7 +554,7 @@ function FloodCommandCenter() {
     return acc + occ;
   }, 0);
 
-  const totalAllocatedNDRF = allocations.reduce((acc, a) => acc + (a.allocated_ndrf_teams || 0), 0);
+  const totalAllocatedFEMA_USACE = allocations.reduce((acc, a) => acc + (a.allocated_fema_teams || 0), 0);
   const totalAllocatedBoats = allocations.reduce((acc, a) => acc + (a.allocated_rescue_boats || 0), 0);
   const totalAllocatedMedical = allocations.reduce((acc, a) => acc + (a.allocated_medical_kits || 0), 0);
   const totalAllocatedTents = allocations.reduce((acc, a) => acc + (a.allocated_shelter_tents || 0), 0);
@@ -638,7 +638,7 @@ function FloodCommandCenter() {
         );
       }
       setIsOffline(false);
-      addToast("📡 Live Real Data Telemetry Ingested across 8 Bihar Districts", "success");
+      addToast("📡 Live Real Data Telemetry Ingested across 8 Red River Basin Counties", "success");
     } catch (err) {
       console.warn("Using simulation fallback for collect data:", err);
       setIsOffline(true);
@@ -746,7 +746,7 @@ function FloodCommandCenter() {
       console.warn("Using simulation fallback for optimization:", err);
       setIsOffline(true);
       const sorted = [...districts].sort((a, b) => b.risk_score - a.risk_score);
-      let remNDRF = resources.ndrf_teams;
+      let remFEMA_USACE = resources.fema_teams;
       let remBoats = resources.rescue_boats;
       let remMedical = resources.medical_kits;
       let remTents = resources.shelter_tents;
@@ -754,12 +754,12 @@ function FloodCommandCenter() {
       const newAlloc = sorted.map((d) => {
         const p = d.risk_score >= 0.7 ? "P1_URGENT" : d.risk_score >= 0.4 ? "P2_HIGH" : "P3_MONITOR";
         const w = d.risk_score;
-        const ndrf = Math.min(remNDRF, Math.max(1, Math.round(15 * w)));
+        const ndrf = Math.min(remFEMA_USACE, Math.max(1, Math.round(15 * w)));
         const boats = Math.min(remBoats, Math.max(2, Math.round(30 * w)));
         const med = Math.min(remMedical, Math.round(900 * w));
         const tents = Math.min(remTents, Math.round(450 * w));
 
-        remNDRF -= ndrf;
+        remFEMA_USACE -= ndrf;
         remBoats -= boats;
         remMedical -= med;
         remTents -= tents;
@@ -768,7 +768,7 @@ function FloodCommandCenter() {
           district_id: formatDistrictName(d.district_id),
           priority_level: p,
           risk_score: d.risk_score,
-          allocated_ndrf_teams: ndrf,
+          allocated_fema_teams: ndrf,
           allocated_rescue_boats: boats,
           allocated_medical_kits: med,
           allocated_shelter_tents: tents,
@@ -778,7 +778,7 @@ function FloodCommandCenter() {
 
       setAllocations(newAlloc);
       setUnallocated({
-        ndrf_teams: Math.max(0, remNDRF),
+        fema_teams: Math.max(0, remFEMA_USACE),
         rescue_boats: Math.max(0, remBoats),
         medical_kits: Math.max(0, remMedical),
         shelter_tents: Math.max(0, remTents),
@@ -910,7 +910,7 @@ function FloodCommandCenter() {
               </span>
             </div>
             <div style="font-size: 11px; color: #a1a1aa; margin-bottom: 6px;">
-              Basin: <b style="color: #ffffff">${district.river_name || "Ganga"}</b>
+              Basin: <b style="color: #ffffff">${district.river_name || "Red River"}</b>
             </div>
             <div style="margin-bottom: 8px;">
               <div style="display: flex; justify-content: space-between; font-size: 10px; color: #a1a1aa; margin-bottom: 2px;">
@@ -1131,10 +1131,10 @@ function FloodCommandCenter() {
                   OFFICIAL DISASTER MANAGEMENT BRIEFING
                 </span>
                 <h2 className="text-xl font-extrabold text-white uppercase tracking-wide mt-1">
-                  Bihar Administrative Situation Report (SitRep #04)
+                  Red River Basin Administrative Situation Report (SitRep #04)
                 </h2>
                 <p className="text-xs text-gray-400">
-                  Target Authority: Bihar State Disaster Management Authority (BSDMA) / NDMA Command
+                  Target Authority: Red River Basin Emergency Management Authority / FEMA Region 6
                 </p>
               </div>
 
@@ -1171,15 +1171,15 @@ function FloodCommandCenter() {
                 <div className="space-y-1 text-gray-300">
                   {p1Count > 0 ? (
                     <>
-                      <p>• <b>High Vulnerability Sectors</b>: NDRF Teams deployed; Ganga & Kosi overflow above danger mark. Immediate evacuation along highway corridors active.</p>
-                      <p>• <b>Medical Readiness</b>: AIIMS Patna & JLNMCH Trauma Centers prepared with active ICU bed capacity.</p>
+                      <p>• <b>High Vulnerability Sectors</b>: FEMA_USACE Teams deployed; Red River & Sulphur River overflow above danger mark. Immediate evacuation along highway corridors active.</p>
+                      <p>• <b>Medical Readiness</b>: Ochsner LSU Health Shreveport Trauma Center prepared with active ICU bed capacity.</p>
                       <p>• <b>Road Hazards</b>: Submerged Highway closures detected. Alternate bypass routing active on OpenStreetMap layer.</p>
                     </>
                   ) : (
                     <>
-                      <p>• <b>Monsoon Status</b>: All 8 Bihar river basins are currently within safe operational capacity (P3 Monitor Stage).</p>
-                      <p>• <b>Prepositioning</b>: NDRF Teams & Motor Boats on high standby at regional depots.</p>
-                      <p>• <b>Telemetry</b>: IMD Rainfall and India-WRIS River Gauges streaming live data continuously.</p>
+                      <p>• <b>Monsoon Status</b>: All 8 Red River Basin counties are currently within safe operational capacity (P3 Monitor Stage).</p>
+                      <p>• <b>Prepositioning</b>: FEMA_USACE Teams & Motor Boats on high standby at regional depots.</p>
+                      <p>• <b>Telemetry</b>: NOAA/NWS Rainfall and USACE River Gauges streaming live data continuously.</p>
                     </>
                   )}
                 </div>
@@ -1190,7 +1190,7 @@ function FloodCommandCenter() {
                   2. Deployed Emergency Resource Assets
                 </span>
                 <div className="grid grid-cols-4 gap-2 text-center bg-[#1a1a1a] p-2.5 rounded-lg font-mono">
-                  <div>🪖 NDRF: <b>{totalAllocatedNDRF} Teams</b></div>
+                  <div>🪖 FEMA_USACE: <b>{totalAllocatedFEMA_USACE} Teams</b></div>
                   <div>🚤 Boats: <b>{totalAllocatedBoats} Units</b></div>
                   <div>💊 Kits: <b>{totalAllocatedMedical} Kits</b></div>
                   <div>⛺ Tents: <b>{totalAllocatedTents} Tents</b></div>
@@ -1199,7 +1199,7 @@ function FloodCommandCenter() {
             </div>
 
             <div className="flex justify-between items-center pt-2">
-              <span className="text-[11px] text-gray-500 font-mono">Report ID: BSDMA-SITREP-2019-MONSOON-DAY{simulationDay}</span>
+              <span className="text-[11px] text-gray-500 font-mono">Report ID: RRCB-SITREP-2019-MONSOON-DAY{simulationDay}</span>
               <div className="flex space-x-2">
                 <button
                   onClick={() => {
@@ -1239,7 +1239,7 @@ function FloodCommandCenter() {
                   </span>
                 </div>
                 <p className="text-xs text-gray-400 mt-1">
-                  Basin: <b className="text-blue-400">{selectedDistrict.river_name || "Ganga"}</b> | Coordinates: {selectedDistrict.lat.toFixed(4)}°N, {selectedDistrict.lon.toFixed(4)}°E
+                  Basin: <b className="text-blue-400">{selectedDistrict.river_name || "Red River"}</b> | Coordinates: {selectedDistrict.lat.toFixed(4)}°N, {selectedDistrict.lon.toFixed(4)}°E
                 </p>
               </div>
 
@@ -1286,7 +1286,7 @@ function FloodCommandCenter() {
                 <span className="text-[10px] text-gray-400 uppercase font-semibold block">🌧 Precipitation</span>
                 <div className="text-base font-bold text-white">{selectedDistrict.rainfall_24h_mm} mm</div>
                 <div className="text-[10px] text-gray-400">3-Day Accum: <b>{selectedDistrict.rainfall_3d_accum_mm} mm</b></div>
-                <div className="text-[10px] text-gray-400">IMD Warning: <b className="text-amber-400">{selectedDistrict.imd_warning_level || "ALERT"}</b></div>
+                <div className="text-[10px] text-gray-400">NWS Warning: <b className="text-amber-400">{selectedDistrict.nws_warning_level || "ALERT"}</b></div>
               </div>
 
               <div className="bg-[#161616] border border-[#2a2a2a] p-3 rounded-xl space-y-1">
@@ -1373,7 +1373,7 @@ function FloodCommandCenter() {
               </span>
             </div>
             <p className="text-[11px] text-gray-400">
-              Bihar Flood Decision Support System
+              Red River Basin Flood Decision Support System
             </p>
           </div>
         </div>
@@ -1509,7 +1509,7 @@ function FloodCommandCenter() {
               <div className="text-base font-extrabold text-purple-400 font-mono">
                 {totalAtRiskPopulation.toLocaleString()}
               </div>
-              <span className="text-[10px] text-gray-500">Across 8 Bihar flood basins</span>
+              <span className="text-[10px] text-gray-500">Across 8 Red River Basin counties</span>
             </div>
 
             {/* Pipeline Actions */}
@@ -1587,12 +1587,12 @@ function FloodCommandCenter() {
 
                   {useSimulation ? (
                     <span className="text-gray-300 font-medium">
-                      2019 Bihar Monsoon Replay: <b className="text-blue-400">Day {simulationDay} / 184 (Sept 30 Peak)</b>
+                      2019 Red River Basin Flood Replay: <b className="text-blue-400">Day {simulationDay} / 184 (Sept 30 Peak)</b>
                     </span>
                   ) : (
                     <span className="text-emerald-400/90 font-semibold text-[11px] flex items-center space-x-1">
                       <span>📡</span>
-                      <span>Real Telemetry Active - Live OSINT Data (IMD, WRIS, Bhuvan)</span>
+                      <span>Real Telemetry Active - Live OSINT Data (NOAA, USACE, NASA/USGS)</span>
                     </span>
                   )}
                 </div>
@@ -1769,7 +1769,7 @@ function FloodCommandCenter() {
               <div className="border-b border-[#2a2a2a] pb-3 flex justify-between items-center">
                 <div>
                   <h2 className="text-base font-extrabold uppercase tracking-wider text-white">
-                    🏛 Bihar Statewide Flood & Relief Shelter Master Status
+                    🏛 Red River Basin Flood & Relief Shelter Master Status
                   </h2>
                   <p className="text-xs text-gray-400">
                     Real-time operational monitoring across 38 districts, 8 major river basins, and relief camps
@@ -1801,11 +1801,11 @@ function FloodCommandCenter() {
                 <div className="bg-[#141414] border border-[#2a2a2a] p-4 rounded-xl space-y-1">
                   <span className="text-xs text-gray-400 uppercase font-semibold">🌊 Flooded Basin Area</span>
                   <div className="text-2xl font-extrabold text-blue-400 font-mono">{totalInundatedArea} km²</div>
-                  <span className="text-[10px] text-gray-500 block">Across Ganga, Kosi & Bagmati Floodplains</span>
+                  <span className="text-[10px] text-gray-500 block">Across Red River, Sulphur River & Cypress Creek Basins</span>
                 </div>
 
                 <div className="bg-[#141414] border border-[#2a2a2a] p-4 rounded-xl space-y-1">
-                  <span className="text-xs text-gray-400 uppercase font-semibold">👥 At-Risk Bihar Citizens</span>
+                  <span className="text-xs text-gray-400 uppercase font-semibold">👥 At-Risk Red River Basin Citizens</span>
                   <div className="text-2xl font-extrabold text-purple-400 font-mono">{totalAtRiskPopulation.toLocaleString()}</div>
                   <span className="text-[10px] text-gray-500 block">High vulnerability priority zones</span>
                 </div>
@@ -1839,7 +1839,7 @@ function FloodCommandCenter() {
               <div className="bg-[#141414] border border-[#2a2a2a] rounded-xl p-4 space-y-3">
                 <div className="flex justify-between items-center">
                   <h3 className="text-sm font-bold uppercase tracking-wider text-white">
-                    ⛺ Bihar Statewide High-Ground Emergency Relief Shelters
+                    ⛺ Red River Basin High-Ground Emergency Relief Shelters
                   </h3>
                   <span className="text-xs text-gray-400">Occupancy & High-Ground Readiness</span>
                 </div>
@@ -1916,7 +1916,7 @@ function FloodCommandCenter() {
 
               <div className="bg-[#141414] border border-[#2a2a2a] rounded-xl p-4 space-y-3">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-white">
-                  🌊 Bihar River Basin Hydrological Gauge Status
+                  🌊 Red River Basin Hydrological Gauge Status
                 </h3>
 
                 <div className="grid grid-cols-2 gap-4 text-xs">
@@ -2004,7 +2004,7 @@ function FloodCommandCenter() {
                       <div className="flex justify-between items-center">
                         <div>
                           <span className="font-bold text-white text-base block">{name}</span>
-                          <span className="text-[10px] text-gray-400 font-mono">Basin: {d.river_name || "Ganga"}</span>
+                          <span className="text-[10px] text-gray-400 font-mono">Basin: {d.river_name || "Red River"}</span>
                         </div>
                         <span
                           className={`text-xs px-2.5 py-1 rounded-full font-extrabold ${
@@ -2088,14 +2088,14 @@ function FloodCommandCenter() {
                           Risk: <b>{(a.risk_score * 100).toFixed(0)}%</b> | Population: <b>{(distInfo.population_at_risk || 100000).toLocaleString()}</b>
                         </div>
                         <div className="text-[10px] text-gray-500 font-mono">
-                          Highway Route: {distInfo.evacuation_route || "NH-31 Highway Corridor"}
+                          Highway Route: {distInfo.evacuation_route || "US-59 / I-20 Highway Corridor"}
                         </div>
                       </div>
 
                       <div className="flex items-center space-x-4 text-xs">
                         <div className="text-center">
-                          <span className="text-blue-400 font-extrabold text-base block">{a.allocated_ndrf_teams}</span>
-                          <span className="text-[10px] text-gray-500">NDRF Teams</span>
+                          <span className="text-blue-400 font-extrabold text-base block">{a.allocated_fema_teams}</span>
+                          <span className="text-[10px] text-gray-500">FEMA_USACE Teams</span>
                         </div>
                         <div className="text-center">
                           <span className="text-cyan-400 font-extrabold text-base block">{a.allocated_rescue_boats}</span>
@@ -2131,16 +2131,16 @@ function FloodCommandCenter() {
             <div className="space-y-2.5 text-xs">
               <div className="bg-[#161616] border border-[#2a2a2a] p-2 rounded-lg">
                 <div className="flex justify-between text-gray-300 mb-1">
-                  <span>🪖 NDRF Teams</span>
+                  <span>🪖 FEMA_USACE Teams</span>
                   <span className="font-semibold text-blue-400">
-                    {totalAllocatedNDRF} / {resources.ndrf_teams}
+                    {totalAllocatedFEMA_USACE} / {resources.fema_teams}
                   </span>
                 </div>
                 <div className="w-full bg-[#2a2a2a] h-1.5 rounded-full overflow-hidden">
                   <div
                     className="bg-blue-500 h-full transition-all duration-500"
                     style={{
-                      width: `${Math.min(100, (totalAllocatedNDRF / resources.ndrf_teams) * 100)}%`,
+                      width: `${Math.min(100, (totalAllocatedFEMA_USACE / resources.fema_teams) * 100)}%`,
                     }}
                   />
                 </div>
@@ -2210,7 +2210,7 @@ function FloodCommandCenter() {
                   <tr className="border-b border-[#2a2a2a] bg-[#1d1d1d] text-gray-400">
                     <th className="p-2">District</th>
                     <th className="p-2">Priority</th>
-                    <th className="p-2 text-center">NDRF</th>
+                    <th className="p-2 text-center">FEMA_USACE</th>
                     <th className="p-2 text-center">Boats</th>
                   </tr>
                 </thead>
@@ -2247,7 +2247,7 @@ function FloodCommandCenter() {
                           </span>
                         </td>
                         <td className="p-2 text-center font-bold text-blue-400">
-                          {a.allocated_ndrf_teams}
+                          {a.allocated_fema_teams}
                         </td>
                         <td className="p-2 text-center font-bold text-cyan-400">
                           {a.allocated_rescue_boats}
@@ -2265,7 +2265,7 @@ function FloodCommandCenter() {
               Unallocated Stock (Reserve)
             </span>
             <div className="grid grid-cols-2 gap-1 text-[11px] text-gray-300">
-              <div>🪖 Teams: <b className="text-white">{unallocated.ndrf_teams}</b></div>
+              <div>🪖 Teams: <b className="text-white">{unallocated.fema_teams}</b></div>
               <div>🚤 Boats: <b className="text-white">{unallocated.rescue_boats}</b></div>
               <div>💊 Kits: <b className="text-white">{unallocated.medical_kits}</b></div>
               <div>⛺ Tents: <b className="text-white">{unallocated.shelter_tents}</b></div>

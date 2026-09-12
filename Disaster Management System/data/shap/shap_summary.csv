@@ -1,0 +1,13 @@
+,mean_abs_shap
+historical_flood_probability,9.137049
+ensemble_weighted_score,0.5633184
+rainfall_72h_accum_in,0.10192383
+max_water_level_ft,0.040605024
+weather_risk_score,0.019384502
+hydrology_risk_score,0.002766438
+infrastructure_vulnerability_score,0.0017849253
+population_density_per_sqmi,0.00055107014
+inundated_area_sqkm,5.4861463e-05
+mean_elevation_meters,0.0
+runoff_potential_index,0.0
+composite_vulnerability_score,0.0

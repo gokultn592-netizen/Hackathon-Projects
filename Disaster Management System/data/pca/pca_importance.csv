@@ -1,0 +1,13 @@
+,feature,total_load_weight
+5,mean_elevation_meters,1.2856114086308883
+6,population_density_per_sqmi,1.1699431264551863
+8,max_water_level_ft,1.127141743909646
+9,inundated_area_sqkm,1.041770595178008
+7,rainfall_72h_accum_in,1.0324007488003737
+3,historical_flood_probability,0.03022687505729357
+0,hydrology_risk_score,0.020547949700298714
+4,ensemble_weighted_score,0.016049131074513404
+2,infrastructure_vulnerability_score,0.011755902051496302
+1,weather_risk_score,0.004985039287393541
+10,runoff_potential_index,0.0026831667498036483
+11,composite_vulnerability_score,0.002146533399843143

@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.routes import router
 from src.api.monitoring_routes import router as monitor_router
+# from src.api.dataset_routes import router as dataset_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -74,6 +75,7 @@ app.add_middleware(
 
 app.include_router(router)
 app.include_router(monitor_router)
+# app.include_router(dataset_router)
 
 
 @app.get("/")

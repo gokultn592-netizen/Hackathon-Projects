@@ -33,7 +33,7 @@ except ImportError:
     logger = logging.getLogger(__name__)
     logger.warning("Model monitoring not available")
 
-from src.models.flood_predictor import _get_global_predictor
+# from src.models.flood_predictor import _get_global_predictor
 
 logger = logging.getLogger(__name__)
 
@@ -163,10 +163,10 @@ async def log_predictions(predictions: Dict[str, Any]):
 
 
 @router.get("/model-info")
-async def get_model_info():
+async def get_model_info(request):
     """Get information about the current model"""
     try:
-        predictor = _get_global_predictor()
+        predictor = request.app.state.predictor
 
         info = {
             "model_loaded": predictor.is_trained,
