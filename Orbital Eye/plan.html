@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OrbitalEye (Vin Kan) — 3D Perspective System Architecture</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;700&family=JetBrains+Mono:wght@300;400;700&display=swap');
+
+:root{
+  --bg-deep:#030305;
+  --bg-card:#0b0b12;
+  --text:#e8e8ec;
+  --sub:#8a8a9a;
+  --cyan:#4fc3f7;
+  --violet:#a278f5;
+  --amber:#f5a623;
+  --rose:#e83d5e;
+  --green:#6abf6e;
+  --border:rgba(255,255,255,0.07);
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+
+/* ====== 3D SCENE ROOT ====== */
+html{scroll-behavior:smooth;}
+body{
+  background:var(--bg-deep);
+  color:var(--text);
+  font-family:'Space Grotesk',system-ui,sans-serif;
+  overflow-x:hidden;
+  min-height:300vh;
+}
+
+/* Main wrapper holds the 3D perspective */
+#world{
+  perspective:1000px;
+  perspective-origin:50% 35%;
+  overflow-x:hidden;
+  position:relative;
+  z-index:1;
+}
+
+/* Deep radial atmosphere */
+.atmos{
+  position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(79,195,247,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse at 0% 80%, rgba(162,120,245,0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 100% 60%, rgba(245,166,35,0.06) 0%, transparent 40%);
+}
+
+/* ===== NAV ===== */
+.nav{
+  position:sticky;top:0;z-index:100;
+  backdrop-filter:blur(16px) saturate(1.3);
+  -webkit-backdrop-filter:blur(16px) saturate(1.3);
+  background:rgba(3,3,5,0.7);
+  border-bottom:1px solid var(--border);
+  padding:0.9rem 2rem;display:flex;justify-content:space-between;align-items:center;
+}
+.nav b{font-family:'JetBrains Mono',monospace;font-weight:300;letter-spacing:0.1em;color:var(--cyan);font-size:0.85rem;text-transform:uppercase;}
+.nav b span{color:var(--sub);}
+.nav a{font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:var(--sub);text-decoration:none;text-transform:uppercase;letter-spacing:0.06em;margin-left:1.2rem;transition:color .2s;}
+.nav a:hover{color:var(--cyan);}
+
+/* ===== HERO ===== */
+.hero{
+  text-align:center;padding:10rem 2rem 5rem;position:relative;z-index:2;
+}
+.hero h1{
+  font-size:clamp(3rem,7.5vw,6.5rem);font-weight:700;line-height:1.05;letter-spacing:-0.04em;
+  background:linear-gradient(135deg,#e8e8ec 30%,var(--cyan) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  filter:drop-shadow(0 0 45px rgba(79,195,247,0.18));
+}
+.hero p.sub{
+  margin-top:1.2rem;color:var(--sub);font-weight:300;font-size:1.05rem;max-width:540px;margin-left:auto;margin-right:auto;line-height:1.6;
+}
+
+/* ===== 3D CARD LAYERS ===== */
+.card-layer{
+  transform-style:preserve-3d;
+  position:relative;
+  max-width:1100px;margin:8rem auto;padding:3rem 3rem 7rem;
+  border-radius:16px;border:1px solid var(--border);
+  background:linear-gradient(160deg,rgba(255,255,255,0.03) 0%,rgba(255,255,255,0.005) 100%);
+  backdrop-filter:blur(14px) saturate(1.2);
+  -webkit-backdrop-filter:blur(14px) saturate(1.2);
+  box-shadow:
+    0 30px 70px rgba(0,0,0,0.7),
+    0 0 0 1px rgba(255,255,255,0.04) inset,
+    0 10px 60px rgba(79,195,247,0.06);
+  will-change:transform,opacity,scale;
+  transition:box-shadow .3s ease;
+}
+.card-layer:hover{
+  box-shadow:
+    0 40px 90px rgba(0,0,0,0.85),
+    0 0 0 1px rgba(255,255,255,0.06) inset,
+    0 10px 80px rgba(79,195,247,0.1);
+}
+
+/* Layer badges */
+.layer-label{
+  font-family:'JetBrains Mono',monospace;font-size:0.65rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--cyan);opacity:0.8;display:block;margin-bottom:0.5rem;
+}
+.card-layer h2{
+  font-size:1.7rem;font-weight:700;letter-spacing:-0.03em;color:var(--text);margin-bottom:1.75rem;display:flex;align-items:center;gap:0.6rem;
+}
+.card-layer h2 .num{
+  display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:0.75rem;font-weight:700;
+}
+
+/* Layer 1 — System Flow — starts at translateZ(0) */
+#layer1{transform:translateZ(0) rotateX(1deg);opacity:1;scale:1;}
+#layer1 h2 .num{background:var(--cyan);color:#030305;}
+
+/* Layer 2 — Concept Mapping — deeper, slightly recessed */
+#layer2{transform:translateZ(-120px) rotateX(-0.5deg);opacity:0.9;scale:0.98;}
+#layer2 h2 .num{background:var(--violet);color:#fff;}
+
+/* Layer 3 — Integrated Overview — deepest initial depth */
+#layer3{transform:translateZ(-250px) rotateX(0.5deg);opacity:0.85;scale:0.96;padding-bottom:8rem;overflow:hidden;min-height:400px;}
+#layer3 h2 .num{background:var(--rose);color:#fff;}
+
+/* ===== LAYER 1 CONTENT ===== */
+.flow-grid{display:grid;grid-template-columns:1fr;gap:1.2rem;}
+.flow-card{
+  display:flex;gap:1.25rem;align-items:flex-start;padding:1.25rem 1.4rem;border-radius:10px;
+  background:linear-gradient(135deg,rgba(79,195,247,0.05),rgba(162,120,245,0.04));
+  border:1px solid rgba(255,255,255,0.06);
+  transform-style:preserve-3d;transform:translateZ(20px);
+  transition:transform .2s ease,background .25s ease,border-color .25s ease;
+}
+.flow-card:hover{
+  background:linear-gradient(135deg,rgba(79,195,247,0.12),rgba(162,120,245,0.08));
+  border-color:rgba(79,195,247,0.25);
+  transform:translateZ(35px) translateY(-2px);
+}
+.flow-card .step-num{
+  font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--cyan);font-size:0.85rem;min-width:2.2rem;text-align:center;flex-shrink:0;padding-top:0.15rem;
+}
+.flow-card h3{font-size:1.05rem;font-weight:600;margin-bottom:0.3rem;letter-spacing:-0.01em;}
+.flow-card p{color:var(--sub);font-size:0.85rem;line-height:1.55;}
+.flow-card .tag{
+  display:inline-block;margin-top:0.35rem;font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--violet);background:rgba(162,120,245,0.1);padding:0.15rem 0.5rem;border-radius:4px;border:1px solid rgba(162,120,245,0.15);
+}
+
+/* ===== LAYER 2 — SIDE BY SIDE 3D ===== */
+.comparison-3d{display:flex;gap:2rem;}
+.comparison-3d .col{
+  flex:1;min-width:0;border-radius:14px;padding:2rem 1.5rem;
+  border:1px solid var(--border);background:linear-gradient(145deg,rgba(255,255,255,0.025),rgba(255,255,255,0.005));
+  transform-style:preserve-3d;transform:translateZ(50px);
+  box-shadow:0 12px 40px rgba(0,0,0,0.5);
+  overflow-y:auto;max-height:60vh;
+  transition:transform .25s ease,box-shadow .25s ease,border-color .2s ease;
+}
+.comparison-3d .col:hover{transform:translateZ(80px) translateY(-4px);box-shadow:0 22px 60px rgba(0,0,0,0.65);}
+
+/* Left column depth offset for 3D separation */
+.comparison-3d .col.left{border-left:3px solid var(--cyan);transform:translateZ(50px) translateX(-8px);}
+.comparison-3d .col.right{border-left:3px solid var(--violet);transform:translateZ(50px) translateX(8px);}
+
+.col h3{
+  font-family:'JetBrains Mono',monospace;font-weight:700;font-size:0.82rem;letter-spacing:0.08em;text-transform:uppercase;padding-bottom:0.6rem;margin-bottom:1.2rem;border-bottom:1px solid var(--border);
+}
+.col.left h3{color:var(--cyan);}
+.col.right h3{color:var(--violet);}
+
+.card-item{padding:1rem;border-radius:8px;margin-bottom:0.75rem;background:rgba(255,255,255,0.015);border:1px solid rgba(255,255,255,0.04);transition:background .2s,border-color .2s;}
+.card-item:hover{background:rgba(255,255,255,0.035);border-color:rgba(255,255,255,0.1);}
+.card-item .label{font-weight:600;font-size:0.92rem;margin-bottom:0.25rem;letter-spacing:-0.01em;}
+.col.left .label{color:var(--cyan);}
+.col.right .label{color:var(--violet);}
+.card-item p{color:var(--sub);font-size:0.82rem;line-height:1.5;margin-bottom:0.4rem;}
+.card-item .pill{
+  display:inline-block;font-family:'JetBrains Mono',monospace;font-size:0.68rem;color:var(--amber);background:rgba(245,166,35,0.08);padding:0.15rem 0.45rem;border-radius:4px;border:1px solid rgba(245,166,35,0.15);letter-spacing:0.02em;
+}
+
+/* ===== LAYER 3 — OVERVIEW ===== */
+#layer3{text-align:center;}
+#layer3 .body{max-width:720px;margin:0 auto;font-size:1.05rem;line-height:1.75;color:var(--sub);}
+#layer3 .body .hl{color:var(--cyan);font-weight:600;text-shadow:0 0 20px rgba(79,195,247,0.3);}
+#layer3 .divider{width:60px;height:1px;background:linear-gradient(90deg,transparent,var(--violet),transparent);margin:2rem auto;}
+
+/* ===== SCROLL HINT ===== */
+.hint-block{font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--sub);opacity:0.65;margin-top:1rem;}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:900px){
+  .comparison-3d{flex-direction:column;}
+  .card-layer{padding:2rem 1.5rem;}
+  .hero{padding:7rem 1.5rem 3rem;}
+  #world{perspective:800px;}
+}
+</style>
+</head>
+<body>
+
+<div class="atmos" aria-hidden="true"></div>
+
+<nav class="nav" aria-label="Primary navigation">
+  <b>ORBITALEYE <span>// VIN KAN</span></b>
+  <div>
+    <a href="#layer1">L1 Flow</a>
+    <a href="#layer2">L2 Mapping</a>
+    <a href="#layer3">L3 Overview</a>
+  </div>
+</nav>
+
+<!-- 3D WORLD -->
+<div id="world">
+
+  <!-- Hero -->
+  <header class="hero" aria-label="Introduction">
+    <h1>OrbitalEye</h1>
+    <p class="sub">A three-dimensional, scroll-driven architecture viewer for orbital mechanics — ingestion through mitigation.</p>
+  </header>
+
+  <!-- ===== LAYER 1: SYSTEM FLOW ===== -->
+  <section id="layer1" class="card-layer" aria-label="Layer 1 System Flow">
+    <span class="layer-label">Layer 01 · Sequential Architecture</span>
+    <h2><span class="num">01</span> Complete System Flow</h2>
+
+    <div class="flow-grid">
+      <article class="flow-card">
+        <div class="step-num">01</div>
+        <div>
+          <h3>Ingestion &amp; Frame Transformation</h3>
+          <p>Raw tracking data from Ground Radar / CelesTrak arrives in Earth-Centered Earth-Fixed (ECEF). Rotational Matrices and Skyfield shift the reference into the Earth-Centered Inertial (ECI) frame — the true inertial reference for Newton's and Kepler's laws.</p>
+          <span class="tag">Rotational Matrices &rarr; Skyfield &rarr; ECI</span>
+        </div>
+      </article>
+      <article class="flow-card">
+        <div class="step-num">02</div>
+        <div>
+          <h3>Propagation &amp; Uncertainty</h3>
+          <p>SGP4 and SDP4 algorithms resolve environmental perturbations: drag, J2 gravitational harmonics, solar and lunar gravity. Primary ($x$) and Secondary ($y$) objects carry full 3D Covariance Matrix ($P$) error ellipsoids.</p>
+          <span class="tag">SGP4 / SDP4 &middot; Drag &middot; J2 &middot; 3D Covariance $P$</span>
+        </div>
+      </article>
+      <article class="flow-card">
+        <div class="step-num">03</div>
+        <div>
+          <h3>Encounter Analysis</h3>
+          <p>Time of Closest Approach (TCA) is computed efficiently via the vector dot product of relative velocity and position ($\Delta V \cdot \Delta R$). The 2D B-plane encounter plane is constructed via cross products ($\Delta V \times \Delta R$).</p>
+          <span class="tag">TCA: $\Delta V \cdot \Delta R$ &middot; B-Plane: $\Delta V \times \Delta R$</span>
+        </div>
+      </article>
+      <article class="flow-card">
+        <div class="step-num">04</div>
+        <div>
+          <h3>Mitigation &amp; Control Loop</h3>
+          <p>The Pyomo optimization engine calculates minimal-fuel corrective thruster burns to physically shift Object $x$ out of the collision corridor — closing the autonomous loop.</p>
+          <span class="tag">Pyomo Optimization &middot; Thruster Constraints</span>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ===== LAYER 2: CONCEPT & TOOL MAPPING ===== -->
+  <section id="layer2" class="card-layer" aria-label="Layer 2 Interactive Concept and Tool Mapping">
+    <span class="layer-label">Layer 02 · Interactive Side-by-Side Mapping</span>
+    <h2><span class="num">02</span> Concept &amp; Tool Mapping</h2>
+    <p class="hint-block">Hold <strong>Left Shift</strong> + scroll for Mathematical Concepts. Hold <strong>Right Shift</strong> + scroll for Libraries &amp; Algorithms.</p>
+
+    <div class="comparison-3d" id="comparisonContainer">
+      <!-- Left Column: Mathematical Concepts -->
+      <div class="col left" id="leftColumn" tabindex="0" aria-label="Mathematical Concepts column">
+        <h3>Mathematical Concepts</h3>
+        <div class="card-item">
+          <div class="label">Rotation Matrices</div>
+          <p>Coordinate transformation between ECEF and ECI frames via orthonormal rotation.</p>
+          <span class="pill">Linear Algebra</span>
+        </div>
+        <div class="card-item">
+          <div class="label">Inertial Frames</div>
+          <p>The ECI frame establishes a fixed celestial reference, making Newton's and Kepler's laws lawfully applicable.</p>
+          <span class="pill">Reference Frames</span>
+        </div>
+        <div class="card-item">
+          <div class="label">Covariance Matrices</div>
+          <p>3D error ellipsoids propagating state uncertainty through the orbital trajectory.</p>
+          <span class="pill">Statistics</span>
+        </div>
+        <div class="card-item">
+          <div class="label">Vector Dot Product</div>
+          <p>$\Delta V \cdot \Delta R$ — the scalar projection identifying closest approach efficiently.</p>
+          <span class="pill">Vector Calculus</span>
+        </div>
+        <div class="card-item">
+          <div class="label">Vector Cross Product</div>
+          <p>$\Delta V \times \Delta R$ — defines the B-plane encounter plane perpendicular to relative velocity.</p>
+          <span class="pill">Vector Calculus</span>
+        </div>
+        <div class="card-item">
+          <div class="label">Optimization Constraints</div>
+          <p>Inequality constraints enforcing safe separation distance and thruster burn limits.</p>
+          <span class="pill">Convex Optimization</span>
+        </div>
+      </div>
+
+      <!-- Right Column: Libraries -->
+      <div class="col right" id="rightColumn" tabindex="0" aria-label="Libraries and Algorithms column">
+        <h3>Libraries &amp; Algorithms</h3>
+        <div class="card-item">
+          <div class="label">Skyfield</div>
+          <p>High-precision astronomy library for ECEF-to-ECI coordinate transformation.</p>
+          <span class="pill">Python / Astronomy</span>
+        </div>
+        <div class="card-item">
+          <div class="label">SGP4 / SDP4</div>
+          <p>Standard perturbation models resolving drag, J2, and third-body gravity effects.</p>
+          <span class="pill">Astrodynamics</span>
+        </div>
+        <div class="card-item">
+          <div class="label">NumPy / SciPy</div>
+          <p>Vector and matrix primitives underlying encounter geometry and covariance propagation.</p>
+          <span class="pill">Scientific Computing</span>
+        </div>
+        <div class="card-item">
+          <div class="label">Pyomo</div>
+          <p>Optimization modeling language computing minimal-fuel collision avoidance burns.</p>
+          <span class="pill">Mathematical Optimization</span>
+        </div>
+        <div class="card-item">
+          <div class="label">Custom Vector Math</div>
+          <p>Efficient TCA and B-plane calculations using linear algebra primitives.</p>
+          <span class="pill">Geometry</span>
+        </div>
+        <div class="card-item">
+          <div class="label">Kalman Filters</div>
+          <p>State estimation and uncertainty propagation framework for orbital tracking.</p>
+          <span class="pill">Estimation Theory</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== LAYER 3: INTEGRATED OVERVIEW ===== -->
+  <section id="layer3" class="card-layer" aria-label="Layer 3 Integrated System Overview">
+    <span class="layer-label">Layer 03 · Integrated Overview</span>
+    <h2><span class="num">03</span> Unified Operational Paradigm</h2>
+    <div class="body">
+      <p>OrbitalEye operates as a <span class="hl">closed-loop space traffic management system</span> that transforms raw sensor data into actionable collision avoidance maneuvers. The pipeline begins with <span class="hl">frame transformation</span> to establish a physically meaningful reference, proceeds through <span class="hl">perturbation-aware propagation</span> with quantified uncertainty, employs <span class="hl">vector geometry</span> for rapid encounter screening, and concludes with <span class="hl">constrained optimization</span> to generate precise mitigation strategies.</p>
+      <p style="margin-top:1rem;font-size:0.92rem;">This end-to-end workflow enables autonomous, physics-based decision making for orbital safety — integrating ingestion, physics propagation, mathematical encounter screening, and optimization into a single unified framework.</p>
+      <div class="divider" aria-hidden="true"></div>
+      <p style="font-family:'JetBrains Mono',monospace;font-size:0.72rem;color:var(--violet);letter-spacing:0.06em;">ORBITALEYE / VIN KAN / END-TO-END ORBITAL MECHANICS PIPELINE</p>
+    </div>
+  </section>
+
+</div><!-- /world -->
+
+<script>
+/* ===== 3D SCROLL-DRIVEN DEPTH ANIMATION ===== */
+(function(){
+  const layers = [
+    document.getElementById('layer1'),
+    document.getElementById('layer2'),
+    document.getElementById('layer3')
+  ];
+
+  // Each layer's viewport-entrance configuration
+  // We use IntersectionObserver to know when each layer enters/exits the viewport center,
+  // then compute translateZ and opacity based on how centered it is.
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      const layer = entry.target;
+      const ratio = entry.intersectionRatio; // 0..1 based on visibility
+
+      // Get layer index from id
+      const idx = layer.id === 'layer1' ? 0 : (layer.id === 'layer2' ? 1 : 2);
+      const initialZ = [0, -120, -250][idx];
+      const initialScale = [1, 0.98, 0.96][idx];
+
+      // As layer becomes visible (ratio increases), push it toward viewer
+      // ratio=0: deep/receded; ratio=1: fully in view, at full focus
+      const zShift = initialZ + (Math.abs(initialZ) * ratio); // moves toward 0 or positive
+      const scaleVal = initialScale + (1 - initialScale) * ratio;
+      const opacityVal = 0.7 + 0.3 * ratio;
+
+      // Apply transform with smooth 3D motion
+      layer.style.transform = `translateZ(${zShift}px) rotateX(${layer.id==='layer1'?1:(layer.id==='layer2'?-0.5:0.5)}deg) scale(${scaleVal})`;
+      layer.style.opacity = String(opacityVal);
+    });
+  }, { threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] });
+
+  layers.forEach(l => observer.observe(l));
+})();
+
+/* ===== ADDITIONAL SCROLL PROGRESS MAPPING ===== */
+(function(){
+  const layer1 = document.getElementById('layer1');
+  const layer2 = document.getElementById('layer2');
+  const layer3 = document.getElementById('layer3');
+
+  function onScroll(){
+    const scrollY = window.scrollY;
+    const maxScroll = Math.max(1, document.body.scrollHeight - window.innerHeight);
+    const progress = Math.min(1, scrollY / maxScroll);
+
+    // Layer 1: floats slightly upward and rotates as page scrolls down
+    const rot1 = progress * 2.5;
+    const y1 = progress * -40;
+    layer1.style.transform = `translateZ(${(1-progress)*15}px) rotateX(${0.5 + rot1*0.8}deg) translateY(${y1}px) scale(${1 - progress*0.05})`;
+
+    // Layer 2: shifts deeper then pulls forward as it reaches center
+    const z2 = -120 + progress * 160; // moves from -120 toward +40
+    const rot2 = -0.5 + progress * 2;
+    layer2.style.transform = `translateZ(${z2}px) rotateX(${rot2}deg) translateY(${progress*-20}px) scale(${0.98 + 0.04*progress})`;
+    layer2.style.opacity = String(0.85 + 0.15*progress);
+
+    // Layer 3: starts deepest, pops sharply into focus
+    const z3 = -250 + progress * 350; // from -250 toward full focus
+    const rot3 = 0.5 + progress * 1.2;
+    layer3.style.transform = `translateZ(${z3}px) rotateX(${rot3}deg) translateY(${progress*-25}px) scale(${0.96 + 0.08*progress})`;
+    layer3.style.opacity = String(0.75 + 0.25*progress);
+  }
+
+  let ticking = false;
+  window.addEventListener('scroll', () => {
+    if(!ticking){ requestAnimationFrame(() => { onScroll(); ticking = false; }); ticking = true; }
+  }, { passive: true });
+
+  onScroll(); // init
+})();
+
+/* ===== DUAL SHIFT SCROLL (Layer 2 Columns) ===== */
+(function(){
+  const leftCol = document.getElementById('leftColumn');
+  const rightCol = document.getElementById('rightColumn');
+
+  document.addEventListener('wheel', function(e){
+    const shiftType = e.shiftKey ? (e.location === 1 ? 'left' : (e.location === 2 ? 'right' : 'unknown')) : 'none';
+
+    if(e.shiftKey && shiftType === 'left'){
+      e.preventDefault();
+      leftCol.scrollBy({ top: e.deltaY, left: 0, behavior: 'instant' });
+    } else if(e.shiftKey && shiftType === 'right'){
+      e.preventDefault();
+      rightCol.scrollBy({ top: e.deltaY, left: 0, behavior: 'instant' });
+    }
+  }, { passive: false });
+})();
+</script>
+
+</body>
+</html>

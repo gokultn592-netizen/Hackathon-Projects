@@ -1,0 +1,63 @@
+# ============================================================
+# OrbitalEye (Vin Kan) — .dockerignore
+# Keeps the Docker build context lean and builds fast by excluding
+# non-essential files, caches, virtual environments, and secrets.
+# ============================================================
+
+# --- Python cache / compiled artifacts ---
+# Excluded: prevents stale .pyc files from being copied into image
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# --- Virtual environments ---
+# Excluded: avoids copying local interpreter packages into container
+venv/
+.venv/
+env/
+
+# --- Version control ---
+# Excluded: .git history is not needed at runtime
+.git/
+.gitignore
+
+# --- IDE / editor configs ---
+# Excluded: development-only settings, not required in production image
+.idea/
+.vscode/
+*.iml
+
+# --- Local artifacts and temp files ---
+# Excluded: logs, backups, temp files — build artifacts only
+*.log
+*.tmp
+*.bak
+
+# --- Documentation and CI configs ---
+# Excluded: docs and CI definitions not needed for runtime execution
+*.md
+*.rst
+.github/
+docs/
+
+# --- 3D architecture viewer ---
+# Excluded: interactive HTML viewer (plan.html) is for design review only
+plan.html
+
+# --- OS-specific junk ---
+# Excluded: platform metadata files that bloat build context
+.DS_Store
+Thumbs.db
+
+# --- Frontend & Node artifacts ---
+# Excluded: prevents uploading 700MB+ of frontend node_modules to backend context
+frontend/
+node_modules/
+.next/
+
+# --- Secrets and environment files ---
+# Excluded: prevents accidental exposure of credentials or local env overrides
+.env
+*.env
+secrets/
