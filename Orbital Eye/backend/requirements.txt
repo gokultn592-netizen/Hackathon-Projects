@@ -3,3 +3,4 @@ uvicorn
 pydantic
 oracledb
 python-dotenv
+sgp4==2.23

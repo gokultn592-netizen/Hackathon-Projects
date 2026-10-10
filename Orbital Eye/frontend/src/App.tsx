@@ -7,6 +7,7 @@ import EncounterDetailModal from './components/EncounterDetailModal';
 import AccidentReportBanner from './components/AccidentReportBanner';
 import { useUrlSync } from './hooks/useUrlSync';
 import { useEncounters } from './hooks/useEncounters';
+import { useSatellitePositions } from './hooks/useSatellitePositions';
 import { AdaptedEncounter } from './adapters/encounterAdapter';
 import {
   Play,
@@ -42,6 +43,7 @@ function MissionControlDashboard() {
   }, [sliderLimit, limit, setUrlState]);
 
   const { data, isLoading, error } = useEncounters(dataset, limit);
+  const { positions: satellitePositions, isLoading: posLoading } = useSatellitePositions(dataset, limit);
 
   // UTC Mission Timeline Clock (18px JetBrains Mono)
   const [utcTime, setUtcTime] = useState('');
@@ -494,6 +496,7 @@ function MissionControlDashboard() {
             dataset={dataset}
             encounterCount={limit}
             encounters={data}
+            satellitePositions={satellitePositions}
             avoidanceActive={avoidanceActive}
             selectedSatName={selectedSat?.name}
             onSelectSat={handleSelectSatFromGlobe}

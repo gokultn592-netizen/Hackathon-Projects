@@ -46,3 +46,19 @@ class EncounterPairResponse(BaseModel):
         default=None, description="NORAD catalog ID for satellite B",
         example=25546
     )
+
+
+class SatellitePositionResponse(BaseModel):
+    norad_id: int
+    name: str
+    x: float          # Three.js scene X (normalized to Earth radius = 1.0 unit)
+    y: float          # Three.js scene Y
+    z: float          # Three.js scene Z
+    lat_deg: float    # Geodetic latitude
+    lon_deg: float    # Geodetic longitude
+    alt_km: float     # Altitude above Earth surface in km
+    velocity_kms: float
+    inclination_deg: float
+    dataset_tag: str
+    risk_category: str  # "CRITICAL" | "CAUTION" | "NOMINAL"
+

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { SatellitePosition } from '../hooks/useSatellitePositions';
 
 export interface SatelliteInfo {
   name: string;
@@ -18,6 +19,7 @@ export interface Globe3DProps {
   dataset?: string;
   encounterCount?: number;
   encounters?: any[];
+  satellitePositions?: SatellitePosition[];
   avoidanceActive?: boolean;
   selectedSatName?: string | null;
   onSelectSat?: (sat: SatelliteInfo) => void;
@@ -44,12 +46,15 @@ interface OrbitDefinition {
   speed: number;
   encounterIndex: number;
   info: SatelliteInfo;
+  homePosition?: THREE.Vector3;
+  useRealPosition?: boolean;
 }
 
 export default function Globe3D({
   dataset = 'REALTIME',
   encounterCount = 50,
   encounters = [],
+  satellitePositions = [],
   avoidanceActive = false,
   selectedSatName = null,
   onSelectSat,
@@ -764,13 +769,18 @@ export default function Globe3D({
         collisionPointLightRef.current.intensity = 2.5;
       }
     } else {
-      // --- REALTIME TELEMETRY SATELLITES ---
-      const totalSats = Math.min(500, Math.max(10, encounterCount));
+      // --- REALTIME TELEMETRY SATELLITES (REAL SGP4 ORBITAL PROPAGATION) ---
+      const hasRealPositions = Boolean(satellitePositions && satellitePositions.length > 0);
+      const totalSats = hasRealPositions
+        ? Math.min(500, Math.max(10, Math.min(satellitePositions.length, encounterCount)))
+        : Math.min(500, Math.max(10, encounterCount));
       const trailPointsCount = 24;
 
       for (let i = 0; i < totalSats; i++) {
         const enc = encounters[i] || {};
-        const risk = (enc.risk_category || enc.riskCategory || (i % 9 === 0 ? 'CRITICAL' : i % 3 === 0 ? 'CAUTION' : 'NOMINAL')) as 'NOMINAL' | 'CAUTION' | 'CRITICAL';
+        const pos = hasRealPositions ? satellitePositions[i] : null;
+
+        const risk = (pos?.risk_category || enc.risk_category || enc.riskCategory || (i % 9 === 0 ? 'CRITICAL' : i % 3 === 0 ? 'CAUTION' : 'NOMINAL')) as 'NOMINAL' | 'CAUTION' | 'CRITICAL';
         const mat = risk === 'CRITICAL' ? criticalMat : risk === 'CAUTION' ? cautionMat : nominalMat;
 
         const mesh = new THREE.Mesh(satOctahedronGeo, mat);
@@ -778,17 +788,63 @@ export default function Globe3D({
         mesh.userData = { encounterIndex: i };
         scene.add(mesh);
 
-        const altKm = enc.satAAltitude || 400 + (i % 16) * 45;
-        const radius = 1.0 + (altKm / 6371.0) * 0.7;
-        const incDeg = enc.satAInclination || 35 + ((i * 29) % 63);
-        const inclination = (incDeg * Math.PI) / 180;
-        const raan = ((i * 137.5) * Math.PI) / 180;
-        const quat = new THREE.Quaternion();
-        const raanQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), raan);
-        const incQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), inclination);
-        quat.multiplyQuaternions(raanQ, incQ);
-        const theta = ((i * 53.7) * Math.PI) / 180;
-        const speed = 0.0012 + (i % 7) * 0.0002;
+        let radius: number;
+        let inclination: number;
+        let raan: number;
+        let quat = new THREE.Quaternion();
+        let theta = 0;
+        let speed = 0.0012 + (i % 7) * 0.0002;
+        let altKm: number;
+        let incDeg: number;
+        let velKms: number;
+        let satName: string;
+        let noradId: number | string;
+
+        if (pos) {
+          // Set real position from SGP4 directly
+          mesh.position.set(pos.x, pos.y, pos.z);
+          const pVec = new THREE.Vector3(pos.x, pos.y, pos.z);
+          radius = pVec.length();
+          altKm = pos.alt_km;
+          incDeg = pos.inclination_deg;
+          inclination = (incDeg * Math.PI) / 180;
+          raan = ((i * 137.5) * Math.PI) / 180;
+          velKms = pos.velocity_kms;
+          satName = pos.name;
+          noradId = pos.norad_id;
+          speed = 0.0010 + (Math.max(1, pos.velocity_kms) / 10.0) * 0.0004;
+
+          // Compute orbital plane through pos.x, pos.y, pos.z at theta=0
+          const uVec = pVec.clone().normalize();
+          const raanAng = (i * 137.5 * Math.PI) / 180;
+          const nRef = new THREE.Vector3(
+            Math.sin(inclination) * Math.sin(raanAng),
+            Math.cos(inclination),
+            Math.sin(inclination) * Math.cos(raanAng)
+          );
+          let nVec = nRef.clone().sub(uVec.clone().multiplyScalar(nRef.dot(uVec))).normalize();
+          if (nVec.lengthSq() < 0.1) {
+            nVec = new THREE.Vector3(0, 1, 0).cross(uVec).normalize();
+            if (nVec.lengthSq() < 0.1) nVec = new THREE.Vector3(1, 0, 0).cross(uVec).normalize();
+          }
+          const vVec = new THREE.Vector3().crossVectors(nVec, uVec).normalize();
+          const rotMat = new THREE.Matrix4().makeBasis(uVec, nVec, vVec);
+          quat.setFromRotationMatrix(rotMat);
+          theta = 0.0;
+        } else {
+          altKm = enc.satAAltitude || 400 + (i % 16) * 45;
+          radius = 1.0 + (altKm / 6371.0) * 0.7;
+          incDeg = enc.satAInclination || 35 + ((i * 29) % 63);
+          inclination = (incDeg * Math.PI) / 180;
+          raan = ((i * 137.5) * Math.PI) / 180;
+          const raanQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), raan);
+          const incQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), inclination);
+          quat.multiplyQuaternions(raanQ, incQ);
+          theta = ((i * 53.7) * Math.PI) / 180;
+          velKms = enc.satAVelocity || 7.5 + (i % 5) * 0.1;
+          satName = enc.satAName || enc.sat_a_name || `OBJECT-${24000 + i}`;
+          noradId = enc.satANorad || enc.sat_a_norad || (24000 + i);
+        }
 
         const trailGeo = new THREE.BufferGeometry().setFromPoints(
           new Array(trailPointsCount).fill(0).map(() => new THREE.Vector3())
@@ -803,19 +859,19 @@ export default function Globe3D({
         scene.add(trailLine);
 
         const satInfo: SatelliteInfo = {
-          name: enc.satAName || enc.sat_a_name || `OBJECT-${24000 + i}`,
-          noradId: enc.satANorad || enc.sat_a_norad || (24000 + i),
+          name: satName,
+          noradId,
           altitudeKm: altKm,
-          velocityKms: enc.satAVelocity || 7.5 + (i % 5) * 0.1,
+          velocityKms: velKms,
           inclinationDeg: incDeg,
           status: risk,
-          operator: enc.satAOperator || enc.sat_a_operator || 'LEO Constellation',
+          operator: enc.satAOperator || enc.sat_a_operator || (pos ? 'SGP4 Propagated' : 'LEO Constellation'),
           satBName: enc.satBName || enc.sat_b_name,
           missDistanceKm: enc.missDistanceKm || enc.miss_distance_km,
           relVelocityKms: enc.relVelocityKms || enc.rel_velocity_kms,
         };
 
-        orbitsRef.current.push({
+        const orbitItem: OrbitDefinition = {
           mesh,
           trailLine,
           radius,
@@ -826,7 +882,11 @@ export default function Globe3D({
           speed,
           encounterIndex: i,
           info: satInfo,
-        });
+          homePosition: pos ? new THREE.Vector3(pos.x, pos.y, pos.z) : undefined,
+          useRealPosition: Boolean(pos),
+        };
+
+        orbitsRef.current.push(orbitItem);
       }
 
       if (collisionPointLightRef.current) {
@@ -834,7 +894,7 @@ export default function Globe3D({
       }
       setCollisionScreenPos(null);
     }
-  }, [dataset, encounterCount, encounters]);
+  }, [dataset, encounterCount, encounters, satellitePositions]);
 
   return (
     <div className="relative w-full h-full overflow-hidden select-none">

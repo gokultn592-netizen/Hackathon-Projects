@@ -15,6 +15,7 @@ import oracledb
 
 from db import init_pool, close_pool, get_pool
 from routes.encounters import router as encounters_router
+from routes.positions import router as positions_router
 
 # Configure logging
 logging.basicConfig(
@@ -63,6 +64,7 @@ app.add_middleware(
 
 # Register routers
 app.include_router(encounters_router)
+app.include_router(positions_router)
 
 
 @app.get("/api/health")
