@@ -38,7 +38,8 @@ interface OrbitDefinition {
   radius: number;
   inclination: number;
   raan: number;
-  planeEuler: THREE.Euler;
+  planeEuler?: THREE.Euler;
+  planeQuaternion: THREE.Quaternion;
   theta: number;
   speed: number;
   encounterIndex: number;
@@ -121,8 +122,8 @@ export default function Globe3D({
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.25;
+    renderer.toneMapping = THREE.ReinhardToneMapping;
+    renderer.toneMappingExposure = 0.85;
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
 
@@ -153,7 +154,7 @@ export default function Globe3D({
     const ctx = canvas.getContext('2d');
     if (ctx) {
       // 1. Deep Ocean
-      ctx.fillStyle = '#000d1a';
+      ctx.fillStyle = '#041830';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // Subtle longitude / latitude celestial grid lines
@@ -173,9 +174,9 @@ export default function Globe3D({
       }
 
       // 2. Continental Landmass Outlines & Fills (7 Continents approximations)
-      ctx.fillStyle = '#061a2b';
-      ctx.strokeStyle = 'rgba(0, 229, 255, 0.55)';
-      ctx.lineWidth = 1.5;
+      ctx.fillStyle = '#0a2840';
+      ctx.strokeStyle = 'rgba(0, 229, 255, 0.85)';
+      ctx.lineWidth = 2.0;
 
       const drawPolygon = (pts: [number, number][]) => {
         ctx.beginPath();
@@ -241,7 +242,7 @@ export default function Globe3D({
         const cx = (lon / 360) * canvas.width;
         const cy = ((90 - lat) / 180) * canvas.height;
         ctx.beginPath();
-        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.arc(cx, cy, r * 1.5, 0, Math.PI * 2);
         ctx.fill();
       });
     }
@@ -267,9 +268,9 @@ export default function Globe3D({
     const atmosphereMat = new THREE.MeshPhongMaterial({
       color: 0x00e5ff,
       emissive: 0x00e5ff,
-      emissiveIntensity: 0.09,
+      emissiveIntensity: 0.18,
       transparent: true,
-      opacity: 0.06,
+      opacity: 0.10,
       side: THREE.BackSide,
       blending: THREE.AdditiveBlending,
     });
@@ -338,7 +339,10 @@ export default function Globe3D({
       const iridRadius = 1.0 + (780 / 6371.0) * 0.7; // ~1.0857
       const iridInc = (86.4 * Math.PI) / 180;
       const iridRaan = 0.45;
-      const iridEuler = new THREE.Euler(iridInc, iridRaan, 0, 'YXZ');
+      const iridQuat = new THREE.Quaternion();
+      const iridRaanQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), iridRaan);
+      const iridIncQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), iridInc);
+      iridQuat.multiplyQuaternions(iridRaanQ, iridIncQ);
 
       const iridMesh = new THREE.Mesh(satOctahedronGeo, criticalMat.clone());
       iridMesh.rotation.set(0.785, 0.785, 0);
@@ -367,7 +371,7 @@ export default function Globe3D({
         radius: iridRadius,
         inclination: iridInc,
         raan: iridRaan,
-        planeEuler: iridEuler,
+        planeQuaternion: iridQuat,
         theta: 0.0,
         speed: 0.0035,
         encounterIndex: 0,
@@ -389,7 +393,10 @@ export default function Globe3D({
       const cosmosRadius = 1.0 + (780 / 6371.0) * 0.7;
       const cosmosInc = (74.0 * Math.PI) / 180;
       const cosmosRaan = 2.05;
-      const cosmosEuler = new THREE.Euler(cosmosInc, cosmosRaan, 0, 'YXZ');
+      const cosmosQuat = new THREE.Quaternion();
+      const cosmosRaanQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), cosmosRaan);
+      const cosmosIncQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), cosmosInc);
+      cosmosQuat.multiplyQuaternions(cosmosRaanQ, cosmosIncQ);
 
       const cosmosMesh = new THREE.Mesh(satOctahedronGeo, criticalMat.clone());
       cosmosMesh.rotation.set(0.785, 0.785, 0);
@@ -416,7 +423,7 @@ export default function Globe3D({
         radius: cosmosRadius,
         inclination: cosmosInc,
         raan: cosmosRaan,
-        planeEuler: cosmosEuler,
+        planeQuaternion: cosmosQuat,
         theta: Math.PI * 0.98,
         speed: 0.0035,
         encounterIndex: 0,
@@ -458,7 +465,10 @@ export default function Globe3D({
         const incDeg = enc.satAInclination || 35 + ((i * 29) % 63);
         const inclination = (incDeg * Math.PI) / 180;
         const raan = ((i * 137.5) * Math.PI) / 180; // Golden angle distribution
-        const planeEuler = new THREE.Euler(inclination, raan, 0, 'YXZ');
+        const quat = new THREE.Quaternion();
+        const raanQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), raan);
+        const incQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), inclination);
+        quat.multiplyQuaternions(raanQ, incQ);
         const theta = ((i * 53.7) * Math.PI) / 180;
         const speed = 0.0012 + (i % 7) * 0.0002;
 
@@ -494,7 +504,7 @@ export default function Globe3D({
           radius,
           inclination,
           raan,
-          planeEuler,
+          planeQuaternion: quat,
           theta,
           speed,
           encounterIndex: i,
@@ -671,7 +681,7 @@ export default function Globe3D({
           effectiveRadius * Math.cos(orbit.theta),
           0,
           effectiveRadius * Math.sin(orbit.theta)
-        ).applyEuler(orbit.planeEuler);
+        ).applyQuaternion(orbit.planeQuaternion);
 
         orbit.mesh.position.copy(currentPos);
 
@@ -687,7 +697,7 @@ export default function Globe3D({
               effectiveRadius * Math.cos(ptTheta),
               0,
               effectiveRadius * Math.sin(ptTheta)
-            ).applyEuler(orbit.planeEuler);
+            ).applyQuaternion(orbit.planeQuaternion);
             posAttr.setXYZ(p, pt.x, pt.y, pt.z);
           }
           posAttr.needsUpdate = true;

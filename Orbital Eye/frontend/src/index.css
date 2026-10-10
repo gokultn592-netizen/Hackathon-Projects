@@ -40,6 +40,7 @@ body {
 /* Angular Chamfered Mission Control Panels */
 .panel-chamfer-tr {
   clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+  isolation: isolate;
 }
 
 .panel-chamfer-br {

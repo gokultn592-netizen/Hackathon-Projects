@@ -176,6 +176,14 @@ function MissionControlDashboard() {
 
         {/* Right: Live UTC Clock + Oracle DB Online Status */}
         <div className="flex items-center gap-4 text-xs">
+          <button
+            type="button"
+            onClick={() => setCatalogDrawerOpen((prev) => !prev)}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/10 transition-colors uppercase tracking-wider"
+          >
+            <Database className="w-3.5 h-3.5 text-cyan-400" />
+            <span>CATALOG ({isLoading ? '—' : error ? 'ERR' : data.length})</span>
+          </button>
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]" />
             <span className="text-[11px] text-slate-400 uppercase tracking-wider hidden md:inline">
@@ -198,27 +206,11 @@ function MissionControlDashboard() {
       {/* =========================================================================
           CONTENT ROW: [Left Panel 320px | Globe flex-1 | Right Catalog Panel 480px]
           ========================================================================= */}
-      <div className="flex-1 relative flex overflow-hidden">
-        {/* --- THREE.JS EARTH VIEWPORT (Fills available space) --- */}
-        <div className="absolute inset-0 w-full h-full z-0">
-          <Globe3D
-            dataset={dataset}
-            encounterCount={limit}
-            encounters={data}
-            avoidanceActive={avoidanceActive}
-            selectedSatName={selectedSat?.name}
-            onSelectSat={handleSelectSatFromGlobe}
-            showOrbits={showOrbits}
-            playbackSpeed={playbackSpeed}
-            isPaused={isPaused}
-            cameraTrigger={cameraTrigger}
-          />
-        </div>
-
+      <div className="flex-1 relative min-h-0 flex overflow-hidden">
         {/* --- LEFT TELEMETRY PANEL (320px width, sharp chamfered top-right corner) --- */}
         <aside
           aria-label="Mission Telemetry"
-          className="relative z-30 w-80 h-full bg-[#05080f] border-r border-cyan-500/30 flex flex-col font-mono panel-chamfer-tr shadow-[8px_0_24px_rgba(0,0,0,0.85)]"
+          className="relative z-30 w-80 h-full bg-[#05080f] border-r border-cyan-500/30 flex flex-col font-mono panel-chamfer-tr"
         >
           {/* Panel Top Navigation Tabs */}
           <div className="grid grid-cols-3 border-b border-cyan-500/20 bg-[#02050b] text-[10px] shrink-0">
@@ -266,7 +258,7 @@ function MissionControlDashboard() {
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                CATALOG
+                CATALOG ({isLoading ? '—' : error ? 'ERR' : data.length})
               </button>
             )}
           </div>
@@ -468,66 +460,98 @@ function MissionControlDashboard() {
                 className="w-full h-8 text-[11px] font-mono uppercase tracking-wider text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/10 flex items-center justify-center gap-2"
               >
                 <Database className="w-3.5 h-3.5 text-cyan-400" />
-                <span>{catalogDrawerOpen ? 'CLOSE CATALOG' : 'OPEN CATALOG PANEL'}</span>
+                <span>
+                  {catalogDrawerOpen
+                    ? 'CLOSE CATALOG'
+                    : `OPEN CATALOG PANEL (${isLoading ? '—' : error ? 'ERR' : data.length})`}
+                </span>
               </button>
             </div>
           )}
+
+          {/* Right border glow without box-shadow */}
+          <div className="absolute top-0 bottom-0 right-0 w-px bg-cyan-500/30 z-10" />
         </aside>
 
-        {/* --- RIGHT CAMERA DOCK (Sharp rectangular buttons) --- */}
-        <div className="absolute right-4 top-4 z-30 flex flex-col gap-1.5 select-none font-mono">
-          <button
-            type="button"
-            onClick={() => setCameraTrigger({ type: 'zoomin', timestamp: Date.now() })}
-            className="w-8 h-8 bg-[#05080f] border border-cyan-500/30 text-cyan-300 hover:text-white hover:bg-cyan-500/20 flex items-center justify-center transition-colors"
-            title="Zoom In"
-          >
-            <ZoomIn className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setCameraTrigger({ type: 'zoomout', timestamp: Date.now() })}
-            className="w-8 h-8 bg-[#05080f] border border-cyan-500/30 text-cyan-300 hover:text-white hover:bg-cyan-500/20 flex items-center justify-center transition-colors"
-            title="Zoom Out"
-          >
-            <ZoomOut className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setCameraTrigger({ type: 'reset', timestamp: Date.now() })}
-            className="w-8 h-8 bg-[#05080f] border border-cyan-500/30 text-cyan-300 hover:text-white hover:bg-cyan-500/20 flex items-center justify-center transition-colors"
-            title="Reset Camera"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setCameraTrigger({ type: 'focus', timestamp: Date.now() })}
-            className="w-8 h-8 bg-[#05080f] border border-amber-500/40 text-amber-300 hover:text-white hover:bg-amber-500/20 flex items-center justify-center transition-colors"
-            title="Focus Collision / Target"
-          >
-            <Orbit className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowOrbits((prev) => !prev)}
-            className={`w-8 h-8 border transition-colors flex items-center justify-center ${
-              showOrbits
-                ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300'
-                : 'bg-[#05080f] border-slate-700 text-slate-500'
-            }`}
-            title="Toggle Orbit Trails"
-          >
-            <Layers className="w-4 h-4" />
-          </button>
-          <button
-            type="button"
-            onClick={handleToggleFullscreen}
-            className="w-8 h-8 bg-[#05080f] border border-cyan-500/30 text-slate-300 hover:text-white hover:bg-cyan-500/20 flex items-center justify-center transition-colors"
-            title="Toggle Fullscreen"
-          >
-            <Maximize className="w-4 h-4" />
-          </button>
+        {/* --- THREE.JS EARTH VIEWPORT (Fills available space) --- */}
+        <div className="flex-1 relative min-h-0 overflow-hidden">
+          <Globe3D
+            dataset={dataset}
+            encounterCount={limit}
+            encounters={data}
+            avoidanceActive={avoidanceActive}
+            selectedSatName={selectedSat?.name}
+            onSelectSat={handleSelectSatFromGlobe}
+            showOrbits={showOrbits}
+            playbackSpeed={playbackSpeed}
+            isPaused={isPaused}
+            cameraTrigger={cameraTrigger}
+          />
+
+          {/* --- RIGHT CAMERA DOCK (Sharp rectangular buttons with panel backing) --- */}
+          <div className="absolute right-4 top-4 z-30 flex flex-col gap-1.5 select-none font-mono bg-[#05080f]/90 border border-cyan-500/20 p-2 shadow-[0_0_20px_rgba(0,0,0,0.8)]">
+            <button
+              type="button"
+              onClick={() => setCameraTrigger({ type: 'zoomin', timestamp: Date.now() })}
+              className="w-8 h-8 bg-[#05080f] border border-cyan-500/30 text-cyan-300 hover:text-white hover:bg-cyan-500/20 flex items-center justify-center transition-colors"
+              title="Zoom In"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setCameraTrigger({ type: 'zoomout', timestamp: Date.now() })}
+              className="w-8 h-8 bg-[#05080f] border border-cyan-500/30 text-cyan-300 hover:text-white hover:bg-cyan-500/20 flex items-center justify-center transition-colors"
+              title="Zoom Out"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+
+            <div className="w-full h-px bg-cyan-500/15 my-1" />
+
+            <button
+              type="button"
+              onClick={() => setCameraTrigger({ type: 'reset', timestamp: Date.now() })}
+              className="w-8 h-8 bg-[#05080f] border border-cyan-500/30 text-cyan-300 hover:text-white hover:bg-cyan-500/20 flex items-center justify-center transition-colors"
+              title="Reset Camera"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+
+            <div className="w-full h-px bg-cyan-500/15 my-1" />
+
+            <button
+              type="button"
+              onClick={() => setCameraTrigger({ type: 'focus', timestamp: Date.now() })}
+              className="w-8 h-8 bg-[#05080f] border border-amber-500/40 text-amber-300 hover:text-white hover:bg-amber-500/20 flex items-center justify-center transition-colors"
+              title="Focus Collision / Target"
+            >
+              <Orbit className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowOrbits((prev) => !prev)}
+              className={`w-8 h-8 border transition-colors flex items-center justify-center ${
+                showOrbits
+                  ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300'
+                  : 'bg-[#05080f] border-slate-700 text-slate-500'
+              }`}
+              title="Toggle Orbit Trails"
+            >
+              <Layers className="w-4 h-4" />
+            </button>
+
+            <div className="w-full h-px bg-cyan-500/15 my-1" />
+
+            <button
+              type="button"
+              onClick={handleToggleFullscreen}
+              className="w-8 h-8 bg-[#05080f] border border-cyan-500/30 text-slate-300 hover:text-white hover:bg-cyan-500/20 flex items-center justify-center transition-colors"
+              title="Toggle Fullscreen"
+            >
+              <Maximize className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* --- RIGHT SLIDING PANEL: CONJUNCTION CATALOG (480px width) --- */}
