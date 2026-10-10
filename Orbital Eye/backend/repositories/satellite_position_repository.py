@@ -186,9 +186,9 @@ async def get_satellite_positions(dataset_tag: str = "REALTIME", limit: int = 10
                     inclination_deg = 0.0
 
                 # Risk category based on miss distance to any encounter pair
-                if miss_dist < 5.0:
+                if miss_dist < 1.0:
                     risk = "CRITICAL"
-                elif miss_dist < 20.0:
+                elif miss_dist < 5.0:
                     risk = "CAUTION"
                 else:
                     risk = "NOMINAL"

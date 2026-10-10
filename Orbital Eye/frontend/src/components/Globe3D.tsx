@@ -157,23 +157,27 @@ export default function Globe3D({
       const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
       renderer.setSize(width, height);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      renderer.toneMapping = THREE.ReinhardToneMapping;
-      renderer.toneMappingExposure = 0.85;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.15;
       container.innerHTML = '';
       container.appendChild(renderer.domElement);
       rendererRef.current = renderer;
 
-      // Lights
-      const ambientLight = new THREE.AmbientLight(0x0a1628, 1.8);
+      // Lights (Balanced multi-point lighting so Earth is vivid from all angles)
+      const ambientLight = new THREE.AmbientLight(0x18345c, 2.5);
       scene.add(ambientLight);
 
-      const sunLight = new THREE.DirectionalLight(0xffffff, 2.6);
+      const sunLight = new THREE.DirectionalLight(0xffffff, 3.2);
       sunLight.position.set(6, 4, 5);
       scene.add(sunLight);
 
-      const rimLight = new THREE.DirectionalLight(0x00e5ff, 1.2);
-      rimLight.position.set(-5, -2, -4);
+      const rimLight = new THREE.DirectionalLight(0x00f5ff, 1.8);
+      rimLight.position.set(-6, -2, -5);
       scene.add(rimLight);
+
+      const topLight = new THREE.DirectionalLight(0x38bdf8, 1.2);
+      topLight.position.set(0, 6, 0);
+      scene.add(topLight);
 
       // Collision point alert light (ACCIDENT mode)
       const collisionPointLight = new THREE.PointLight(0xef4444, 0, 2.5);
@@ -191,105 +195,161 @@ export default function Globe3D({
       canvas.height = 1024;
       const ctx = canvas.getContext('2d')!;
 
-      // Deep Space / Ocean gradient
+      // Deep Space / Ocean Sapphire Gradient
       const oceanGrad = ctx.createLinearGradient(0, 0, 0, 1024);
-      oceanGrad.addColorStop(0, '#020b18');
-      oceanGrad.addColorStop(0.5, '#04162c');
-      oceanGrad.addColorStop(1, '#020b18');
+      oceanGrad.addColorStop(0, '#04162e');
+      oceanGrad.addColorStop(0.2, '#072448');
+      oceanGrad.addColorStop(0.5, '#0d3768');
+      oceanGrad.addColorStop(0.8, '#072448');
+      oceanGrad.addColorStop(1, '#04162e');
       ctx.fillStyle = oceanGrad;
       ctx.fillRect(0, 0, 2048, 1024);
 
-      // Orbital Grid Coordinate Lines (Equator, Meridians, Parallels)
-      ctx.strokeStyle = 'rgba(0, 229, 255, 0.12)';
+      // Lat/Long Graticule Grid Lines (15-degree resolution)
+      ctx.strokeStyle = 'rgba(0, 240, 255, 0.15)';
       ctx.lineWidth = 1;
-      for (let lat = 0; lat <= 1024; lat += 1024 / 6) {
+      for (let lat = 0; lat <= 1024; lat += 1024 / 12) {
         ctx.beginPath();
         ctx.moveTo(0, lat);
         ctx.lineTo(2048, lat);
         ctx.stroke();
       }
-      for (let lon = 0; lon <= 2048; lon += 2048 / 12) {
+      for (let lon = 0; lon <= 2048; lon += 2048 / 24) {
         ctx.beginPath();
         ctx.moveTo(lon, 0);
         ctx.lineTo(lon, 1024);
         ctx.stroke();
       }
-      // Equator highlight
-      ctx.strokeStyle = 'rgba(0, 229, 255, 0.35)';
+
+      // Tropics of Cancer & Capricorn (±23.44°)
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([8, 8]);
+      ctx.beginPath();
+      ctx.moveTo(0, 391); // Tropic of Cancer
+      ctx.lineTo(2048, 391);
+      ctx.moveTo(0, 633); // Tropic of Capricorn
+      ctx.lineTo(2048, 633);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Prime Meridian highlight
+      ctx.strokeStyle = 'rgba(0, 255, 255, 0.40)';
       ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(1024, 0);
+      ctx.lineTo(1024, 1024);
+      ctx.stroke();
+
+      // Equator Radiant Highlight
+      ctx.strokeStyle = 'rgba(0, 255, 255, 0.70)';
+      ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(0, 512);
       ctx.lineTo(2048, 512);
       ctx.stroke();
 
-      // Continents (High-tech geometric landmass shapes)
-      ctx.fillStyle = '#0a2742';
-      ctx.strokeStyle = 'rgba(0, 229, 255, 0.75)';
-      ctx.lineWidth = 2.0;
-
+      // Landmass definitions with bathymetric shelf glow
       const drawLand = (pts: [number, number][]) => {
         if (!pts.length) return;
+
+        // Shelf glow
+        ctx.strokeStyle = 'rgba(0, 210, 255, 0.20)';
+        ctx.lineWidth = 12;
+        ctx.lineJoin = 'round';
         ctx.beginPath();
         ctx.moveTo(pts[0][0], pts[0][1]);
         for (let k = 1; k < pts.length; k++) {
           ctx.lineTo(pts[k][0], pts[k][1]);
         }
         ctx.closePath();
+        ctx.stroke();
+
+        // Land fill
+        ctx.fillStyle = '#123d66';
         ctx.fill();
+
+        // Crisp neon coastline
+        ctx.strokeStyle = 'rgba(0, 245, 255, 0.90)';
+        ctx.lineWidth = 2.2;
         ctx.stroke();
       };
 
-      // North America
-      drawLand([[260, 240], [380, 200], [520, 210], [560, 310], [510, 420], [440, 480], [370, 470], [340, 410], [280, 360], [240, 310]]);
+      // North America (Alaska, Canada, US, Mexico, Central America)
+      drawLand([
+        [160, 180], [240, 140], [320, 160], [420, 170], [480, 190], [530, 230], [560, 320],
+        [510, 420], [460, 470], [420, 480], [390, 440], [350, 430], [300, 370], [250, 340],
+        [200, 310], [150, 250], [140, 200]
+      ]);
+      // Greenland
+      drawLand([[660, 110], [740, 100], [770, 160], [720, 230], [670, 210], [650, 150]]);
       // South America
-      drawLand([[450, 530], [550, 550], [570, 650], [520, 770], [470, 830], [430, 720], [420, 600]]);
-      // Europe
-      drawLand([[960, 240], [1090, 210], [1160, 280], [1120, 370], [1030, 380], [970, 330]]);
+      drawLand([
+        [430, 510], [510, 520], [570, 570], [610, 640], [570, 750], [520, 830],
+        [490, 870], [460, 810], [430, 710], [410, 610], [410, 540]
+      ]);
+      // Europe & British Isles
+      drawLand([[920, 240], [970, 220], [1050, 200], [1140, 230], [1160, 310], [1120, 380], [1030, 390], [970, 350], [930, 300]]);
+      drawLand([[910, 260], [940, 250], [930, 290], [900, 280]]); // UK / Ireland
       // Africa
-      drawLand([[990, 410], [1120, 400], [1210, 490], [1190, 660], [1120, 780], [1040, 760], [980, 600], [960, 470]]);
-      // Asia
-      drawLand([[1160, 210], [1480, 180], [1650, 260], [1680, 420], [1550, 500], [1420, 480], [1310, 540], [1260, 440], [1170, 350]]);
-      // Australia
-      drawLand([[1570, 670], [1710, 660], [1740, 770], [1660, 830], [1560, 780]]);
+      drawLand([
+        [960, 410], [1070, 390], [1170, 430], [1230, 510], [1210, 660], [1160, 770],
+        [1100, 820], [1030, 780], [970, 640], [930, 530], [940, 450]
+      ]);
+      // Madagascar
+      drawLand([[1240, 710], [1270, 700], [1260, 780], [1230, 770]]);
+      // Asia (Russia, China, India, SE Asia, Japan)
+      drawLand([
+        [1160, 210], [1320, 170], [1540, 160], [1710, 220], [1750, 330], [1680, 410],
+        [1570, 480], [1480, 470], [1430, 540], [1370, 600], [1320, 540], [1280, 450],
+        [1220, 410], [1180, 320]
+      ]);
+      // India sub-peninsula
+      drawLand([[1320, 470], [1400, 480], [1390, 590], [1340, 620], [1310, 560]]);
+      // Japan
+      drawLand([[1720, 320], [1760, 350], [1740, 410], [1700, 360]]);
+      // Australia & New Zealand
+      drawLand([[1540, 670], [1680, 640], [1750, 710], [1740, 810], [1660, 850], [1560, 820], [1520, 740]]);
+      drawLand([[1790, 810], [1830, 830], [1800, 890], [1770, 860]]); // New Zealand
+      // Antarctica
+      drawLand([[200, 930], [600, 920], [1100, 930], [1600, 920], [2000, 930], [2048, 1024], [0, 1024]]);
 
-      // Glowing Major Metropolitan City Clusters (Tokyo, London, NYC, Paris, Shanghai, Singapore, etc.)
-      const cities: [number, number][] = [
-        [490, 370], [350, 390], [430, 430], [1010, 300], [1030, 320], [1590, 380],
-        [1540, 430], [1360, 520], [1480, 610], [1670, 750], [520, 680], [1120, 720]
+      // Glowing Major Metropolitan Cities and Ground Spaceports
+      const cities: [number, number, string][] = [
+        [440, 380, 'NYC'], [360, 390, 'LA'], [420, 420, 'Houston'], [460, 430, 'Canaveral'],
+        [940, 280, 'London'], [970, 310, 'Paris'], [1030, 290, 'Berlin'], [1080, 260, 'Moscow'],
+        [1190, 330, 'Baikonur'], [1090, 440, 'Cairo'], [1210, 470, 'Dubai'], [1330, 540, 'New Delhi'],
+        [1350, 570, 'Mumbai'], [1360, 600, 'Bengaluru'], [1560, 380, 'Beijing'], [1600, 420, 'Shanghai'],
+        [1670, 380, 'Tokyo'], [1640, 360, 'Seoul'], [1460, 620, 'Singapore'], [1710, 780, 'Sydney'],
+        [520, 660, 'Brasilia'], [530, 780, 'Buenos Aires'], [1130, 790, 'Johannesburg']
       ];
-      ctx.fillStyle = '#00e5ff';
+
       cities.forEach(([cx, cy]) => {
-        ctx.beginPath();
-        ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = 'rgba(0, 229, 255, 0.4)';
+        // Golden ambient glow
+        ctx.fillStyle = 'rgba(255, 220, 100, 0.35)';
         ctx.beginPath();
         ctx.arc(cx, cy, 7, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = '#00e5ff';
+
+        // Electric cyan halo
+        ctx.fillStyle = 'rgba(0, 245, 255, 0.50)';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Brilliant core dot
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 2.2, 0, Math.PI * 2);
+        ctx.fill();
       });
 
       const earthTexture = new THREE.CanvasTexture(canvas);
       const earthMat = new THREE.MeshStandardMaterial({
         map: earthTexture,
-        roughness: 0.65,
-        metalness: 0.1,
+        roughness: 0.55,
+        metalness: 0.12,
       });
-
-      // Background progressive enhancer
-      const imgLoader = new THREE.TextureLoader();
-      imgLoader.crossOrigin = 'anonymous';
-      imgLoader.load(
-        'https://eoimages.gsfc.nasa.gov/images/imagerecords/73000/73909/world.topo.bathy.200412.3x5400x2700.jpg',
-        (tex) => {
-          earthMat.map = tex;
-          earthMat.needsUpdate = true;
-        },
-        undefined,
-        () => {
-          // Keep canvas procedural texture on CORS or network error
-        }
-      );
 
       const earthGeo = new THREE.SphereGeometry(1.0, 64, 64);
       const earthMesh = new THREE.Mesh(earthGeo, earthMat);
@@ -297,14 +357,14 @@ export default function Globe3D({
       scene.add(earthMesh);
       earthMeshRef.current = earthMesh;
 
-      // Atmosphere Rayleigh Glow Shell (Radius 1.02)
+      // Atmosphere Rayleigh Glow Shell (Radius 1.022)
       const atmosphereGeo = new THREE.SphereGeometry(1.022, 64, 64);
       const atmosphereMat = new THREE.MeshPhongMaterial({
-        color: 0x00e5ff,
-        emissive: 0x00e5ff,
-        emissiveIntensity: 0.18,
+        color: 0x00f0ff,
+        emissive: 0x00d4ff,
+        emissiveIntensity: 0.22,
         transparent: true,
-        opacity: 0.10,
+        opacity: 0.16,
         side: THREE.BackSide,
         blending: THREE.AdditiveBlending,
       });
@@ -316,7 +376,7 @@ export default function Globe3D({
       const rimMat = new THREE.MeshBasicMaterial({
         color: 0x00e5ff,
         transparent: true,
-        opacity: 0.025,
+        opacity: 0.04,
         side: THREE.BackSide,
         blending: THREE.AdditiveBlending,
       });

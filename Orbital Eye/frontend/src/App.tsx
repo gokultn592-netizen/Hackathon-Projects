@@ -443,10 +443,10 @@ function MissionControlDashboard() {
                           />
                           <div className="flex-1 min-w-0">
                             <div className="text-[11px] font-bold text-white truncate">
-                              {item.satAName || item.sat_a_name || 'UNKNOWN SAT'}
+                              {item.satAName || item.satA || item.sat_a_name || 'SPACE-OBJECT-A'}
                             </div>
                             <div className="text-[9px] text-slate-400 truncate">
-                              × {item.satBName || item.sat_b_name || 'UNKNOWN SAT'}
+                              × {item.satBName || item.satB || item.sat_b_name || 'SPACE-OBJECT-B'}
                             </div>
                           </div>
                         </div>
