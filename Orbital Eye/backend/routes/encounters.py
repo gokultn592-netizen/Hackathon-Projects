@@ -26,9 +26,9 @@ class QueryParams(BaseModel):
         description="Dataset tag filter (REALTIME or ACCIDENT)",
         example="REALTIME",
     )
-    limit: conint(ge=1, le=200) = Field(
+    limit: conint(ge=1, le=500) = Field(
         default=50,
-        description="Maximum number of results (1-200)",
+        description="Maximum number of results (1-500)",
         example=50,
     )
 
@@ -50,7 +50,7 @@ class QueryParams(BaseModel):
 )
 async def list_encounters(
     dataset: str = Query(default="REALTIME", description="Dataset tag filter"),
-    limit: int = Query(default=50, ge=1, le=200, description="Result limit (1-200)"),
+    limit: int = Query(default=50, ge=1, le=500, description="Result limit (1-500)"),
 ):
     try:
         logger.info("GET /api/encounters dataset=%s limit=%d", dataset, limit)

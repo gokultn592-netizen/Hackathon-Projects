@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 
 export interface SatelliteInfo {
@@ -91,6 +91,22 @@ export default function Globe3D({
     focusTarget: () => void;
   } | null>(null);
 
+  // Scene object references to persist across prop updates without recreating WebGL context
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const orbitsRef = useRef<OrbitDefinition[]>([]);
+  const collisionPointLightRef = useRef<THREE.PointLight | null>(null);
+  const thrusterBurnLightRef = useRef<THREE.PointLight | null>(null);
+  const clearanceVectorGeoRef = useRef<THREE.BufferGeometry | null>(null);
+  const clearanceVectorMatRef = useRef<THREE.LineBasicMaterial | null>(null);
+  const sharedGeoRef = useRef<THREE.OctahedronGeometry | null>(null);
+  const sharedMaterialsRef = useRef<{
+    criticalMat: THREE.MeshStandardMaterial;
+    cautionMat: THREE.MeshStandardMaterial;
+    nominalMat: THREE.MeshStandardMaterial;
+    avoidanceEscapeMat: THREE.MeshStandardMaterial;
+  } | null>(null);
+
   // Deep comparison trigger effect for camera buttons
   useEffect(() => {
     if (!cameraTrigger) return;
@@ -103,6 +119,9 @@ export default function Globe3D({
     else if (cameraTrigger.type === 'focus') ctrl.focusTarget();
   }, [cameraTrigger?.type, cameraTrigger?.timestamp]);
 
+  // =========================================================================
+  // 1. LIFECYCLE: INITIALIZE THREE.JS SCENE ONCE ON MOUNT
+  // =========================================================================
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
@@ -113,11 +132,13 @@ export default function Globe3D({
     // --- THREE.JS SCENE SETUP ---
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x00020a);
+    sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 1000);
     const defaultCamPos = new THREE.Vector3(0, 1.8, 3.2);
     camera.position.copy(defaultCamPos);
     camera.lookAt(0, 0, 0);
+    cameraRef.current = camera;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
     renderer.setSize(width, height);
@@ -142,10 +163,12 @@ export default function Globe3D({
     // Collision point alert light (ACCIDENT mode)
     const collisionPointLight = new THREE.PointLight(0xef4444, 0, 2.5);
     scene.add(collisionPointLight);
+    collisionPointLightRef.current = collisionPointLight;
 
     // Avoidance thruster burn light
     const thrusterBurnLight = new THREE.PointLight(0xff7700, 0, 2.0);
     scene.add(thrusterBurnLight);
+    thrusterBurnLightRef.current = thrusterBurnLight;
 
     // --- PROCEDURAL REALISTIC EARTH TEXTURE ---
     const canvas = document.createElement('canvas');
@@ -259,7 +282,6 @@ export default function Globe3D({
       metalness: 0.12,
     });
     const earthMesh = new THREE.Mesh(earthGeo, earthMat);
-    // Earth's authentic 23.44° axial tilt
     earthMesh.rotation.z = (23.44 * Math.PI) / 180;
     scene.add(earthMesh);
 
@@ -289,12 +311,10 @@ export default function Globe3D({
     const rimMesh = new THREE.Mesh(rimGeo, rimMat);
     scene.add(rimMesh);
 
-    // --- SATELLITES DATA INITIALIZATION ---
-    // Clamped strictly to orbital radius; fixed inclination, RAAN, and plane Euler
-    const orbits: OrbitDefinition[] = [];
+    // Common shared materials
     const satOctahedronGeo = new THREE.OctahedronGeometry(0.013, 0);
+    sharedGeoRef.current = satOctahedronGeo;
 
-    // Common materials for performance
     const criticalMat = new THREE.MeshStandardMaterial({
       color: 0xef4444,
       emissive: 0xef4444,
@@ -319,199 +339,20 @@ export default function Globe3D({
       emissiveIntensity: 0.8,
       roughness: 0.2,
     });
-
-    const isAccident = dataset === 'ACCIDENT';
+    sharedMaterialsRef.current = { criticalMat, cautionMat, nominalMat, avoidanceEscapeMat };
 
     // Clearance Vector Line (ACCIDENT mode avoidance)
     const clearanceVectorGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+    clearanceVectorGeoRef.current = clearanceVectorGeo;
     const clearanceVectorMat = new THREE.LineBasicMaterial({
       color: 0x10b981,
       transparent: true,
       opacity: 0,
       linewidth: 2,
     });
+    clearanceVectorMatRef.current = clearanceVectorMat;
     const clearanceVectorLine = new THREE.Line(clearanceVectorGeo, clearanceVectorMat);
     scene.add(clearanceVectorLine);
-
-    if (isAccident) {
-      // --- ISOLATE ONLY IRIDIUM 33 AND COSMOS 2251 ---
-      // 1. Iridium 33 (Active LEO Commercial Satellite, 86.4° polar)
-      const iridRadius = 1.0 + (780 / 6371.0) * 0.7; // ~1.0857
-      const iridInc = (86.4 * Math.PI) / 180;
-      const iridRaan = 0.45;
-      const iridQuat = new THREE.Quaternion();
-      const iridRaanQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), iridRaan);
-      const iridIncQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), iridInc);
-      iridQuat.multiplyQuaternions(iridRaanQ, iridIncQ);
-
-      const iridMesh = new THREE.Mesh(satOctahedronGeo, criticalMat.clone());
-      iridMesh.rotation.set(0.785, 0.785, 0);
-      iridMesh.userData = {
-        encounterIndex: 0,
-        isIridium: true,
-      };
-      scene.add(iridMesh);
-
-      // 90° Trailing Arc
-      const trailPointsIrid = 36;
-      const trailGeoIrid = new THREE.BufferGeometry().setFromPoints(
-        new Array(trailPointsIrid).fill(0).map(() => new THREE.Vector3())
-      );
-      const trailMatIrid = new THREE.LineBasicMaterial({
-        color: 0xef4444,
-        transparent: true,
-        opacity: 0.45,
-      });
-      const trailLineIrid = new THREE.Line(trailGeoIrid, trailMatIrid);
-      scene.add(trailLineIrid);
-
-      orbits.push({
-        mesh: iridMesh,
-        trailLine: trailLineIrid,
-        radius: iridRadius,
-        inclination: iridInc,
-        raan: iridRaan,
-        planeQuaternion: iridQuat,
-        theta: 0.0,
-        speed: 0.0035,
-        encounterIndex: 0,
-        info: {
-          name: 'IRIDIUM 33',
-          noradId: 24946,
-          altitudeKm: 780,
-          velocityKms: 7.46,
-          inclinationDeg: 86.4,
-          status: 'CRITICAL',
-          operator: 'Iridium Satellite LLC',
-          satBName: 'COSMOS 2251',
-          missDistanceKm: 0.012,
-          relVelocityKms: 11.7,
-        },
-      });
-
-      // 2. Cosmos 2251 (Derelict Russian Military Satellite, 74.0° polar crossing)
-      const cosmosRadius = 1.0 + (780 / 6371.0) * 0.7;
-      const cosmosInc = (74.0 * Math.PI) / 180;
-      const cosmosRaan = 2.05;
-      const cosmosQuat = new THREE.Quaternion();
-      const cosmosRaanQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), cosmosRaan);
-      const cosmosIncQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), cosmosInc);
-      cosmosQuat.multiplyQuaternions(cosmosRaanQ, cosmosIncQ);
-
-      const cosmosMesh = new THREE.Mesh(satOctahedronGeo, criticalMat.clone());
-      cosmosMesh.rotation.set(0.785, 0.785, 0);
-      cosmosMesh.userData = {
-        encounterIndex: 0,
-        isCosmos: true,
-      };
-      scene.add(cosmosMesh);
-
-      const trailGeoCosmos = new THREE.BufferGeometry().setFromPoints(
-        new Array(trailPointsIrid).fill(0).map(() => new THREE.Vector3())
-      );
-      const trailMatCosmos = new THREE.LineBasicMaterial({
-        color: 0xef4444,
-        transparent: true,
-        opacity: 0.45,
-      });
-      const trailLineCosmos = new THREE.Line(trailGeoCosmos, trailMatCosmos);
-      scene.add(trailLineCosmos);
-
-      orbits.push({
-        mesh: cosmosMesh,
-        trailLine: trailLineCosmos,
-        radius: cosmosRadius,
-        inclination: cosmosInc,
-        raan: cosmosRaan,
-        planeQuaternion: cosmosQuat,
-        theta: Math.PI * 0.98,
-        speed: 0.0035,
-        encounterIndex: 0,
-        info: {
-          name: 'COSMOS 2251',
-          noradId: 22675,
-          altitudeKm: 780,
-          velocityKms: 7.46,
-          inclinationDeg: 74.0,
-          status: 'CRITICAL',
-          operator: 'Russian Space Forces (Derelict)',
-          satBName: 'IRIDIUM 33',
-          missDistanceKm: 0.012,
-          relVelocityKms: 11.7,
-        },
-      });
-
-      // Collision point in space (intersection of both orbits)
-      collisionPointLight.position.set(0.15, 0.95, 0.35);
-      collisionPointLight.intensity = 2.5;
-    } else {
-      // --- REALTIME TELEMETRY SATELLITES (Bounded strictly by encounterCount) ---
-      const totalSats = Math.min(500, Math.max(10, encounterCount));
-      const trailPointsCount = 24;
-
-      for (let i = 0; i < totalSats; i++) {
-        const enc = encounters[i] || {};
-        const risk = (enc.risk_category || enc.riskCategory || (i % 9 === 0 ? 'CRITICAL' : i % 3 === 0 ? 'CAUTION' : 'NOMINAL')) as 'NOMINAL' | 'CAUTION' | 'CRITICAL';
-        const mat = risk === 'CRITICAL' ? criticalMat : risk === 'CAUTION' ? cautionMat : nominalMat;
-
-        const mesh = new THREE.Mesh(satOctahedronGeo, mat);
-        mesh.rotation.set(0.785, 0.785, 0);
-        mesh.userData = { encounterIndex: i };
-        scene.add(mesh);
-
-        // Precompute fixed orbital elements
-        const altKm = enc.satAAltitude || 400 + (i % 16) * 45;
-        const radius = 1.0 + (altKm / 6371.0) * 0.7; // Clamped in range ~1.04 to ~1.15
-        const incDeg = enc.satAInclination || 35 + ((i * 29) % 63);
-        const inclination = (incDeg * Math.PI) / 180;
-        const raan = ((i * 137.5) * Math.PI) / 180; // Golden angle distribution
-        const quat = new THREE.Quaternion();
-        const raanQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), raan);
-        const incQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), inclination);
-        quat.multiplyQuaternions(raanQ, incQ);
-        const theta = ((i * 53.7) * Math.PI) / 180;
-        const speed = 0.0012 + (i % 7) * 0.0002;
-
-        // Trailing arc (last 90° of orbit)
-        const trailGeo = new THREE.BufferGeometry().setFromPoints(
-          new Array(trailPointsCount).fill(0).map(() => new THREE.Vector3())
-        );
-        const trailColor = risk === 'CRITICAL' ? 0xef4444 : risk === 'CAUTION' ? 0xf59e0b : 0x00e5ff;
-        const trailMat = new THREE.LineBasicMaterial({
-          color: trailColor,
-          transparent: true,
-          opacity: 0.22,
-        });
-        const trailLine = new THREE.Line(trailGeo, trailMat);
-        scene.add(trailLine);
-
-        const satInfo: SatelliteInfo = {
-          name: enc.satAName || enc.sat_a_name || `OBJECT-${24000 + i}`,
-          noradId: enc.satANorad || enc.sat_a_norad || (24000 + i),
-          altitudeKm: altKm,
-          velocityKms: enc.satAVelocity || 7.5 + (i % 5) * 0.1,
-          inclinationDeg: incDeg,
-          status: risk,
-          operator: enc.satAOperator || enc.sat_a_operator || 'LEO Constellation',
-          satBName: enc.satBName || enc.sat_b_name,
-          missDistanceKm: enc.missDistanceKm || enc.miss_distance_km,
-          relVelocityKms: enc.relVelocityKms || enc.rel_velocity_kms,
-        };
-
-        orbits.push({
-          mesh,
-          trailLine,
-          radius,
-          inclination,
-          raan,
-          planeQuaternion: quat,
-          theta,
-          speed,
-          encounterIndex: i,
-          info: satInfo,
-        });
-      }
-    }
 
     // --- INTERACTION & RAYCASTING ---
     const raycaster = new THREE.Raycaster();
@@ -573,13 +414,13 @@ export default function Globe3D({
         -((e.clientY - rect.top) / rect.height) * 2 + 1
       );
       raycaster.setFromCamera(clickMouse, camera);
-      const meshes = orbits.map((o) => o.mesh);
+      const meshes = orbitsRef.current.map((o) => o.mesh);
       const intersects = raycaster.intersectObjects(meshes);
 
       if (intersects.length > 0) {
         const hit = intersects[0].object as THREE.Mesh;
         const encIdx = hit.userData.encounterIndex;
-        const targetOrbit = orbits.find((o) => o.encounterIndex === encIdx);
+        const targetOrbit = orbitsRef.current.find((o) => o.encounterIndex === encIdx);
         if (targetOrbit && onSelectSat) {
           onSelectSat(targetOrbit.info);
           // Lerp camera towards target satellite
@@ -615,20 +456,16 @@ export default function Globe3D({
         updateCameraFromSpherical();
       },
       focusTarget: () => {
-        if (isAccident) {
-          spherical.radius = 1.65;
-          spherical.theta = 0.35;
-          spherical.phi = 0.85;
-        } else if (orbits.length > 0) {
-          spherical.radius = 1.85;
-        }
+        spherical.radius = 1.85;
+        spherical.theta = 0.35;
+        spherical.phi = 0.85;
         updateCameraFromSpherical();
       },
     };
 
     // --- ANIMATION LOOP WITH TRUE LERP AVOIDANCE ---
     let animationFrameId: number;
-    let avoidanceLerpProgress = 0.0; // 0 = nominal collision path, 1 = safe diverged path
+    let avoidanceLerpProgress = 0.0;
     let lastTime = performance.now();
 
     const animate = (currentTime: number) => {
@@ -656,14 +493,14 @@ export default function Globe3D({
         thrusterBurnLight.intensity = 0;
       }
 
-      // 3. Update Satellite Positions and Trails (Strictly Clamped to Radius)
-      orbits.forEach((orbit, idx) => {
+      // 3. Update Satellite Positions and Trails (Strictly Clamped to Radius via Quaternion)
+      orbitsRef.current.forEach((orbit) => {
         orbit.theta += orbit.speed * rate;
 
         let effectiveRadius = orbit.radius;
 
         // In accident mode, animate Iridium 33 diverging by +25km orbital elevation
-        if (isAccident && orbit.mesh.userData.isIridium) {
+        if (orbit.mesh.userData.isIridium) {
           effectiveRadius = THREE.MathUtils.lerp(orbit.radius, orbit.radius + 0.042, avoidanceLerpProgress);
           // Color transition: red to green
           if (avoidanceLerpProgress > 0.4) {
@@ -676,7 +513,7 @@ export default function Globe3D({
           thrusterBurnLight.position.copy(orbit.mesh.position);
         }
 
-        // Exact orbital position along precomputed plane
+        // Exact orbital position along precomputed plane using quaternion
         const currentPos = new THREE.Vector3(
           effectiveRadius * Math.cos(orbit.theta),
           0,
@@ -707,9 +544,9 @@ export default function Globe3D({
       });
 
       // 4. Update Avoidance Clearance Vector (between Iridium and Cosmos)
-      if (isAccident && orbits.length >= 2) {
-        const p1 = orbits[0].mesh.position;
-        const p2 = orbits[1].mesh.position;
+      if (orbitsRef.current.length >= 2 && orbitsRef.current[0].mesh.userData.isIridium) {
+        const p1 = orbitsRef.current[0].mesh.position;
+        const p2 = orbitsRef.current[1].mesh.position;
         const clearanceAttr = clearanceVectorGeo.getAttribute('position') as THREE.BufferAttribute;
         if (clearanceAttr) {
           clearanceAttr.setXYZ(0, p1.x, p1.y, p1.z);
@@ -731,13 +568,13 @@ export default function Globe3D({
 
       // 5. Raycasting Hover Check
       raycaster.setFromCamera(mouse, camera);
-      const meshes = orbits.map((o) => o.mesh);
+      const meshes = orbitsRef.current.map((o) => o.mesh);
       const intersects = raycaster.intersectObjects(meshes);
 
       if (intersects.length > 0 && !isDragging) {
         const hitMesh = intersects[0].object as THREE.Mesh;
         const encIdx = hitMesh.userData.encounterIndex;
-        const hitOrbit = orbits.find((o) => o.encounterIndex === encIdx);
+        const hitOrbit = orbitsRef.current.find((o) => o.encounterIndex === encIdx);
         if (hitOrbit) {
           const screenPos = hitOrbit.mesh.position.clone().project(camera);
           setHoveredSat({
@@ -774,7 +611,12 @@ export default function Globe3D({
       window.removeEventListener('mouseup', onMouseUp);
       container.removeEventListener('wheel', onWheel);
       container.removeEventListener('click', onClick);
+
+      // Free WebGL context immediately without leaking context slots
+      renderer.forceContextLoss();
+      renderer.domElement.remove();
       renderer.dispose();
+
       earthGeo.dispose();
       earthMat.dispose();
       earthTexture.dispose();
@@ -785,7 +627,213 @@ export default function Globe3D({
       cautionMat.dispose();
       nominalMat.dispose();
       avoidanceEscapeMat.dispose();
+      clearanceVectorGeo.dispose();
+      clearanceVectorMat.dispose();
+      sceneRef.current = null;
+      cameraRef.current = null;
     };
+  }, []);
+
+  // =========================================================================
+  // 2. DATA SYNC: UPDATE SATELLITES IN EXISTING SCENE (ZERO WEBGL CONTEXT CREATION)
+  // =========================================================================
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene || !sharedGeoRef.current || !sharedMaterialsRef.current) return;
+
+    const satOctahedronGeo = sharedGeoRef.current;
+    const { criticalMat, cautionMat, nominalMat } = sharedMaterialsRef.current;
+
+    // Remove old satellite meshes and trails from the scene
+    orbitsRef.current.forEach((orbit) => {
+      scene.remove(orbit.mesh);
+      scene.remove(orbit.trailLine);
+      orbit.trailLine.geometry.dispose();
+      (orbit.trailLine.material as THREE.Material).dispose();
+      if (orbit.mesh.userData.isIridium || orbit.mesh.userData.isCosmos) {
+        (orbit.mesh.material as THREE.Material).dispose();
+      }
+    });
+    orbitsRef.current = [];
+
+    const isAccident = dataset === 'ACCIDENT';
+
+    if (isAccident) {
+      // --- ISOLATE ONLY IRIDIUM 33 AND COSMOS 2251 ---
+      // 1. Iridium 33
+      const iridRadius = 1.0 + (780 / 6371.0) * 0.7;
+      const iridInc = (86.4 * Math.PI) / 180;
+      const iridRaan = 0.45;
+      const iridQuat = new THREE.Quaternion();
+      const iridRaanQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), iridRaan);
+      const iridIncQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), iridInc);
+      iridQuat.multiplyQuaternions(iridRaanQ, iridIncQ);
+
+      const iridMesh = new THREE.Mesh(satOctahedronGeo, criticalMat.clone());
+      iridMesh.rotation.set(0.785, 0.785, 0);
+      iridMesh.userData = { encounterIndex: 0, isIridium: true };
+      scene.add(iridMesh);
+
+      const trailPointsIrid = 36;
+      const trailGeoIrid = new THREE.BufferGeometry().setFromPoints(
+        new Array(trailPointsIrid).fill(0).map(() => new THREE.Vector3())
+      );
+      const trailMatIrid = new THREE.LineBasicMaterial({
+        color: 0xef4444,
+        transparent: true,
+        opacity: 0.45,
+      });
+      const trailLineIrid = new THREE.Line(trailGeoIrid, trailMatIrid);
+      scene.add(trailLineIrid);
+
+      orbitsRef.current.push({
+        mesh: iridMesh,
+        trailLine: trailLineIrid,
+        radius: iridRadius,
+        inclination: iridInc,
+        raan: iridRaan,
+        planeQuaternion: iridQuat,
+        theta: 0.0,
+        speed: 0.0035,
+        encounterIndex: 0,
+        info: {
+          name: 'IRIDIUM 33',
+          noradId: 24946,
+          altitudeKm: 780,
+          velocityKms: 7.46,
+          inclinationDeg: 86.4,
+          status: 'CRITICAL',
+          operator: 'Iridium Satellite LLC',
+          satBName: 'COSMOS 2251',
+          missDistanceKm: 0.012,
+          relVelocityKms: 11.7,
+        },
+      });
+
+      // 2. Cosmos 2251
+      const cosmosRadius = 1.0 + (780 / 6371.0) * 0.7;
+      const cosmosInc = (74.0 * Math.PI) / 180;
+      const cosmosRaan = 2.05;
+      const cosmosQuat = new THREE.Quaternion();
+      const cosmosRaanQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), cosmosRaan);
+      const cosmosIncQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), cosmosInc);
+      cosmosQuat.multiplyQuaternions(cosmosRaanQ, cosmosIncQ);
+
+      const cosmosMesh = new THREE.Mesh(satOctahedronGeo, criticalMat.clone());
+      cosmosMesh.rotation.set(0.785, 0.785, 0);
+      cosmosMesh.userData = { encounterIndex: 0, isCosmos: true };
+      scene.add(cosmosMesh);
+
+      const trailGeoCosmos = new THREE.BufferGeometry().setFromPoints(
+        new Array(trailPointsIrid).fill(0).map(() => new THREE.Vector3())
+      );
+      const trailMatCosmos = new THREE.LineBasicMaterial({
+        color: 0xef4444,
+        transparent: true,
+        opacity: 0.45,
+      });
+      const trailLineCosmos = new THREE.Line(trailGeoCosmos, trailMatCosmos);
+      scene.add(trailLineCosmos);
+
+      orbitsRef.current.push({
+        mesh: cosmosMesh,
+        trailLine: trailLineCosmos,
+        radius: cosmosRadius,
+        inclination: cosmosInc,
+        raan: cosmosRaan,
+        planeQuaternion: cosmosQuat,
+        theta: Math.PI * 0.98,
+        speed: 0.0035,
+        encounterIndex: 0,
+        info: {
+          name: 'COSMOS 2251',
+          noradId: 22675,
+          altitudeKm: 780,
+          velocityKms: 7.46,
+          inclinationDeg: 74.0,
+          status: 'CRITICAL',
+          operator: 'Russian Space Forces (Derelict)',
+          satBName: 'IRIDIUM 33',
+          missDistanceKm: 0.012,
+          relVelocityKms: 11.7,
+        },
+      });
+
+      if (collisionPointLightRef.current) {
+        collisionPointLightRef.current.position.set(0.15, 0.95, 0.35);
+        collisionPointLightRef.current.intensity = 2.5;
+      }
+    } else {
+      // --- REALTIME TELEMETRY SATELLITES ---
+      const totalSats = Math.min(500, Math.max(10, encounterCount));
+      const trailPointsCount = 24;
+
+      for (let i = 0; i < totalSats; i++) {
+        const enc = encounters[i] || {};
+        const risk = (enc.risk_category || enc.riskCategory || (i % 9 === 0 ? 'CRITICAL' : i % 3 === 0 ? 'CAUTION' : 'NOMINAL')) as 'NOMINAL' | 'CAUTION' | 'CRITICAL';
+        const mat = risk === 'CRITICAL' ? criticalMat : risk === 'CAUTION' ? cautionMat : nominalMat;
+
+        const mesh = new THREE.Mesh(satOctahedronGeo, mat);
+        mesh.rotation.set(0.785, 0.785, 0);
+        mesh.userData = { encounterIndex: i };
+        scene.add(mesh);
+
+        const altKm = enc.satAAltitude || 400 + (i % 16) * 45;
+        const radius = 1.0 + (altKm / 6371.0) * 0.7;
+        const incDeg = enc.satAInclination || 35 + ((i * 29) % 63);
+        const inclination = (incDeg * Math.PI) / 180;
+        const raan = ((i * 137.5) * Math.PI) / 180;
+        const quat = new THREE.Quaternion();
+        const raanQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), raan);
+        const incQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), inclination);
+        quat.multiplyQuaternions(raanQ, incQ);
+        const theta = ((i * 53.7) * Math.PI) / 180;
+        const speed = 0.0012 + (i % 7) * 0.0002;
+
+        const trailGeo = new THREE.BufferGeometry().setFromPoints(
+          new Array(trailPointsCount).fill(0).map(() => new THREE.Vector3())
+        );
+        const trailColor = risk === 'CRITICAL' ? 0xef4444 : risk === 'CAUTION' ? 0xf59e0b : 0x00e5ff;
+        const trailMat = new THREE.LineBasicMaterial({
+          color: trailColor,
+          transparent: true,
+          opacity: 0.22,
+        });
+        const trailLine = new THREE.Line(trailGeo, trailMat);
+        scene.add(trailLine);
+
+        const satInfo: SatelliteInfo = {
+          name: enc.satAName || enc.sat_a_name || `OBJECT-${24000 + i}`,
+          noradId: enc.satANorad || enc.sat_a_norad || (24000 + i),
+          altitudeKm: altKm,
+          velocityKms: enc.satAVelocity || 7.5 + (i % 5) * 0.1,
+          inclinationDeg: incDeg,
+          status: risk,
+          operator: enc.satAOperator || enc.sat_a_operator || 'LEO Constellation',
+          satBName: enc.satBName || enc.sat_b_name,
+          missDistanceKm: enc.missDistanceKm || enc.miss_distance_km,
+          relVelocityKms: enc.relVelocityKms || enc.rel_velocity_kms,
+        };
+
+        orbitsRef.current.push({
+          mesh,
+          trailLine,
+          radius,
+          inclination,
+          raan,
+          planeQuaternion: quat,
+          theta,
+          speed,
+          encounterIndex: i,
+          info: satInfo,
+        });
+      }
+
+      if (collisionPointLightRef.current) {
+        collisionPointLightRef.current.intensity = 0;
+      }
+      setCollisionScreenPos(null);
+    }
   }, [dataset, encounterCount, encounters]);
 
   return (

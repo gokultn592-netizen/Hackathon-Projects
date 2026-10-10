@@ -26,6 +26,21 @@ import {
 
 function MissionControlDashboard() {
   const [{ dataset, limit }, setUrlState] = useUrlSync();
+  const [sliderLimit, setSliderLimit] = useState(limit);
+
+  useEffect(() => {
+    setSliderLimit(limit);
+  }, [limit]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (sliderLimit !== limit) {
+        setUrlState({ limit: sliderLimit });
+      }
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [sliderLimit, limit, setUrlState]);
+
   const { data, isLoading, error } = useEncounters(dataset, limit);
 
   // UTC Mission Timeline Clock (18px JetBrains Mono)
@@ -269,15 +284,15 @@ function MissionControlDashboard() {
             <div className="border border-cyan-500/20 bg-[#02050b] p-3 space-y-2">
               <div className="flex items-center justify-between text-[10px] text-cyan-400 uppercase tracking-widest">
                 <span>ACTIVE OBJECTS</span>
-                <span className="text-white font-bold">{limit} / 500</span>
+                <span className="text-white font-bold">{sliderLimit} / 500</span>
               </div>
               <input
                 type="range"
                 min="10"
                 max="500"
                 step="10"
-                value={limit}
-                onChange={(e) => setUrlState({ limit: parseInt(e.target.value, 10) })}
+                value={sliderLimit}
+                onChange={(e) => setSliderLimit(parseInt(e.target.value, 10))}
                 className="w-full accent-cyan-400 bg-slate-800 h-1.5 cursor-pointer"
               />
             </div>
