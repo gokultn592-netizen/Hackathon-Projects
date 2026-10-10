@@ -10,6 +10,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 import oracledb
 
@@ -65,6 +66,12 @@ app.add_middleware(
 # Register routers
 app.include_router(encounters_router)
 app.include_router(positions_router)
+
+
+@app.get("/", include_in_schema=False)
+async def root():
+    """Redirect root path directly to Swagger documentation."""
+    return RedirectResponse(url="/docs")
 
 
 @app.get("/api/health")
