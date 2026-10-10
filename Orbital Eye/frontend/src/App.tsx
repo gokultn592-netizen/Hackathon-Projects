@@ -131,7 +131,9 @@ function MissionControlDashboard() {
 
   // Critical watchlist derived from real encounters
   const watchlist = useMemo(() => {
-    return data.filter((d) => d.missDistance < 10.0 || d.collisionProbPct > 5).slice(0, 8);
+    return data
+      .filter((d) => d.missDistance < 10.0 || (Number(d.collisionProbPct) || d.collisionProb * 100) > 5)
+      .slice(0, 8);
   }, [data]);
 
   // Fullscreen Toggle
