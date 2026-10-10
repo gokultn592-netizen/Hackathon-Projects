@@ -79,7 +79,8 @@ export default function EncounterDetailModal({ encounter, onClose }: EncounterDe
     // Target Text
     ctx.fillStyle = '#ffffff';
     ctx.font = '10px "JetBrains Mono", monospace';
-    ctx.fillText(`TCA MISS: ${encounter.missDistance.toFixed(2)} KM`, cx - 55, cy - 20);
+    const missText = (Number(encounter.missDistance) || 0).toFixed(2);
+    ctx.fillText(`TCA MISS: ${missText} KM`, cx - 55, cy - 20);
 
     // Legend
     ctx.fillStyle = '#00e5ff';
@@ -96,8 +97,14 @@ export default function EncounterDetailModal({ encounter, onClose }: EncounterDe
     setTimeout(() => setCopied(false), 1500);
   };
 
-  const isCritical = encounter.missDistance < 2.0 || encounter.collisionProbPct > 25;
-  const isCaution = !isCritical && (encounter.missDistance < 10.0 || encounter.collisionProbPct > 5);
+  const probNum = typeof encounter.collisionProbPct === 'number'
+    ? encounter.collisionProbPct
+    : Number(encounter.collisionProbPct) || (encounter.collisionProb ? encounter.collisionProb * 100 : 0);
+  const missDistNum = typeof encounter.missDistance === 'number' ? encounter.missDistance : Number(encounter.missDistance) || 0;
+  const relVelNum = typeof encounter.relVelocity === 'number' ? encounter.relVelocity : Number(encounter.relVelocity) || 0;
+
+  const isCritical = missDistNum < 2.0 || probNum > 25;
+  const isCaution = !isCritical && (missDistNum < 10.0 || probNum > 5);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 backdrop-blur-sm animate-fadeIn">
@@ -163,21 +170,21 @@ export default function EncounterDetailModal({ encounter, onClose }: EncounterDe
               <div className="border-l-2 border-cyan-500/40 pl-2.5 py-1">
                 <div className="text-[10px] text-slate-500 uppercase">MISS DISTANCE</div>
                 <div className="text-lg font-bold text-white mt-0.5">
-                  {encounter.missDistance.toFixed(3)} <span className="text-[10px] text-slate-500">KM</span>
+                  {missDistNum.toFixed(3)} <span className="text-[10px] text-slate-500">KM</span>
                 </div>
               </div>
 
               <div className="border-l-2 border-cyan-500/40 pl-2.5 py-1">
                 <div className="text-[10px] text-slate-500 uppercase">RELATIVE VELOCITY</div>
                 <div className="text-lg font-bold text-cyan-300 mt-0.5">
-                  {encounter.relVelocity.toFixed(2)} <span className="text-[10px] text-slate-500">KM/S</span>
+                  {relVelNum.toFixed(2)} <span className="text-[10px] text-slate-500">KM/S</span>
                 </div>
               </div>
 
               <div className="border-l-2 border-cyan-500/40 pl-2.5 py-1">
                 <div className="text-[10px] text-slate-500 uppercase">COLLISION PROBABILITY</div>
                 <div className="text-base font-bold text-white mt-0.5">
-                  {encounter.collisionProbPct ? `${encounter.collisionProbPct.toFixed(4)}%` : '1.4e-6'}
+                  {probNum.toFixed(2)}%
                 </div>
               </div>
 
