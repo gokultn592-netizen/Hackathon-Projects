@@ -30,8 +30,9 @@ export default function EncounterTable({
     let nom = 0;
     data.forEach((r) => {
       const dist = r.missDistance;
-      if (dist < 2.0 || r.collisionProbPct > 25) crit++;
-      else if (dist < 10.0 || r.collisionProbPct > 5) caut++;
+      const prob = Number(r.collisionProbPct) || (r.collisionProb * 100);
+      if (dist < 2.0 || prob > 25) crit++;
+      else if (dist < 10.0 || prob > 5) caut++;
       else nom++;
     });
     return { ALL: data.length, CRITICAL: crit, CAUTION: caut, NOMINAL: nom };
@@ -54,13 +55,20 @@ export default function EncounterTable({
 
     // Risk filter
     if (riskFilter === 'CRITICAL') {
-      result = result.filter((r) => r.missDistance < 2.0 || r.collisionProbPct > 25);
+      result = result.filter((r) => {
+        const prob = Number(r.collisionProbPct) || (r.collisionProb * 100);
+        return r.missDistance < 2.0 || prob > 25;
+      });
     } else if (riskFilter === 'CAUTION') {
-      result = result.filter(
-        (r) => (r.missDistance >= 2.0 && r.missDistance < 10.0) || (r.collisionProbPct > 5 && r.collisionProbPct <= 25)
-      );
+      result = result.filter((r) => {
+        const prob = Number(r.collisionProbPct) || (r.collisionProb * 100);
+        return (r.missDistance >= 2.0 && r.missDistance < 10.0) || (prob > 5 && prob <= 25);
+      });
     } else if (riskFilter === 'NOMINAL') {
-      result = result.filter((r) => r.missDistance >= 10.0 && r.collisionProbPct <= 5);
+      result = result.filter((r) => {
+        const prob = Number(r.collisionProbPct) || (r.collisionProb * 100);
+        return r.missDistance >= 10.0 && prob <= 5;
+      });
     }
 
     return result;
@@ -154,8 +162,9 @@ export default function EncounterTable({
 
         {!isDataLoading &&
           filteredData.map((enc) => {
-            const isCrit = enc.missDistance < 2.0 || enc.collisionProbPct > 25;
-            const isCaut = !isCrit && (enc.missDistance < 10.0 || enc.collisionProbPct > 5);
+            const prob = Number(enc.collisionProbPct) || (enc.collisionProb * 100);
+            const isCrit = enc.missDistance < 2.0 || prob > 25;
+            const isCaut = !isCrit && (enc.missDistance < 10.0 || prob > 5);
 
             const barColor = isCrit ? 'bg-red-500' : isCaut ? 'bg-amber-500' : 'bg-cyan-500';
 
@@ -171,12 +180,12 @@ export default function EncounterTable({
                 />
 
                 {/* Left: Satellite Names in Two Lines */}
-                <div className="pl-2 flex flex-col justify-center min-w-0 pr-2">
-                  <span className="text-[11px] font-bold text-white truncate tracking-wide">
-                    {enc.satAName}
+                <div className="pl-3 flex-1 min-w-0 flex flex-col justify-center pr-2">
+                  <span className="text-[11px] font-bold text-white truncate tracking-wide block">
+                    {enc.satAName || enc.sat_a_name || 'UNKNOWN SAT A'}
                   </span>
-                  <span className="text-[9px] text-slate-400 truncate">
-                    × {enc.satBName}
+                  <span className="text-[9px] text-slate-400 truncate block">
+                    × {enc.satBName || enc.sat_b_name || 'UNKNOWN SAT B'}
                   </span>
                 </div>
 

@@ -435,16 +435,16 @@ function MissionControlDashboard() {
                         }}
                         className="p-2.5 bg-[#02050b] border border-cyan-500/20 hover:border-cyan-400/50 cursor-pointer flex items-center justify-between transition-colors"
                       >
-                        <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
                           <span
                             className={`w-1 h-7 shrink-0 ${isCrit ? 'bg-red-500' : 'bg-amber-500'}`}
                           />
-                          <div className="min-w-0">
+                          <div className="flex-1 min-w-0">
                             <div className="text-[11px] font-bold text-white truncate">
-                              {item.satAName}
+                              {item.satAName || item.sat_a_name || 'UNKNOWN SAT'}
                             </div>
                             <div className="text-[9px] text-slate-400 truncate">
-                              × {item.satBName}
+                              × {item.satBName || item.sat_b_name || 'UNKNOWN SAT'}
                             </div>
                           </div>
                         </div>
