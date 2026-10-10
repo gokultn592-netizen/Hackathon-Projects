@@ -4,5 +4,6 @@ COPY frontend/package*.json ./
 RUN npm ci --legacy-peer-deps
 COPY frontend/ .
 ENV NODE_OPTIONS=--openssl-legacy-provider
+ENV BACKEND_URL=http://backend:8000
 EXPOSE 3000
 CMD ["npm", "start"]

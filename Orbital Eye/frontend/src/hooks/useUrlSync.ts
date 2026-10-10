@@ -13,7 +13,7 @@ export function useUrlSync(defaultDataset = 'REALTIME', defaultLimit = 50): [Url
     const datasetParam = params.get('dataset');
     const limitParam = params.get('limit');
     const newDataset = datasetParam && ['REALTIME', 'ACCIDENT'].includes(datasetParam) ? datasetParam : defaultDataset;
-    const newLimit = limitParam ? Math.max(1, Math.min(200, parseInt(limitParam, 10) || defaultLimit)) : defaultLimit;
+    const newLimit = limitParam ? Math.max(1, Math.min(500, parseInt(limitParam, 10) || defaultLimit)) : defaultLimit;
     setState({ dataset: newDataset, limit: newLimit });
   }, []);
 
@@ -36,7 +36,7 @@ export function useUrlSync(defaultDataset = 'REALTIME', defaultLimit = 50): [Url
       const datasetParam = params.get('dataset');
       const limitParam = params.get('limit');
       const dataset = datasetParam && ['REALTIME', 'ACCIDENT'].includes(datasetParam) ? datasetParam : defaultDataset;
-      const limit = limitParam ? Math.max(1, Math.min(200, parseInt(limitParam, 10) || defaultLimit)) : defaultLimit;
+      const limit = limitParam ? Math.max(1, Math.min(500, parseInt(limitParam, 10) || defaultLimit)) : defaultLimit;
       setState({ dataset, limit });
     };
     window.addEventListener('popstate', onPop);

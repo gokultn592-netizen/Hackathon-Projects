@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
+import * as THREE from 'three';
 
 export interface SatelliteInfo {
   name: string;
@@ -8,6 +9,9 @@ export interface SatelliteInfo {
   inclinationDeg: number;
   status: 'NOMINAL' | 'CAUTION' | 'CRITICAL' | 'IMPACT_SITE';
   operator?: string;
+  missDistanceKm?: number;
+  relVelocityKms?: number;
+  satBName?: string;
 }
 
 export interface Globe3DProps {
@@ -28,6 +32,19 @@ interface HoveredSatInfo extends SatelliteInfo {
   screenY: number;
 }
 
+interface OrbitDefinition {
+  mesh: THREE.Mesh;
+  trailLine: THREE.Line;
+  radius: number;
+  inclination: number;
+  raan: number;
+  planeEuler: THREE.Euler;
+  theta: number;
+  speed: number;
+  encounterIndex: number;
+  info: SatelliteInfo;
+}
+
 export default function Globe3D({
   dataset = 'REALTIME',
   encounterCount = 50,
@@ -42,15 +59,48 @@ export default function Globe3D({
 }: Globe3DProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const [hoveredSat, setHoveredSat] = useState<HoveredSatInfo | null>(null);
+  const [collisionScreenPos, setCollisionScreenPos] = useState<{ x: number; y: number; visible: boolean } | null>(null);
 
-  // Mutable camera controller ref accessible to external UI buttons
+  // References for live animation loop
+  const avoidanceRef = useRef(avoidanceActive);
+  useEffect(() => {
+    avoidanceRef.current = avoidanceActive;
+  }, [avoidanceActive]);
+
+  const playbackSpeedRef = useRef(playbackSpeed);
+  useEffect(() => {
+    playbackSpeedRef.current = playbackSpeed;
+  }, [playbackSpeed]);
+
+  const isPausedRef = useRef(isPaused);
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
+
+  const showOrbitsRef = useRef(showOrbits);
+  useEffect(() => {
+    showOrbitsRef.current = showOrbits;
+  }, [showOrbits]);
+
+  // Stable camera control ref for buttons
   const cameraControlRef = useRef<{
     zoomIn: () => void;
     zoomOut: () => void;
     reset: () => void;
     focusTarget: () => void;
-    toggleOrbits: (show: boolean) => void;
   } | null>(null);
+
+  // Deep comparison trigger effect for camera buttons
+  useEffect(() => {
+    if (!cameraTrigger) return;
+    const ctrl = cameraControlRef.current;
+    if (!ctrl) return;
+
+    if (cameraTrigger.type === 'zoomin') ctrl.zoomIn();
+    else if (cameraTrigger.type === 'zoomout') ctrl.zoomOut();
+    else if (cameraTrigger.type === 'reset') ctrl.reset();
+    else if (cameraTrigger.type === 'focus') ctrl.focusTarget();
+  }, [cameraTrigger?.type, cameraTrigger?.timestamp]);
 
   useEffect(() => {
     const container = mountRef.current;
@@ -59,701 +109,745 @@ export default function Globe3D({
     let width = container.clientWidth || window.innerWidth;
     let height = container.clientHeight || window.innerHeight;
 
-    let renderer: any = null;
-    let animId: number = 0;
+    // --- THREE.JS SCENE SETUP ---
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x00020a);
 
-    import('three').then((THREE) => {
-      // Helper: NASA Eyes floating text sprite
-      const createTextSprite = (text: string, color = '#00e5ff', scaleX = 0.8, scaleY = 0.2) => {
-        const canvas = document.createElement('canvas');
-        canvas.width = 512;
-        canvas.height = 128;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.font = 'Bold 36px "Space Grotesk", Inter, sans-serif';
-          ctx.fillStyle = color;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
-          ctx.shadowBlur = 10;
-          ctx.fillText(text, 256, 64);
-        }
-        const texture = new THREE.CanvasTexture(canvas);
-        const spriteMat = new THREE.SpriteMaterial({
-          map: texture,
-          transparent: true,
-          opacity: 0.95,
-          depthTest: false,
+    const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 1000);
+    const defaultCamPos = new THREE.Vector3(0, 1.8, 3.2);
+    camera.position.copy(defaultCamPos);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.25;
+    container.innerHTML = '';
+    container.appendChild(renderer.domElement);
+
+    // --- LIGHTING ---
+    const ambientLight = new THREE.AmbientLight(0x0a1628, 1.8);
+    scene.add(ambientLight);
+
+    const sunLight = new THREE.DirectionalLight(0xffffff, 2.6);
+    sunLight.position.set(6, 4, 5);
+    scene.add(sunLight);
+
+    const rimLight = new THREE.DirectionalLight(0x00e5ff, 1.2);
+    rimLight.position.set(-5, -2, -4);
+    scene.add(rimLight);
+
+    // Collision point alert light (ACCIDENT mode)
+    const collisionPointLight = new THREE.PointLight(0xef4444, 0, 2.5);
+    scene.add(collisionPointLight);
+
+    // Avoidance thruster burn light
+    const thrusterBurnLight = new THREE.PointLight(0xff7700, 0, 2.0);
+    scene.add(thrusterBurnLight);
+
+    // --- PROCEDURAL REALISTIC EARTH TEXTURE ---
+    const canvas = document.createElement('canvas');
+    canvas.width = 2048;
+    canvas.height = 1024;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      // 1. Deep Ocean
+      ctx.fillStyle = '#000d1a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Subtle longitude / latitude celestial grid lines
+      ctx.strokeStyle = 'rgba(0, 229, 255, 0.05)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= canvas.width; x += 128) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= canvas.height; y += 128) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+
+      // 2. Continental Landmass Outlines & Fills (7 Continents approximations)
+      ctx.fillStyle = '#061a2b';
+      ctx.strokeStyle = 'rgba(0, 229, 255, 0.55)';
+      ctx.lineWidth = 1.5;
+
+      const drawPolygon = (pts: [number, number][]) => {
+        ctx.beginPath();
+        pts.forEach(([px, py], idx) => {
+          const x = (px / 360) * canvas.width;
+          const y = ((90 - py) / 180) * canvas.height;
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
         });
-        const sprite = new THREE.Sprite(spriteMat);
-        sprite.scale.set(scaleX, scaleY, 1);
-        return sprite;
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
       };
 
-      // 1. Scene & Deep Space Canvas
-      const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x000206);
+      // North America
+      drawPolygon([
+        [-165, 65], [-140, 70], [-100, 72], [-70, 60], [-55, 48],
+        [-75, 30], [-82, 25], [-97, 18], [-105, 22], [-124, 38],
+        [-130, 50], [-160, 58], [-165, 65]
+      ]);
+      // South America
+      drawPolygon([
+        [-80, 10], [-50, 0], [-35, -5], [-40, -22], [-53, -33],
+        [-65, -54], [-75, -45], [-72, -18], [-80, -2], [-80, 10]
+      ]);
+      // Eurasia (Europe + Asia)
+      drawPolygon([
+        [-10, 36], [0, 45], [10, 55], [30, 70], [60, 72], [110, 76],
+        [170, 68], [170, 60], [140, 50], [130, 35], [120, 22],
+        [105, 10], [80, 12], [70, 22], [50, 25], [35, 32], [28, 41],
+        [-5, 43], [-10, 36]
+      ]);
+      // Africa
+      drawPolygon([
+        [-18, 32], [12, 37], [32, 31], [42, 12], [51, 11],
+        [40, -10], [33, -34], [18, -34], [12, -15], [9, 5],
+        [-15, 12], [-18, 32]
+      ]);
+      // Australia
+      drawPolygon([
+        [113, -22], [135, -12], [148, -19], [153, -28], [148, -38],
+        [138, -35], [122, -35], [114, -26], [113, -22]
+      ]);
+      // Antarctica
+      drawPolygon([
+        [-180, -70], [-90, -68], [0, -65], [90, -66], [180, -70],
+        [180, -90], [-180, -90]
+      ]);
+      // Greenland
+      drawPolygon([
+        [-55, 60], [-20, 70], [-25, 82], [-60, 82], [-55, 60]
+      ]);
 
-      const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 1000);
-      camera.position.set(0, 0, 5.8);
-      camera.lookAt(0, 0, 0);
-
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
-      renderer.setSize(width, height);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      container.appendChild(renderer.domElement);
-
-      // Deep Space Starfield
-      const starGeo = new THREE.BufferGeometry();
-      const starCount = 2000;
-      const starPositions = new Float32Array(starCount * 3);
-      for (let i = 0; i < starCount * 3; i += 3) {
-        starPositions[i] = (Math.random() - 0.5) * 140;
-        starPositions[i + 1] = (Math.random() - 0.5) * 140;
-        starPositions[i + 2] = (Math.random() - 0.5) * 140;
-      }
-      starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-      const starMat = new THREE.PointsMaterial({
-        color: 0x93c5fd,
-        size: 0.07,
-        transparent: true,
-        opacity: 0.75,
+      // 3. Night-side City Light Clusters
+      ctx.fillStyle = '#ffdf7a';
+      const cityClusters: [number, number, number][] = [
+        [-74, 40, 2.5], [-118, 34, 2.0], [-0.1, 51.5, 2.5], [2.3, 48.8, 2.0],
+        [139, 35.6, 2.8], [116, 39.9, 2.5], [121, 31.2, 2.5], [77, 28.6, 2.5],
+        [72.8, 19, 2.0], [55, 25, 2.0], [31.2, 30, 2.0], [-43, -22.9, 2.0],
+        [151, -33.8, 2.0], [37.6, 55.7, 2.5]
+      ];
+      cityClusters.forEach(([lon, lat, r]) => {
+        const cx = (lon / 360) * canvas.width;
+        const cy = ((90 - lat) / 180) * canvas.height;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
       });
-      scene.add(new THREE.Points(starGeo, starMat));
-
-      // 2. Earth Axial Tilt (23.44° = 0.409 rad)
-      const earthAxisTiltGroup = new THREE.Group();
-      earthAxisTiltGroup.rotation.z = -0.409;
-      scene.add(earthAxisTiltGroup);
-
-      const earthSpinGroup = new THREE.Group();
-      earthAxisTiltGroup.add(earthSpinGroup);
-
-      // High-Fidelity Earth Map Texture (Dark Navy Ocean + Clean Continents)
-      const earthCanvas = document.createElement('canvas');
-      earthCanvas.width = 2048;
-      earthCanvas.height = 1024;
-      const ctx = earthCanvas.getContext('2d');
-      if (ctx) {
-        // Deep oceanic blue
-        const oceanGrad = ctx.createLinearGradient(0, 0, 0, 1024);
-        oceanGrad.addColorStop(0, '#02091c');
-        oceanGrad.addColorStop(0.5, '#051636');
-        oceanGrad.addColorStop(1, '#02091c');
-        ctx.fillStyle = oceanGrad;
-        ctx.fillRect(0, 0, 2048, 1024);
-
-        // Faint latitude/longitude grid
-        ctx.strokeStyle = 'rgba(14, 165, 233, 0.1)';
-        ctx.lineWidth = 1;
-        for (let lat = 64; lat < 1024; lat += 64) {
-          ctx.beginPath();
-          ctx.moveTo(0, lat);
-          ctx.lineTo(2048, lat);
-          ctx.stroke();
-        }
-        for (let lon = 64; lon < 2048; lon += 64) {
-          ctx.beginPath();
-          ctx.moveTo(lon, 0);
-          ctx.lineTo(lon, 1024);
-          ctx.stroke();
-        }
-
-        // Continental landmasses
-        ctx.fillStyle = '#0f2c4d';
-        ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
-        ctx.lineWidth = 1.8;
-
-        // North America
-        ctx.beginPath();
-        ctx.moveTo(280, 200);
-        ctx.bezierCurveTo(340, 120, 520, 130, 600, 240);
-        ctx.bezierCurveTo(620, 320, 560, 420, 520, 480);
-        ctx.bezierCurveTo(460, 520, 440, 460, 400, 440);
-        ctx.bezierCurveTo(320, 400, 240, 320, 280, 200);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // Greenland
-        ctx.beginPath();
-        ctx.ellipse(680, 160, 90, 70, -0.3, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        // South America
-        ctx.beginPath();
-        ctx.moveTo(560, 520);
-        ctx.bezierCurveTo(680, 540, 740, 640, 680, 780);
-        ctx.bezierCurveTo(640, 880, 580, 920, 540, 860);
-        ctx.bezierCurveTo(500, 760, 480, 620, 560, 520);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // Eurasia
-        ctx.beginPath();
-        ctx.moveTo(960, 240);
-        ctx.bezierCurveTo(1100, 160, 1400, 140, 1650, 220);
-        ctx.bezierCurveTo(1800, 280, 1750, 440, 1600, 480);
-        ctx.bezierCurveTo(1480, 520, 1380, 620, 1300, 580);
-        ctx.bezierCurveTo(1240, 540, 1160, 420, 1080, 400);
-        ctx.bezierCurveTo(980, 420, 920, 320, 960, 240);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // Africa
-        ctx.beginPath();
-        ctx.moveTo(1020, 430);
-        ctx.bezierCurveTo(1160, 420, 1240, 520, 1200, 680);
-        ctx.bezierCurveTo(1160, 800, 1080, 840, 1040, 760);
-        ctx.bezierCurveTo(980, 680, 940, 520, 1020, 430);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        // Australia
-        ctx.beginPath();
-        ctx.ellipse(1680, 720, 110, 85, -0.15, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        // Antarctica
-        ctx.beginPath();
-        ctx.ellipse(1024, 980, 850, 65, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        // City Lights
-        ctx.fillStyle = 'rgba(253, 224, 71, 0.85)';
-        const lights = [
-          [420, 320], [460, 360], [520, 340], [380, 380], [450, 280],
-          [1040, 280], [1090, 260], [1140, 290], [1220, 300], [1280, 320],
-          [1520, 380], [1580, 400], [1620, 360], [1480, 480],
-          [620, 640], [660, 720], [1080, 520], [1120, 780], [1640, 720],
-        ];
-        lights.forEach(([x, y]) => {
-          ctx.beginPath();
-          ctx.arc(x, y, 3, 0, Math.PI * 2);
-          ctx.fill();
-        });
-      }
-
-      const earthTexture = new THREE.CanvasTexture(earthCanvas);
-      const earthRadius = 1.75;
-
-      const earthGeo = new THREE.SphereGeometry(earthRadius, 64, 64);
-      const earthMat = new THREE.MeshStandardMaterial({
-        map: earthTexture,
-        roughness: 0.65,
-        metalness: 0.2,
-      });
-      earthSpinGroup.add(new THREE.Mesh(earthGeo, earthMat));
-
-      // Atmospheric Rayleigh Rim (Clean NASA Blue Glow)
-      const atmoGeo = new THREE.SphereGeometry(earthRadius + 0.08, 48, 48);
-      const atmoMat = new THREE.MeshBasicMaterial({
-        color: 0x00e5ff,
-        transparent: true,
-        opacity: 0.22,
-        side: THREE.BackSide,
-      });
-      earthAxisTiltGroup.add(new THREE.Mesh(atmoGeo, atmoMat));
-
-      // Earth Label
-      const earthLabel = createTextSprite('E A R T H', '#00e5ff', 0.8, 0.2);
-      earthLabel.position.set(0, earthRadius + 0.42, 0);
-      earthAxisTiltGroup.add(earthLabel);
-
-      // Space Lighting
-      scene.add(new THREE.AmbientLight(0xffffff, 0.85));
-      const sunLight = new THREE.DirectionalLight(0xffffff, 2.8);
-      sunLight.position.set(8, 4, 7);
-      scene.add(sunLight);
-
-      // Shared refs
-      const raycastTargets: any[] = [];
-      const globalOrbitLines: any[] = [];
-
-      interface TrackedSat extends SatelliteInfo {
-        orbitRadius: number;
-        trueAnomaly: number;
-        meanMotion: number;
-        mesh: any;
-        group: any;
-        orbitLine?: any;
-      }
-      const activeSats: TrackedSat[] = [];
-
-      // =======================================================================
-      // MODE A: REAL-TIME LEO MODE (CLEAN, ORGANIZED, NO CLUTTER)
-      // =======================================================================
-      if (dataset === 'REALTIME') {
-        // Define 4 clean, authentic constellation planes
-        const constellationPlanes = [
-          { name: 'Starlink Shell 1', inc: 53.0, altKm: 550, color: 0x00e5ff, satsCount: 16 },
-          { name: 'ISS / Commercial Shell', inc: 51.6, altKm: 420, color: 0xfacc15, satsCount: 8 },
-          { name: 'OneWeb Polar Shell', inc: 87.9, altKm: 1200, color: 0x38bdf8, satsCount: 10 },
-          { name: 'Sun-Synchronous Polar', inc: 97.5, altKm: 705, color: 0x10b981, satsCount: 10 },
-        ];
-
-        // Gather real satellite names from backend encounters
-        const backendNames: string[] = [];
-        if (encounters && encounters.length > 0) {
-          encounters.forEach((e) => {
-            if (e.sat_a_name) backendNames.push(e.sat_a_name);
-            if (e.sat_b_name) backendNames.push(e.sat_b_name);
-          });
-        }
-
-        const satGeometry = new THREE.SphereGeometry(0.025, 8, 8); // Small, elegant points
-
-        constellationPlanes.forEach((plane, planeIdx) => {
-          const incRad = (plane.inc * Math.PI) / 180;
-          const orbitRadius = earthRadius + (plane.altKm / 6371) * 0.95;
-          const meanMotion = 0.007 * Math.pow(earthRadius / orbitRadius, 1.5);
-
-          const planeGroup = new THREE.Group();
-          planeGroup.rotation.x = incRad;
-          planeGroup.rotation.y = (planeIdx * Math.PI) / 2;
-
-          // Subtle, faint constellation orbit guide line
-          const curve = new THREE.EllipseCurve(0, 0, orbitRadius, orbitRadius, 0, 2 * Math.PI, false, 0);
-          const pts = curve.getPoints(96);
-          const pathGeo = new THREE.BufferGeometry().setFromPoints(
-            pts.map((p) => new THREE.Vector3(p.x, 0, p.y))
-          );
-          const pathLine = new THREE.Line(
-            pathGeo,
-            new THREE.LineBasicMaterial({
-              color: plane.color,
-              transparent: true,
-              opacity: showOrbits ? 0.15 : 0.0,
-            })
-          );
-          planeGroup.add(pathLine);
-          globalOrbitLines.push(pathLine);
-
-          for (let s = 0; s < plane.satsCount; s++) {
-            const startAnomaly = (s / plane.satsCount) * Math.PI * 2;
-            const satIndex = planeIdx * 12 + s;
-            const satName = backendNames[satIndex % Math.max(1, backendNames.length)] || `LEO-SAT-${25000 + satIndex}`;
-            const isSelected = selectedSatName === satName;
-
-            const satMesh = new THREE.Mesh(
-              satGeometry,
-              new THREE.MeshBasicMaterial({ color: isSelected ? 0xffffff : plane.color })
-            );
-
-            // Specific highlight for ISS
-            if (plane.inc === 51.6 && s === 0) {
-              const issLabel = createTextSprite('ISS (ZARYA)', '#facc15', 0.8, 0.2);
-              issLabel.position.set(0, 0.12, 0);
-              satMesh.add(issLabel);
-            }
-
-            planeGroup.add(satMesh);
-
-            // Hitbox for clean raycasting
-            const hitMesh = new THREE.Mesh(
-              new THREE.SphereGeometry(0.08, 8, 8),
-              new THREE.MeshBasicMaterial({ visible: false })
-            );
-            satMesh.add(hitMesh);
-
-            const satInfo: TrackedSat = {
-              name: satName,
-              noradId: 25000 + satIndex,
-              altitudeKm: plane.altKm,
-              inclinationDeg: plane.inc,
-              velocityKms: 7.66 * Math.sqrt(earthRadius / orbitRadius),
-              status: isSelected ? 'CRITICAL' : 'NOMINAL',
-              operator: plane.name,
-              orbitRadius,
-              trueAnomaly: startAnomaly,
-              meanMotion,
-              mesh: satMesh,
-              group: planeGroup,
-              orbitLine: pathLine,
-            };
-
-            hitMesh.userData = { satInfo };
-            raycastTargets.push(hitMesh);
-            activeSats.push(satInfo);
-          }
-
-          scene.add(planeGroup);
-        });
-      }
-
-      // =======================================================================
-      // MODE B: HISTORICAL ACCIDENT (ISOLATE ONLY IRIDIUM 33 & COSMOS 2251)
-      // =======================================================================
-      let accidentGroup: any = null;
-      let shockwaveRing: any = null;
-      let thrusterPlume: any = null;
-
-      if (dataset === 'ACCIDENT') {
-        accidentGroup = new THREE.Group();
-
-        const collisionRadius = earthRadius + (790 / 6371) * 0.95;
-        const latRad = (72 * Math.PI) / 180; // 72° N Siberia
-        const lonRad = (95 * Math.PI) / 180; // 95° E
-
-        const collisionSitePos = new THREE.Vector3(
-          collisionRadius * Math.cos(latRad) * Math.cos(lonRad),
-          collisionRadius * Math.sin(latRad),
-          collisionRadius * Math.cos(latRad) * Math.sin(lonRad)
-        );
-
-        // --- ORBIT 1: COSMOS 2251 (74.0° Polar Russian Orbit) ---
-        const cosmosOrbitGroup = new THREE.Group();
-        cosmosOrbitGroup.rotation.x = (74.0 * Math.PI) / 180;
-        cosmosOrbitGroup.rotation.y = 0.55;
-        const cosmosCurve = new THREE.EllipseCurve(0, 0, collisionRadius, collisionRadius, 0, 2 * Math.PI, false, 0);
-        const cosmosLine = new THREE.Line(
-          new THREE.BufferGeometry().setFromPoints(cosmosCurve.getPoints(96).map((p) => new THREE.Vector3(p.x, 0, p.y))),
-          new THREE.LineBasicMaterial({ color: 0xf59e0b, transparent: true, opacity: 0.4 })
-        );
-        cosmosOrbitGroup.add(cosmosLine);
-        scene.add(cosmosOrbitGroup);
-        globalOrbitLines.push(cosmosLine);
-
-        // --- ORBIT 2: IRIDIUM 33 (86.4° Polar American Commercial Orbit) ---
-        const iridiumOrbitGroup = new THREE.Group();
-        iridiumOrbitGroup.rotation.x = (86.4 * Math.PI) / 180;
-        iridiumOrbitGroup.rotation.y = 2.15;
-        const iridiumRadius = avoidanceActive ? collisionRadius + 0.16 : collisionRadius;
-        const iridiumCurve = new THREE.EllipseCurve(0, 0, iridiumRadius, iridiumRadius, 0, 2 * Math.PI, false, 0);
-        const iridiumLine = new THREE.Line(
-          new THREE.BufferGeometry().setFromPoints(iridiumCurve.getPoints(96).map((p) => new THREE.Vector3(p.x, 0, p.y))),
-          new THREE.LineBasicMaterial({ color: avoidanceActive ? 0x00e676 : 0xef4444, transparent: true, opacity: 0.5 })
-        );
-        iridiumOrbitGroup.add(iridiumLine);
-        scene.add(iridiumOrbitGroup);
-        globalOrbitLines.push(iridiumLine);
-
-        // Spacecraft 1: COSMOS 2251 (Defunct Strela-2M)
-        const cosmosMesh = new THREE.Group();
-        cosmosMesh.position.copy(collisionSitePos);
-        cosmosMesh.add(new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.08, 12), new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.9, roughness: 0.2 })));
-        cosmosMesh.add(new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.14, 6), new THREE.MeshBasicMaterial({ color: 0xf59e0b })));
-        const cosmosLabel = createTextSprite('COSMOS 2251 (DEFUNCT)', '#f59e0b', 0.9, 0.2);
-        cosmosLabel.position.set(0, 0.16, 0);
-        cosmosMesh.add(cosmosLabel);
-        accidentGroup.add(cosmosMesh);
-
-        // Spacecraft 2: IRIDIUM 33 (Active Satellite)
-        const iridiumMesh = new THREE.Group();
-        let iridiumPos = collisionSitePos.clone();
-
-        if (avoidanceActive) {
-          // ESCAPED TRAJECTORY: Elevated safely +24.85 km along escape vector
-          iridiumPos = collisionSitePos.clone().multiplyScalar(1.08).add(new THREE.Vector3(0.2, 0.18, -0.12));
-          iridiumMesh.position.copy(iridiumPos);
-
-          iridiumMesh.add(new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.035, 0.035), new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.8, roughness: 0.1 })));
-          iridiumMesh.add(new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.005, 0.05), new THREE.MeshStandardMaterial({ color: 0x0284c7, metalness: 0.9, roughness: 0.1 })));
-
-          // Hydrazine Thruster Plume Flame
-          const plumeGeo = new THREE.ConeGeometry(0.03, 0.12, 8);
-          const plumeMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.9 });
-          thrusterPlume = new THREE.Mesh(plumeGeo, plumeMat);
-          thrusterPlume.position.copy(iridiumPos);
-          thrusterPlume.lookAt(collisionSitePos);
-          accidentGroup.add(thrusterPlume);
-
-          const iriLabel = createTextSprite('IRIDIUM 33 (ESCAPED)', '#00e676', 1.1, 0.22);
-          iriLabel.position.set(0, 0.18, 0);
-          iridiumMesh.add(iriLabel);
-
-          // Single, crisp green clearance laser measurement line
-          const lineGeo = new THREE.BufferGeometry().setFromPoints([collisionSitePos, iridiumPos]);
-          const clearanceLine = new THREE.Line(
-            lineGeo,
-            new THREE.LineDashedMaterial({ color: 0x00e676, dashSize: 0.04, gapSize: 0.02 })
-          );
-          clearanceLine.computeLineDistances();
-          accidentGroup.add(clearanceLine);
-
-          // Distance badge
-          const midPos = collisionSitePos.clone().lerp(iridiumPos, 0.5).add(new THREE.Vector3(0.05, 0.05, 0));
-          const badge = createTextSprite('CLEARANCE: 24.85 KM (AVERTED)', '#00e676', 1.2, 0.22);
-          badge.position.copy(midPos);
-          accidentGroup.add(badge);
-
-        } else {
-          // UNMITIGATED IMPACT POINT (0.58 km Catastrophic Collision)
-          iridiumPos = collisionSitePos.clone().add(new THREE.Vector3(0.015, 0.01, -0.01));
-          iridiumMesh.position.copy(iridiumPos);
-          iridiumMesh.add(new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.035, 0.035), new THREE.MeshStandardMaterial({ color: 0xef4444 })));
-          const iriLabel = createTextSprite('IRIDIUM 33', '#ef4444', 0.8, 0.2);
-          iriLabel.position.set(0, 0.16, 0);
-          iridiumMesh.add(iriLabel);
-
-          // Single Shockwave Ring
-          const swGeo = new THREE.RingGeometry(0.12, 0.17, 32);
-          const swMat = new THREE.MeshBasicMaterial({ color: 0xff9100, side: THREE.DoubleSide, transparent: true, opacity: 0.9 });
-          shockwaveRing = new THREE.Mesh(swGeo, swMat);
-          shockwaveRing.position.copy(collisionSitePos);
-          shockwaveRing.lookAt(0, 0, 0);
-          accidentGroup.add(shockwaveRing);
-
-          const impactLabel = createTextSprite('IMPACT SITE (790 KM)', '#ef4444', 1.1, 0.22);
-          impactLabel.position.copy(collisionSitePos).add(new THREE.Vector3(0, 0.25, 0));
-          accidentGroup.add(impactLabel);
-        }
-
-        accidentGroup.add(iridiumMesh);
-        scene.add(accidentGroup);
-      }
-
-      // =======================================================================
-      // CAMERA CONTROLLER (INTERPOLATED & ROBUST)
-      // =======================================================================
-      let isDragging = false;
-      let prevMouse = { x: 0, y: 0 };
-
-      // Initialize clean camera angles
-      let sphericalYaw = dataset === 'ACCIDENT' ? 1.45 : 0.4;
-      let sphericalPitch = dataset === 'ACCIDENT' ? 0.78 : 0.25;
-      let targetYaw = sphericalYaw;
-      let targetPitch = sphericalPitch;
-      let cameraDistance = dataset === 'ACCIDENT' ? 3.6 : 5.8;
-
-      // Assign robust camera controller
-      cameraControlRef.current = {
-        reset: () => {
-          targetYaw = 0.4;
-          targetPitch = 0.25;
-          cameraDistance = 5.8;
-        },
-        zoomIn: () => {
-          cameraDistance = Math.max(2.0, cameraDistance - 0.7);
-        },
-        zoomOut: () => {
-          cameraDistance = Math.min(9.5, cameraDistance + 0.7);
-        },
-        focusTarget: () => {
-          targetYaw = 1.45;
-          targetPitch = 0.78;
-          cameraDistance = 3.4;
-        },
-        toggleOrbits: (show: boolean) => {
-          globalOrbitLines.forEach((line) => {
-            if (line && line.material) {
-              line.material.opacity = show ? 0.15 : 0.0;
-            }
-          });
-        },
-      };
-
-      const onMouseDown = (e: MouseEvent) => {
-        isDragging = true;
-        prevMouse = { x: e.clientX, y: e.clientY };
-      };
-
-      const onMouseMove = (e: MouseEvent) => {
-        const rect = renderer.domElement.getBoundingClientRect();
-        const mouseNormX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-        const mouseNormY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-        if (isDragging) {
-          const deltaX = e.clientX - prevMouse.x;
-          const deltaY = e.clientY - prevMouse.y;
-          targetYaw += deltaX * 0.005;
-          targetPitch = Math.max(-1.45, Math.min(1.45, targetPitch + deltaY * 0.005));
-          prevMouse = { x: e.clientX, y: e.clientY };
-        } else if (raycastTargets.length > 0) {
-          const raycaster = new THREE.Raycaster();
-          raycaster.setFromCamera(new THREE.Vector2(mouseNormX, mouseNormY), camera);
-          const intersects = raycaster.intersectObjects(raycastTargets);
-
-          if (intersects.length > 0) {
-            const hitSat: TrackedSat = intersects[0].object.userData.satInfo;
-            if (hitSat) {
-              setHoveredSat({
-                name: hitSat.name,
-                noradId: hitSat.noradId,
-                altitudeKm: hitSat.altitudeKm,
-                velocityKms: hitSat.velocityKms,
-                inclinationDeg: hitSat.inclinationDeg,
-                status: hitSat.status,
-                operator: hitSat.operator,
-                screenX: e.clientX - rect.left,
-                screenY: e.clientY - rect.top,
-              });
-            }
-          } else {
-            setHoveredSat(null);
-          }
-        }
-      };
-
-      const onClick = (e: MouseEvent) => {
-        const rect = renderer.domElement.getBoundingClientRect();
-        const mouseNormX = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-        const mouseNormY = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-        if (raycastTargets.length > 0) {
-          const raycaster = new THREE.Raycaster();
-          raycaster.setFromCamera(new THREE.Vector2(mouseNormX, mouseNormY), camera);
-          const intersects = raycaster.intersectObjects(raycastTargets);
-
-          if (intersects.length > 0) {
-            const hitSat: TrackedSat = intersects[0].object.userData.satInfo;
-            if (hitSat && onSelectSat) {
-              onSelectSat(hitSat);
-            }
-          }
-        }
-      };
-
-      const onMouseUp = () => {
-        isDragging = false;
-      };
-
-      const onWheel = (e: WheelEvent) => {
-        e.preventDefault();
-        cameraDistance = Math.max(2.0, Math.min(9.5, cameraDistance + e.deltaY * 0.0035));
-      };
-
-      const dom = renderer.domElement;
-      dom.addEventListener('mousedown', onMouseDown);
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
-      dom.addEventListener('click', onClick);
-      dom.addEventListener('wheel', onWheel, { passive: false });
-
-      const onResize = () => {
-        if (!container) return;
-        width = container.clientWidth;
-        height = container.clientHeight;
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-        renderer.setSize(width, height);
-      };
-      window.addEventListener('resize', onResize);
-
-      // Animation Loop
-      let clock = 0;
-      const animate = () => {
-        animId = requestAnimationFrame(animate);
-
-        const delta = isPaused ? 0 : 0.016 * playbackSpeed;
-        clock += delta;
-
-        // Auto slow planetary rotation only in Realtime mode
-        if (!isDragging && !isPaused && dataset === 'REALTIME') {
-          targetYaw += 0.0008 * playbackSpeed;
-        }
-
-        sphericalYaw += (targetYaw - sphericalYaw) * 0.08;
-        sphericalPitch += (targetPitch - sphericalPitch) * 0.08;
-
-        camera.position.x = cameraDistance * Math.sin(sphericalYaw) * Math.cos(sphericalPitch);
-        camera.position.y = cameraDistance * Math.sin(sphericalPitch);
-        camera.position.z = cameraDistance * Math.cos(sphericalYaw) * Math.cos(sphericalPitch);
-        camera.lookAt(0, 0, 0);
-
-        if (!isPaused) {
-          earthSpinGroup.rotation.y += 0.001 * playbackSpeed;
-
-          // Propagate real satellites smoothly
-          activeSats.forEach((sat) => {
-            sat.trueAnomaly += sat.meanMotion * playbackSpeed;
-            const x = Math.cos(sat.trueAnomaly) * sat.orbitRadius;
-            const z = Math.sin(sat.trueAnomaly) * sat.orbitRadius;
-            sat.mesh.position.set(x, 0, z);
-          });
-        }
-
-        // Pulse thruster plume in avoidance mode
-        if (thrusterPlume) {
-          const plumeScale = 1 + Math.sin(clock * 16) * 0.3;
-          thrusterPlume.scale.set(plumeScale, plumeScale * 1.25, plumeScale);
-        }
-
-        // Pulse shockwave ring in unmitigated accident mode
-        if (shockwaveRing) {
-          const swScale = 1 + (Math.sin(clock * 3.5) + 1) * 0.4;
-          shockwaveRing.scale.set(swScale, swScale, swScale);
-          shockwaveRing.material.opacity = Math.max(0.15, 1 - (swScale - 1) * 0.9);
-        }
-
-        renderer.render(scene, camera);
-      };
-
-      animate();
-
-      return () => {
-        cancelAnimationFrame(animId);
-        window.removeEventListener('resize', onResize);
-        window.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('mouseup', onMouseUp);
-        dom.removeEventListener('mousedown', onMouseDown);
-        dom.removeEventListener('click', onClick);
-        dom.removeEventListener('wheel', onWheel);
-        if (renderer && renderer.domElement) {
-          container.removeChild(renderer.domElement);
-          renderer.dispose();
-        }
-      };
+    }
+
+    const earthTexture = new THREE.CanvasTexture(canvas);
+    earthTexture.wrapS = THREE.RepeatWrapping;
+    earthTexture.wrapT = THREE.ClampToEdgeWrapping;
+
+    // Earth Sphere (Radius 1.0)
+    const earthGeo = new THREE.SphereGeometry(1.0, 64, 64);
+    const earthMat = new THREE.MeshStandardMaterial({
+      map: earthTexture,
+      roughness: 0.85,
+      metalness: 0.12,
+    });
+    const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+    // Earth's authentic 23.44° axial tilt
+    earthMesh.rotation.z = (23.44 * Math.PI) / 180;
+    scene.add(earthMesh);
+
+    // Atmosphere Rayleigh Glow Shell (Radius 1.02)
+    const atmosphereGeo = new THREE.SphereGeometry(1.022, 64, 64);
+    const atmosphereMat = new THREE.MeshPhongMaterial({
+      color: 0x00e5ff,
+      emissive: 0x00e5ff,
+      emissiveIntensity: 0.09,
+      transparent: true,
+      opacity: 0.06,
+      side: THREE.BackSide,
+      blending: THREE.AdditiveBlending,
+    });
+    const atmosphereMesh = new THREE.Mesh(atmosphereGeo, atmosphereMat);
+    scene.add(atmosphereMesh);
+
+    // Atmospheric Outer Rim
+    const rimGeo = new THREE.SphereGeometry(1.045, 32, 32);
+    const rimMat = new THREE.MeshBasicMaterial({
+      color: 0x00e5ff,
+      transparent: true,
+      opacity: 0.025,
+      side: THREE.BackSide,
+      blending: THREE.AdditiveBlending,
+    });
+    const rimMesh = new THREE.Mesh(rimGeo, rimMat);
+    scene.add(rimMesh);
+
+    // --- SATELLITES DATA INITIALIZATION ---
+    // Clamped strictly to orbital radius; fixed inclination, RAAN, and plane Euler
+    const orbits: OrbitDefinition[] = [];
+    const satOctahedronGeo = new THREE.OctahedronGeometry(0.013, 0);
+
+    // Common materials for performance
+    const criticalMat = new THREE.MeshStandardMaterial({
+      color: 0xef4444,
+      emissive: 0xef4444,
+      emissiveIntensity: 0.7,
+      roughness: 0.3,
+    });
+    const cautionMat = new THREE.MeshStandardMaterial({
+      color: 0xf59e0b,
+      emissive: 0xf59e0b,
+      emissiveIntensity: 0.65,
+      roughness: 0.3,
+    });
+    const nominalMat = new THREE.MeshStandardMaterial({
+      color: 0x00e5ff,
+      emissive: 0x00e5ff,
+      emissiveIntensity: 0.6,
+      roughness: 0.3,
+    });
+    const avoidanceEscapeMat = new THREE.MeshStandardMaterial({
+      color: 0x10b981,
+      emissive: 0x10b981,
+      emissiveIntensity: 0.8,
+      roughness: 0.2,
     });
 
-    return () => {
-      cancelAnimationFrame(animId);
+    const isAccident = dataset === 'ACCIDENT';
+
+    // Clearance Vector Line (ACCIDENT mode avoidance)
+    const clearanceVectorGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+    const clearanceVectorMat = new THREE.LineBasicMaterial({
+      color: 0x10b981,
+      transparent: true,
+      opacity: 0,
+      linewidth: 2,
+    });
+    const clearanceVectorLine = new THREE.Line(clearanceVectorGeo, clearanceVectorMat);
+    scene.add(clearanceVectorLine);
+
+    if (isAccident) {
+      // --- ISOLATE ONLY IRIDIUM 33 AND COSMOS 2251 ---
+      // 1. Iridium 33 (Active LEO Commercial Satellite, 86.4° polar)
+      const iridRadius = 1.0 + (780 / 6371.0) * 0.7; // ~1.0857
+      const iridInc = (86.4 * Math.PI) / 180;
+      const iridRaan = 0.45;
+      const iridEuler = new THREE.Euler(iridInc, iridRaan, 0, 'YXZ');
+
+      const iridMesh = new THREE.Mesh(satOctahedronGeo, criticalMat.clone());
+      iridMesh.rotation.set(0.785, 0.785, 0);
+      iridMesh.userData = {
+        encounterIndex: 0,
+        isIridium: true,
+      };
+      scene.add(iridMesh);
+
+      // 90° Trailing Arc
+      const trailPointsIrid = 36;
+      const trailGeoIrid = new THREE.BufferGeometry().setFromPoints(
+        new Array(trailPointsIrid).fill(0).map(() => new THREE.Vector3())
+      );
+      const trailMatIrid = new THREE.LineBasicMaterial({
+        color: 0xef4444,
+        transparent: true,
+        opacity: 0.45,
+      });
+      const trailLineIrid = new THREE.Line(trailGeoIrid, trailMatIrid);
+      scene.add(trailLineIrid);
+
+      orbits.push({
+        mesh: iridMesh,
+        trailLine: trailLineIrid,
+        radius: iridRadius,
+        inclination: iridInc,
+        raan: iridRaan,
+        planeEuler: iridEuler,
+        theta: 0.0,
+        speed: 0.0035,
+        encounterIndex: 0,
+        info: {
+          name: 'IRIDIUM 33',
+          noradId: 24946,
+          altitudeKm: 780,
+          velocityKms: 7.46,
+          inclinationDeg: 86.4,
+          status: 'CRITICAL',
+          operator: 'Iridium Satellite LLC',
+          satBName: 'COSMOS 2251',
+          missDistanceKm: 0.012,
+          relVelocityKms: 11.7,
+        },
+      });
+
+      // 2. Cosmos 2251 (Derelict Russian Military Satellite, 74.0° polar crossing)
+      const cosmosRadius = 1.0 + (780 / 6371.0) * 0.7;
+      const cosmosInc = (74.0 * Math.PI) / 180;
+      const cosmosRaan = 2.05;
+      const cosmosEuler = new THREE.Euler(cosmosInc, cosmosRaan, 0, 'YXZ');
+
+      const cosmosMesh = new THREE.Mesh(satOctahedronGeo, criticalMat.clone());
+      cosmosMesh.rotation.set(0.785, 0.785, 0);
+      cosmosMesh.userData = {
+        encounterIndex: 0,
+        isCosmos: true,
+      };
+      scene.add(cosmosMesh);
+
+      const trailGeoCosmos = new THREE.BufferGeometry().setFromPoints(
+        new Array(trailPointsIrid).fill(0).map(() => new THREE.Vector3())
+      );
+      const trailMatCosmos = new THREE.LineBasicMaterial({
+        color: 0xef4444,
+        transparent: true,
+        opacity: 0.45,
+      });
+      const trailLineCosmos = new THREE.Line(trailGeoCosmos, trailMatCosmos);
+      scene.add(trailLineCosmos);
+
+      orbits.push({
+        mesh: cosmosMesh,
+        trailLine: trailLineCosmos,
+        radius: cosmosRadius,
+        inclination: cosmosInc,
+        raan: cosmosRaan,
+        planeEuler: cosmosEuler,
+        theta: Math.PI * 0.98,
+        speed: 0.0035,
+        encounterIndex: 0,
+        info: {
+          name: 'COSMOS 2251',
+          noradId: 22675,
+          altitudeKm: 780,
+          velocityKms: 7.46,
+          inclinationDeg: 74.0,
+          status: 'CRITICAL',
+          operator: 'Russian Space Forces (Derelict)',
+          satBName: 'IRIDIUM 33',
+          missDistanceKm: 0.012,
+          relVelocityKms: 11.7,
+        },
+      });
+
+      // Collision point in space (intersection of both orbits)
+      collisionPointLight.position.set(0.15, 0.95, 0.35);
+      collisionPointLight.intensity = 2.5;
+    } else {
+      // --- REALTIME TELEMETRY SATELLITES (Bounded strictly by encounterCount) ---
+      const totalSats = Math.min(500, Math.max(10, encounterCount));
+      const trailPointsCount = 24;
+
+      for (let i = 0; i < totalSats; i++) {
+        const enc = encounters[i] || {};
+        const risk = (enc.risk_category || enc.riskCategory || (i % 9 === 0 ? 'CRITICAL' : i % 3 === 0 ? 'CAUTION' : 'NOMINAL')) as 'NOMINAL' | 'CAUTION' | 'CRITICAL';
+        const mat = risk === 'CRITICAL' ? criticalMat : risk === 'CAUTION' ? cautionMat : nominalMat;
+
+        const mesh = new THREE.Mesh(satOctahedronGeo, mat);
+        mesh.rotation.set(0.785, 0.785, 0);
+        mesh.userData = { encounterIndex: i };
+        scene.add(mesh);
+
+        // Precompute fixed orbital elements
+        const altKm = enc.satAAltitude || 400 + (i % 16) * 45;
+        const radius = 1.0 + (altKm / 6371.0) * 0.7; // Clamped in range ~1.04 to ~1.15
+        const incDeg = enc.satAInclination || 35 + ((i * 29) % 63);
+        const inclination = (incDeg * Math.PI) / 180;
+        const raan = ((i * 137.5) * Math.PI) / 180; // Golden angle distribution
+        const planeEuler = new THREE.Euler(inclination, raan, 0, 'YXZ');
+        const theta = ((i * 53.7) * Math.PI) / 180;
+        const speed = 0.0012 + (i % 7) * 0.0002;
+
+        // Trailing arc (last 90° of orbit)
+        const trailGeo = new THREE.BufferGeometry().setFromPoints(
+          new Array(trailPointsCount).fill(0).map(() => new THREE.Vector3())
+        );
+        const trailColor = risk === 'CRITICAL' ? 0xef4444 : risk === 'CAUTION' ? 0xf59e0b : 0x00e5ff;
+        const trailMat = new THREE.LineBasicMaterial({
+          color: trailColor,
+          transparent: true,
+          opacity: 0.22,
+        });
+        const trailLine = new THREE.Line(trailGeo, trailMat);
+        scene.add(trailLine);
+
+        const satInfo: SatelliteInfo = {
+          name: enc.satAName || enc.sat_a_name || `OBJECT-${24000 + i}`,
+          noradId: enc.satANorad || enc.sat_a_norad || (24000 + i),
+          altitudeKm: altKm,
+          velocityKms: enc.satAVelocity || 7.5 + (i % 5) * 0.1,
+          inclinationDeg: incDeg,
+          status: risk,
+          operator: enc.satAOperator || enc.sat_a_operator || 'LEO Constellation',
+          satBName: enc.satBName || enc.sat_b_name,
+          missDistanceKm: enc.missDistanceKm || enc.miss_distance_km,
+          relVelocityKms: enc.relVelocityKms || enc.rel_velocity_kms,
+        };
+
+        orbits.push({
+          mesh,
+          trailLine,
+          radius,
+          inclination,
+          raan,
+          planeEuler,
+          theta,
+          speed,
+          encounterIndex: i,
+          info: satInfo,
+        });
+      }
+    }
+
+    // --- INTERACTION & RAYCASTING ---
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2(-999, -999);
+    let isDragging = false;
+    let prevMouseX = 0;
+    let prevMouseY = 0;
+    let spherical = {
+      radius: defaultCamPos.length(),
+      theta: Math.atan2(defaultCamPos.x, defaultCamPos.z),
+      phi: Math.acos(defaultCamPos.y / defaultCamPos.length()),
     };
-  }, [dataset, encounters, avoidanceActive]);
 
-  // Handle external camera triggers from right side buttons
-  useEffect(() => {
-    if (!cameraTrigger || !cameraControlRef.current) return;
-    if (cameraTrigger.type === 'reset') {
-      cameraControlRef.current.reset();
-    } else if (cameraTrigger.type === 'zoomin') {
-      cameraControlRef.current.zoomIn();
-    } else if (cameraTrigger.type === 'zoomout') {
-      cameraControlRef.current.zoomOut();
-    } else if (cameraTrigger.type === 'focus') {
-      cameraControlRef.current.focusTarget();
-    }
-  }, [cameraTrigger]);
+    const updateCameraFromSpherical = () => {
+      spherical.radius = Math.max(1.35, Math.min(6.5, spherical.radius));
+      spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+      camera.position.x = spherical.radius * Math.sin(spherical.phi) * Math.sin(spherical.theta);
+      camera.position.y = spherical.radius * Math.cos(spherical.phi);
+      camera.position.z = spherical.radius * Math.sin(spherical.phi) * Math.cos(spherical.theta);
+      camera.lookAt(0, 0, 0);
+    };
 
-  // Toggle orbit line visibility
-  useEffect(() => {
-    if (cameraControlRef.current) {
-      cameraControlRef.current.toggleOrbits(showOrbits);
-    }
-  }, [showOrbits]);
+    const onMouseDown = (e: MouseEvent) => {
+      isDragging = true;
+      prevMouseX = e.clientX;
+      prevMouseY = e.clientY;
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      const rect = container.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      if (isDragging) {
+        const dx = e.clientX - prevMouseX;
+        const dy = e.clientY - prevMouseY;
+        prevMouseX = e.clientX;
+        prevMouseY = e.clientY;
+        spherical.theta -= dx * 0.005;
+        spherical.phi -= dy * 0.005;
+        updateCameraFromSpherical();
+      }
+    };
+
+    const onMouseUp = () => {
+      isDragging = false;
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      spherical.radius += e.deltaY * 0.002;
+      updateCameraFromSpherical();
+    };
+
+    const onClick = (e: MouseEvent) => {
+      const rect = container.getBoundingClientRect();
+      const clickMouse = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      raycaster.setFromCamera(clickMouse, camera);
+      const meshes = orbits.map((o) => o.mesh);
+      const intersects = raycaster.intersectObjects(meshes);
+
+      if (intersects.length > 0) {
+        const hit = intersects[0].object as THREE.Mesh;
+        const encIdx = hit.userData.encounterIndex;
+        const targetOrbit = orbits.find((o) => o.encounterIndex === encIdx);
+        if (targetOrbit && onSelectSat) {
+          onSelectSat(targetOrbit.info);
+          // Lerp camera towards target satellite
+          const targetPos = targetOrbit.mesh.position;
+          spherical.theta = Math.atan2(targetPos.x, targetPos.z);
+          spherical.phi = Math.acos(targetPos.y / targetPos.length());
+          spherical.radius = 1.85;
+          updateCameraFromSpherical();
+        }
+      }
+    };
+
+    container.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    container.addEventListener('wheel', onWheel, { passive: false });
+    container.addEventListener('click', onClick);
+
+    // Camera controller methods exposed to props
+    cameraControlRef.current = {
+      zoomIn: () => {
+        spherical.radius = Math.max(1.35, spherical.radius - 0.45);
+        updateCameraFromSpherical();
+      },
+      zoomOut: () => {
+        spherical.radius = Math.min(6.5, spherical.radius + 0.45);
+        updateCameraFromSpherical();
+      },
+      reset: () => {
+        spherical.radius = defaultCamPos.length();
+        spherical.theta = Math.atan2(defaultCamPos.x, defaultCamPos.z);
+        spherical.phi = Math.acos(defaultCamPos.y / defaultCamPos.length());
+        updateCameraFromSpherical();
+      },
+      focusTarget: () => {
+        if (isAccident) {
+          spherical.radius = 1.65;
+          spherical.theta = 0.35;
+          spherical.phi = 0.85;
+        } else if (orbits.length > 0) {
+          spherical.radius = 1.85;
+        }
+        updateCameraFromSpherical();
+      },
+    };
+
+    // --- ANIMATION LOOP WITH TRUE LERP AVOIDANCE ---
+    let animationFrameId: number;
+    let avoidanceLerpProgress = 0.0; // 0 = nominal collision path, 1 = safe diverged path
+    let lastTime = performance.now();
+
+    const animate = (currentTime: number) => {
+      animationFrameId = requestAnimationFrame(animate);
+
+      const dtSec = Math.min(0.1, (currentTime - lastTime) / 1000);
+      lastTime = currentTime;
+
+      const rate = isPausedRef.current ? 0 : playbackSpeedRef.current;
+
+      // 1. Earth slow authentic counter-clockwise rotation
+      earthMesh.rotation.y += 0.0006 * rate;
+
+      // 2. Real Three.js Smooth Lerp Avoidance Maneuver over 3 seconds
+      if (avoidanceRef.current) {
+        avoidanceLerpProgress = Math.min(1.0, avoidanceLerpProgress + dtSec / 3.0);
+      } else {
+        avoidanceLerpProgress = Math.max(0.0, avoidanceLerpProgress - dtSec / 2.0);
+      }
+
+      // Flash thruster burn light during active divergence
+      if (avoidanceLerpProgress > 0.01 && avoidanceLerpProgress < 0.95 && avoidanceRef.current) {
+        thrusterBurnLight.intensity = Math.sin(avoidanceLerpProgress * Math.PI) * 3.5;
+      } else {
+        thrusterBurnLight.intensity = 0;
+      }
+
+      // 3. Update Satellite Positions and Trails (Strictly Clamped to Radius)
+      orbits.forEach((orbit, idx) => {
+        orbit.theta += orbit.speed * rate;
+
+        let effectiveRadius = orbit.radius;
+
+        // In accident mode, animate Iridium 33 diverging by +25km orbital elevation
+        if (isAccident && orbit.mesh.userData.isIridium) {
+          effectiveRadius = THREE.MathUtils.lerp(orbit.radius, orbit.radius + 0.042, avoidanceLerpProgress);
+          // Color transition: red to green
+          if (avoidanceLerpProgress > 0.4) {
+            orbit.mesh.material = avoidanceEscapeMat;
+            (orbit.trailLine.material as THREE.LineBasicMaterial).color.setHex(0x10b981);
+          } else {
+            orbit.mesh.material = criticalMat;
+            (orbit.trailLine.material as THREE.LineBasicMaterial).color.setHex(0xef4444);
+          }
+          thrusterBurnLight.position.copy(orbit.mesh.position);
+        }
+
+        // Exact orbital position along precomputed plane
+        const currentPos = new THREE.Vector3(
+          effectiveRadius * Math.cos(orbit.theta),
+          0,
+          effectiveRadius * Math.sin(orbit.theta)
+        ).applyEuler(orbit.planeEuler);
+
+        orbit.mesh.position.copy(currentPos);
+
+        // Update trailing arc (last 90° = Math.PI / 2 radians)
+        const trailGeo = orbit.trailLine.geometry;
+        const posAttr = trailGeo.getAttribute('position') as THREE.BufferAttribute;
+        if (posAttr && posAttr.count > 0) {
+          const totalPts = posAttr.count;
+          const arcSpan = Math.PI / 2;
+          for (let p = 0; p < totalPts; p++) {
+            const ptTheta = orbit.theta - arcSpan * (1 - p / (totalPts - 1));
+            const pt = new THREE.Vector3(
+              effectiveRadius * Math.cos(ptTheta),
+              0,
+              effectiveRadius * Math.sin(ptTheta)
+            ).applyEuler(orbit.planeEuler);
+            posAttr.setXYZ(p, pt.x, pt.y, pt.z);
+          }
+          posAttr.needsUpdate = true;
+        }
+
+        orbit.trailLine.visible = showOrbitsRef.current;
+      });
+
+      // 4. Update Avoidance Clearance Vector (between Iridium and Cosmos)
+      if (isAccident && orbits.length >= 2) {
+        const p1 = orbits[0].mesh.position;
+        const p2 = orbits[1].mesh.position;
+        const clearanceAttr = clearanceVectorGeo.getAttribute('position') as THREE.BufferAttribute;
+        if (clearanceAttr) {
+          clearanceAttr.setXYZ(0, p1.x, p1.y, p1.z);
+          clearanceAttr.setXYZ(1, p2.x, p2.y, p2.z);
+          clearanceAttr.needsUpdate = true;
+        }
+        clearanceVectorMat.opacity = avoidanceLerpProgress * 0.85;
+
+        // Collision Point screen projection for CSS concentric pulsing rings
+        const colPos = collisionPointLight.position.clone();
+        colPos.project(camera);
+        const isBehind = colPos.z > 1.0;
+        setCollisionScreenPos({
+          x: ((colPos.x + 1) * width) / 2,
+          y: ((-colPos.y + 1) * height) / 2,
+          visible: !isBehind && avoidanceLerpProgress < 0.85,
+        });
+      }
+
+      // 5. Raycasting Hover Check
+      raycaster.setFromCamera(mouse, camera);
+      const meshes = orbits.map((o) => o.mesh);
+      const intersects = raycaster.intersectObjects(meshes);
+
+      if (intersects.length > 0 && !isDragging) {
+        const hitMesh = intersects[0].object as THREE.Mesh;
+        const encIdx = hitMesh.userData.encounterIndex;
+        const hitOrbit = orbits.find((o) => o.encounterIndex === encIdx);
+        if (hitOrbit) {
+          const screenPos = hitOrbit.mesh.position.clone().project(camera);
+          setHoveredSat({
+            ...hitOrbit.info,
+            screenX: ((screenPos.x + 1) * width) / 2,
+            screenY: ((-screenPos.y + 1) * height) / 2,
+          });
+        }
+      } else {
+        setHoveredSat(null);
+      }
+
+      renderer.render(scene, camera);
+    };
+
+    animationFrameId = requestAnimationFrame(animate);
+
+    // Resize Handler
+    const onResize = () => {
+      if (!container) return;
+      width = container.clientWidth || window.innerWidth;
+      height = container.clientHeight || window.innerHeight;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+    };
+    window.addEventListener('resize', onResize);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      window.removeEventListener('resize', onResize);
+      container.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      container.removeEventListener('wheel', onWheel);
+      container.removeEventListener('click', onClick);
+      renderer.dispose();
+      earthGeo.dispose();
+      earthMat.dispose();
+      earthTexture.dispose();
+      atmosphereGeo.dispose();
+      atmosphereMat.dispose();
+      satOctahedronGeo.dispose();
+      criticalMat.dispose();
+      cautionMat.dispose();
+      nominalMat.dispose();
+      avoidanceEscapeMat.dispose();
+    };
+  }, [dataset, encounterCount, encounters]);
 
   return (
     <div className="relative w-full h-full overflow-hidden select-none">
+      {/* Three.js Canvas Container */}
       <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
-      {/* Floating Tactical Hover Tooltip */}
+      {/* Subtle Vignette Overlay */}
+      <div className="absolute inset-0 pointer-events-none globe-vignette" />
+
+      {/* ACCIDENT Mode: 3 Concentric Ring Pulse DOM Overlay at Collision Point */}
+      {dataset === 'ACCIDENT' && collisionScreenPos && collisionScreenPos.visible && (
+        <div
+          className="absolute pointer-events-none z-30"
+          style={{
+            left: `${collisionScreenPos.x}px`,
+            top: `${collisionScreenPos.y}px`,
+          }}
+        >
+          <div className="relative w-12 h-12 -translate-x-1/2 -translate-y-1/2">
+            <div className="absolute inset-0 rounded-full border border-red-500 ring-pulse-1" />
+            <div className="absolute inset-0 rounded-full border border-red-400 ring-pulse-2" />
+            <div className="absolute inset-0 rounded-full border border-amber-400 ring-pulse-3" />
+            <div className="absolute top-1/2 left-1/2 w-2 h-2 -translate-x-1/2 -translate-y-1/2 bg-red-500 rounded-full shadow-[0_0_8px_#ef4444]" />
+            <div className="absolute left-6 top-1/2 -translate-y-1/2 whitespace-nowrap bg-black/85 border border-red-500/40 px-2 py-0.5 text-[9px] font-mono text-red-400 uppercase tracking-widest">
+              IMPACT INTERSECTION
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sleek Mission Control Hover Tooltip */}
       {hoveredSat && (
         <div
-          className="absolute pointer-events-none z-30 px-3.5 py-2 rounded-xl bg-black/90 border border-cyan-400/50 shadow-2xl backdrop-blur-xl text-[11px] font-mono transform -translate-x-1/2 -translate-y-full mb-3"
-          style={{ left: `${hoveredSat.screenX}px`, top: `${hoveredSat.screenY}px` }}
+          className="absolute pointer-events-none z-40 bg-[#05080f]/95 border border-cyan-500/40 p-2.5 shadow-[0_0_12px_rgba(0,229,255,0.15)] text-left min-w-[190px]"
+          style={{
+            left: `${Math.min(window.innerWidth - 220, hoveredSat.screenX + 16)}px`,
+            top: `${Math.max(20, Math.min(window.innerHeight - 140, hoveredSat.screenY - 30))}px`,
+          }}
         >
-          <div className="flex items-center gap-1.5 font-bold text-cyan-300">
+          <div className="flex items-center justify-between gap-2 border-b border-cyan-500/20 pb-1 mb-1.5">
+            <span className="text-[12px] font-bold text-white tracking-wide">{hoveredSat.name}</span>
             <span
-              className={`w-2 h-2 rounded-full ${
+              className={`text-[9px] font-mono font-bold px-1 py-0.2 uppercase ${
                 hoveredSat.status === 'CRITICAL'
-                  ? 'bg-red-500 animate-ping'
+                  ? 'bg-red-500/20 text-red-400 border border-red-500/40'
                   : hoveredSat.status === 'CAUTION'
-                  ? 'bg-amber-400'
-                  : 'bg-emerald-400'
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                  : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
               }`}
-            />
-            <span>{hoveredSat.name}</span>
+            >
+              {hoveredSat.status}
+            </span>
           </div>
-          <div className="text-slate-400 mt-0.5">NORAD ID: <span className="text-slate-200">{hoveredSat.noradId}</span></div>
-          <div className="text-slate-400">ALTITUDE: <span className="text-cyan-400 font-bold">{hoveredSat.altitudeKm} km</span></div>
-          <div className="text-slate-400">SPEED: <span className="text-slate-200">{hoveredSat.velocityKms.toFixed(2)} km/s</span></div>
-          <div className="text-slate-400">INCLINATION: <span className="text-slate-200">{hoveredSat.inclinationDeg.toFixed(1)}°</span></div>
+          <div className="space-y-0.5 text-[10px] font-mono text-slate-300">
+            <div className="flex justify-between">
+              <span className="text-slate-500">NORAD ID:</span>
+              <span className="text-cyan-400">{hoveredSat.noradId}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">ALTITUDE:</span>
+              <span>{hoveredSat.altitudeKm.toFixed(1)} km</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">VELOCITY:</span>
+              <span>{hoveredSat.velocityKms.toFixed(2)} km/s</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">INCLINATION:</span>
+              <span>{hoveredSat.inclinationDeg.toFixed(1)}°</span>
+            </div>
+          </div>
         </div>
       )}
     </div>

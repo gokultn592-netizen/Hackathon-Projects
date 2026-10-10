@@ -12,12 +12,15 @@ services:
     container_name: orbital-eye-backend
     ports:
       - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     env_file:
       - .env
     environment:
-      - ORACLE_USER=${ORACLE_USER}
-      - ORACLE_PASS=${ORACLE_PASS}
-      - ORACLE_HOST=${ORACLE_HOST:-localhost}
+      - ORACLE_USER=${ORACLE_USER:-ORBITAL_EYE}
+      - ORACLE_PASS=${ORACLE_PASS:-OrbitalEye_2026}
+      - ORACLE_PASSWORD=${ORACLE_PASSWORD:-OrbitalEye_2026}
+      - ORACLE_HOST=${DOCKER_ORACLE_HOST:-host.docker.internal}
       - ORACLE_PORT=${ORACLE_PORT:-1521}
       - ORACLE_SERVICE=${ORACLE_SERVICE:-XEPDB1}
     volumes:
@@ -36,9 +39,12 @@ services:
     env_file:
       - .env
     environment:
-      - REACT_APP_API_URL=http://localhost:8000  # CORS enabled; backend allows *
+      - BACKEND_URL=http://backend:8000
+      - VITE_BACKEND_URL=http://backend:8000
+      - DOCKER=true
     volumes:
       - ./frontend/src:/app/src:ro
+      - ./frontend/vite.config.ts:/app/vite.config.ts:ro
     restart: "no"
     networks:
       - orbital-net

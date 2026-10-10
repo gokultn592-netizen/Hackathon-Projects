@@ -1,7 +1,4 @@
 .env
-.env.local
-node_modules/
-dist/
 __pycache__/
 *.pyc
 *.pyo
@@ -9,5 +6,5 @@ __pycache__/
 .pytest_cache/
 .coverage
 *.log
-backend.pid
 output/*.sql
+.env.local

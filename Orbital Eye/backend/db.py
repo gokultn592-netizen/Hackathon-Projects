@@ -34,14 +34,18 @@ def init_pool() -> oracledb.AsyncPool:
     load_dotenv()
 
     user = os.getenv("ORACLE_USER", "ORBITAL_EYE")
-    password = os.getenv("ORACLE_PASSWORD")
-    dsn = os.getenv("ORACLE_DSN", "localhost:1521/XEPDB1")
+    password = os.getenv("ORACLE_PASSWORD") or os.getenv("ORACLE_PASS")
+    host = os.getenv("ORACLE_HOST", "localhost")
+    port = os.getenv("ORACLE_PORT", "1521")
+    service = os.getenv("ORACLE_SERVICE", "XEPDB1")
+    default_dsn = f"{host}:{port}/{service}"
+    dsn = os.getenv("ORACLE_DSN", default_dsn)
     min_pool = int(os.getenv("ORACLE_MIN_POOL", "2"))
     max_pool = int(os.getenv("ORACLE_MAX_POOL", "10"))
     increment = int(os.getenv("ORACLE_INCREMENT", "1"))
 
     if not password:
-        raise ValueError("ORACLE_PASSWORD environment variable is required")
+        raise ValueError("ORACLE_PASSWORD or ORACLE_PASS environment variable is required")
 
     try:
         _pool = oracledb.create_pool_async(
