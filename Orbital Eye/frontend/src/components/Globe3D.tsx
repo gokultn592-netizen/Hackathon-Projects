@@ -185,16 +185,111 @@ export default function Globe3D({
       scene.add(thrusterBurnLight);
       thrusterBurnLightRef.current = thrusterBurnLight;
 
-      // Earth with NASA Visible Earth satellite texture
-      const loader = new THREE.TextureLoader();
-      const earthTexture = loader.load(
-        'https://eoimages.gsfc.nasa.gov/images/imagerecords/73000/73909/world.topo.bathy.200412.3x5400x2700.jpg'
-      );
+      // High-tech Cybernetic Canvas Earth Texture (instant load, 0 network dependency)
+      const canvas = document.createElement('canvas');
+      canvas.width = 2048;
+      canvas.height = 1024;
+      const ctx = canvas.getContext('2d')!;
+
+      // Deep Space / Ocean gradient
+      const oceanGrad = ctx.createLinearGradient(0, 0, 0, 1024);
+      oceanGrad.addColorStop(0, '#020b18');
+      oceanGrad.addColorStop(0.5, '#04162c');
+      oceanGrad.addColorStop(1, '#020b18');
+      ctx.fillStyle = oceanGrad;
+      ctx.fillRect(0, 0, 2048, 1024);
+
+      // Orbital Grid Coordinate Lines (Equator, Meridians, Parallels)
+      ctx.strokeStyle = 'rgba(0, 229, 255, 0.12)';
+      ctx.lineWidth = 1;
+      for (let lat = 0; lat <= 1024; lat += 1024 / 6) {
+        ctx.beginPath();
+        ctx.moveTo(0, lat);
+        ctx.lineTo(2048, lat);
+        ctx.stroke();
+      }
+      for (let lon = 0; lon <= 2048; lon += 2048 / 12) {
+        ctx.beginPath();
+        ctx.moveTo(lon, 0);
+        ctx.lineTo(lon, 1024);
+        ctx.stroke();
+      }
+      // Equator highlight
+      ctx.strokeStyle = 'rgba(0, 229, 255, 0.35)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, 512);
+      ctx.lineTo(2048, 512);
+      ctx.stroke();
+
+      // Continents (High-tech geometric landmass shapes)
+      ctx.fillStyle = '#0a2742';
+      ctx.strokeStyle = 'rgba(0, 229, 255, 0.75)';
+      ctx.lineWidth = 2.0;
+
+      const drawLand = (pts: [number, number][]) => {
+        if (!pts.length) return;
+        ctx.beginPath();
+        ctx.moveTo(pts[0][0], pts[0][1]);
+        for (let k = 1; k < pts.length; k++) {
+          ctx.lineTo(pts[k][0], pts[k][1]);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      };
+
+      // North America
+      drawLand([[260, 240], [380, 200], [520, 210], [560, 310], [510, 420], [440, 480], [370, 470], [340, 410], [280, 360], [240, 310]]);
+      // South America
+      drawLand([[450, 530], [550, 550], [570, 650], [520, 770], [470, 830], [430, 720], [420, 600]]);
+      // Europe
+      drawLand([[960, 240], [1090, 210], [1160, 280], [1120, 370], [1030, 380], [970, 330]]);
+      // Africa
+      drawLand([[990, 410], [1120, 400], [1210, 490], [1190, 660], [1120, 780], [1040, 760], [980, 600], [960, 470]]);
+      // Asia
+      drawLand([[1160, 210], [1480, 180], [1650, 260], [1680, 420], [1550, 500], [1420, 480], [1310, 540], [1260, 440], [1170, 350]]);
+      // Australia
+      drawLand([[1570, 670], [1710, 660], [1740, 770], [1660, 830], [1560, 780]]);
+
+      // Glowing Major Metropolitan City Clusters (Tokyo, London, NYC, Paris, Shanghai, Singapore, etc.)
+      const cities: [number, number][] = [
+        [490, 370], [350, 390], [430, 430], [1010, 300], [1030, 320], [1590, 380],
+        [1540, 430], [1360, 520], [1480, 610], [1670, 750], [520, 680], [1120, 720]
+      ];
+      ctx.fillStyle = '#00e5ff';
+      cities.forEach(([cx, cy]) => {
+        ctx.beginPath();
+        ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(0, 229, 255, 0.4)';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#00e5ff';
+      });
+
+      const earthTexture = new THREE.CanvasTexture(canvas);
       const earthMat = new THREE.MeshStandardMaterial({
         map: earthTexture,
-        roughness: 0.72,
-        metalness: 0.0,
+        roughness: 0.65,
+        metalness: 0.1,
       });
+
+      // Background progressive enhancer
+      const imgLoader = new THREE.TextureLoader();
+      imgLoader.crossOrigin = 'anonymous';
+      imgLoader.load(
+        'https://eoimages.gsfc.nasa.gov/images/imagerecords/73000/73909/world.topo.bathy.200412.3x5400x2700.jpg',
+        (tex) => {
+          earthMat.map = tex;
+          earthMat.needsUpdate = true;
+        },
+        undefined,
+        () => {
+          // Keep canvas procedural texture on CORS or network error
+        }
+      );
 
       const earthGeo = new THREE.SphereGeometry(1.0, 64, 64);
       const earthMesh = new THREE.Mesh(earthGeo, earthMat);
@@ -675,58 +770,31 @@ export default function Globe3D({
         mesh.userData = { encounterIndex: i };
         scene.add(mesh);
 
-        let radius: number;
-        let inclination: number;
-        let raan: number;
-        let quat = new THREE.Quaternion();
-        let theta = 0;
-        let speed = 0.0012 + (i % 7) * 0.0002;
-        let altKm: number;
-        let incDeg: number;
-        let velKms: number;
-        let satName: string;
+        const satName =
+          enc.satAName || enc.satA || enc.sat_a_name || pos?.name || `LEO-DEMO-${25500 + i}`;
+        const altKm =
+          pos?.alt_km && pos.alt_km > 250 && pos.alt_km < 2000
+            ? pos.alt_km
+            : 380 + (i % 22) * 36;
+        const radius = 1.0 + (altKm / 6371.0) * 0.7;
+        const incDeg =
+          pos?.inclination_deg && pos.inclination_deg > 0
+            ? pos.inclination_deg
+            : 28.5 + ((i * 23.4) % 68);
+        const inclination = (incDeg * Math.PI) / 180;
+        const raan = ((i * 137.508) * Math.PI) / 180;
+        const raanQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), raan);
+        const incQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), inclination);
+        const quat = new THREE.Quaternion().multiplyQuaternions(raanQ, incQ);
 
-        if (pos) {
-          mesh.position.set(pos.x, pos.y, pos.z);
-          const pVec = new THREE.Vector3(pos.x, pos.y, pos.z);
-          radius = pVec.length();
-          altKm = pos.alt_km;
-          incDeg = pos.inclination_deg;
-          inclination = (incDeg * Math.PI) / 180;
-          raan = ((i * 137.5) * Math.PI) / 180;
-          velKms = pos.velocity_kms;
-          satName = pos.name;
-          speed = 0.0010 + (Math.max(1, pos.velocity_kms) / 10.0) * 0.0004;
-
-          const uVec = pVec.clone().normalize();
-          const raanAng = (i * 137.5 * Math.PI) / 180;
-          const nRef = new THREE.Vector3(
-            Math.sin(inclination) * Math.sin(raanAng),
-            Math.cos(inclination),
-            Math.sin(inclination) * Math.cos(raanAng)
-          );
-          let nVec = nRef.clone().sub(uVec.clone().multiplyScalar(nRef.dot(uVec))).normalize();
-          if (nVec.lengthSq() < 0.1) {
-            nVec = new THREE.Vector3(0, 1, 0).cross(uVec).normalize();
-            if (nVec.lengthSq() < 0.1) nVec = new THREE.Vector3(1, 0, 0).cross(uVec).normalize();
-          }
-          const vVec = new THREE.Vector3().crossVectors(nVec, uVec).normalize();
-          const rotMat = new THREE.Matrix4().makeBasis(uVec, nVec, vVec);
-          quat.setFromRotationMatrix(rotMat);
-          theta = 0.0;
-        } else {
-          altKm = 400 + (i % 16) * 45;
-          radius = 1.0 + (altKm / 6371.0) * 0.7;
-          incDeg = 35 + ((i * 29) % 63);
-          inclination = (incDeg * Math.PI) / 180;
-          raan = ((i * 137.5) * Math.PI) / 180;
-          const raanQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), raan);
-          const incQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), inclination);
-          quat.multiplyQuaternions(raanQ, incQ);
-          theta = ((i * 53.7) * Math.PI) / 180;
-          velKms = 7.5 + (i % 5) * 0.1;
-          satName = `OBJECT-${24000 + i}`;
-        }
+        // Distribute satellites smoothly around their orbital rings
+        const theta = ((i * 47.3 + (i % 7) * 19) * Math.PI) / 180;
+        const velKms =
+          pos?.velocity_kms ??
+          enc.relVelocity ??
+          enc.rel_velocity_kms ??
+          7.45 + (i % 6) * 0.08;
+        const speed = 0.0012 + (i % 7) * 0.00025;
 
         const trailGeo = new THREE.BufferGeometry().setFromPoints(
           new Array(trailPointsCount).fill(0).map(() => new THREE.Vector3())

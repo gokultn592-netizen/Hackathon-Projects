@@ -28,46 +28,55 @@ export interface AdaptedEncounter {
   tcaFormatted: string;
 }
 
-export function adaptEncounter(raw: EncounterPairResponse): AdaptedEncounter {
-  let tcaFormatted = raw.tca_utc;
+export function adaptEncounter(raw: any): AdaptedEncounter {
+  const satA = raw.sat_a_name || raw.satAName || raw.satA || (raw.sat_a_norad ? `OBJECT-${raw.sat_a_norad}` : 'LEO-ALPHA');
+  const satB = raw.sat_b_name || raw.satBName || raw.satB || (raw.sat_b_norad ? `OBJECT-${raw.sat_b_norad}` : 'LEO-BETA');
+  const id = raw.pair_id ?? raw.pairId ?? raw.id ?? 0;
+  const missDistance = typeof raw.miss_distance_km === 'number' ? raw.miss_distance_km : typeof raw.missDistance === 'number' ? raw.missDistance : 0.0;
+  const relVelocity = typeof raw.rel_velocity_kms === 'number' ? raw.rel_velocity_kms : typeof raw.relVelocity === 'number' ? raw.relVelocity : 0.0;
+  const collisionProb = typeof raw.collision_prob === 'number' ? raw.collision_prob : typeof raw.collisionProb === 'number' ? raw.collisionProb : 0.0;
+
+  let tcaFormatted = raw.tca_utc || raw.tcaUtc || '';
   try {
-    tcaFormatted = new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      timeZone: 'UTC',
-    }).format(new Date(raw.tca_utc));
+    if (tcaFormatted) {
+      tcaFormatted = new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'UTC',
+      }).format(new Date(tcaFormatted));
+    }
   } catch (e) {
-    tcaFormatted = raw.tca_utc;
+    tcaFormatted = String(raw.tca_utc || raw.tcaUtc || '');
   }
 
   return {
-    id: raw.pair_id,
-    pairId: raw.pair_id,
-    pair_id: raw.pair_id,
-    satA: raw.sat_a_name,
-    satB: raw.sat_b_name,
-    satAName: raw.sat_a_name,
-    satBName: raw.sat_b_name,
-    sat_a_name: raw.sat_a_name,
-    sat_b_name: raw.sat_b_name,
-    satAId: raw.sat_a_norad,
-    satBId: raw.sat_b_norad,
-    sat_a_id: raw.sat_a_norad,
-    sat_b_id: raw.sat_b_norad,
+    id,
+    pairId: id,
+    pair_id: id,
+    satA,
+    satB,
+    satAName: satA,
+    satBName: satB,
+    sat_a_name: satA,
+    sat_b_name: satB,
+    satAId: raw.sat_a_norad ?? raw.satAId,
+    satBId: raw.sat_b_norad ?? raw.satBId,
+    sat_a_id: raw.sat_a_norad ?? raw.sat_a_id,
+    sat_b_id: raw.sat_b_norad ?? raw.sat_b_id,
     sat_a_norad: raw.sat_a_norad,
     sat_b_norad: raw.sat_b_norad,
-    missDistance: raw.miss_distance_km,
-    miss_distance_km: raw.miss_distance_km,
-    relVelocity: raw.rel_velocity_kms,
-    rel_velocity_kms: raw.rel_velocity_kms,
-    collisionProb: raw.collision_prob,
-    collision_prob: raw.collision_prob,
-    collisionProbPct: (raw.collision_prob * 100).toFixed(2),
-    tcaUtc: raw.tca_utc,
-    tca_time_utc: raw.tca_utc,
+    missDistance,
+    miss_distance_km: missDistance,
+    relVelocity,
+    rel_velocity_kms: relVelocity,
+    collisionProb,
+    collision_prob: collisionProb,
+    collisionProbPct: (collisionProb * 100).toFixed(2),
+    tcaUtc: raw.tca_utc || raw.tcaUtc || '',
+    tca_time_utc: raw.tca_utc || raw.tca_time_utc || '',
     tcaFormatted,
   };
 }

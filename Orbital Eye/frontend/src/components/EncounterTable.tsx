@@ -182,10 +182,10 @@ export default function EncounterTable({
                 {/* Left: Satellite Names in Two Lines */}
                 <div className="pl-3 flex-1 min-w-0 flex flex-col justify-center pr-2">
                   <span className="text-[11px] font-bold text-white truncate tracking-wide block">
-                    {enc.satAName || enc.sat_a_name || 'UNKNOWN SAT A'}
+                    {enc.satAName || enc.satA || enc.sat_a_name || 'SPACE-OBJECT-A'}
                   </span>
                   <span className="text-[9px] text-slate-400 truncate block">
-                    × {enc.satBName || enc.sat_b_name || 'UNKNOWN SAT B'}
+                    × {enc.satBName || enc.satB || enc.sat_b_name || 'SPACE-OBJECT-B'}
                   </span>
                 </div>
 
