@@ -24,8 +24,8 @@ export default function ExportButton({ data }: ExportButtonProps) {
       String(r.id),
       r.satA,
       r.satB,
-      r.missDistance.toFixed(2),
-      r.relVelocity.toFixed(2),
+      (Number(r.missDistance) || 0).toFixed(2),
+      (Number(r.relVelocity) || 0).toFixed(2),
       r.tcaFormatted,
       `${r.collisionProbPct}%`,
     ]);

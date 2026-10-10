@@ -457,10 +457,10 @@ function MissionControlDashboard() {
                               isCrit ? 'text-red-400' : 'text-amber-400'
                             }`}
                           >
-                            {item.missDistance.toFixed(2)} KM
+                            {(Number(item.missDistance) || 0).toFixed(2)} KM
                           </div>
                           <div className="text-[9px] text-slate-500 font-mono">
-                            {item.relVelocity.toFixed(1)} KM/S
+                            {(Number(item.relVelocity) || 0).toFixed(1)} KM/S
                           </div>
                         </div>
                       </div>

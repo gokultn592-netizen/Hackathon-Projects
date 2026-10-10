@@ -196,11 +196,11 @@ export default function EncounterTable({
                       isCrit ? 'text-red-400' : isCaut ? 'text-amber-400' : 'text-cyan-300'
                     }`}
                   >
-                    {enc.missDistance.toFixed(2)}{' '}
+                    {(Number(enc.missDistance) || 0).toFixed(2)}{' '}
                     <span className="text-[9px] text-slate-500 font-normal">KM</span>
                   </span>
                   <span className="text-[9px] text-slate-500 font-mono">
-                    {enc.relVelocity.toFixed(2)} KM/S
+                    {(Number(enc.relVelocity) || 0).toFixed(2)} KM/S
                   </span>
                 </div>
               </div>

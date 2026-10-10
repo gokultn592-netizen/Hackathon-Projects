@@ -983,15 +983,15 @@ export default function Globe3D({
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500">ALTITUDE:</span>
-              <span>{hoveredSat.altitudeKm.toFixed(1)} km</span>
+              <span>{(Number(hoveredSat.altitudeKm) || 0).toFixed(1)} km</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500">VELOCITY:</span>
-              <span>{hoveredSat.velocityKms.toFixed(2)} km/s</span>
+              <span>{(Number(hoveredSat.velocityKms) || 0).toFixed(2)} km/s</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500">INCLINATION:</span>
-              <span>{hoveredSat.inclinationDeg.toFixed(1)}°</span>
+              <span>{(Number(hoveredSat.inclinationDeg) || 0).toFixed(1)}°</span>
             </div>
           </div>
         </div>
