@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
-import { AlertTriangle, ShieldCheck, ChevronDown, ChevronUp, Terminal } from './Icons';
+import { AlertTriangle, ShieldCheck, ChevronDown, ChevronUp, Terminal, Play } from './Icons';
 
 interface AccidentReportBannerProps {
   avoidanceActive: boolean;
   onToggleAvoidance: () => void;
+  onOpenReconstruction?: () => void;
 }
 
 export default function AccidentReportBanner({
   avoidanceActive,
   onToggleAvoidance,
+  onOpenReconstruction,
 }: AccidentReportBannerProps) {
   const [detailsOpen, setDetailsOpen] = useState(false);
 
@@ -56,6 +58,18 @@ export default function AccidentReportBanner({
             <span>{detailsOpen ? 'HIDE METRICS' : 'TELEMETRY METRICS'}</span>
             {detailsOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
           </button>
+
+          {onOpenReconstruction && (
+            <button
+              type="button"
+              onClick={onOpenReconstruction}
+              className="h-9 px-3 text-[10px] font-mono font-bold uppercase tracking-wider bg-purple-600/25 hover:bg-purple-600/40 text-purple-200 border border-purple-500/40 hover:border-purple-300 shadow-[0_0_12px_rgba(168,85,247,0.25)] transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Watch animated hyper-velocity collision reconstruction"
+            >
+              <Play className="w-3 h-3 fill-current text-purple-400" />
+              <span>RECONSTRUCT COLLISION</span>
+            </button>
+          )}
 
           <button
             type="button"

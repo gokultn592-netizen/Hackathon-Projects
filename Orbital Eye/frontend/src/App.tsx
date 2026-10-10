@@ -5,6 +5,7 @@ import EncounterTable from './components/EncounterTable';
 import Globe3D, { SatelliteInfo } from './components/Globe3D';
 import EncounterDetailModal from './components/EncounterDetailModal';
 import AccidentReportBanner from './components/AccidentReportBanner';
+import CollisionReconstructionModal from './components/CollisionReconstructionModal';
 import { useUrlSync } from './hooks/useUrlSync';
 import { useEncounters } from './hooks/useEncounters';
 import { useSatellitePositions } from './hooks/useSatellitePositions';
@@ -76,6 +77,7 @@ function MissionControlDashboard() {
   const [activeTab, setActiveTab] = useState<'TELEMETRY' | 'WATCHLIST' | 'AVOIDANCE'>('TELEMETRY');
   const [catalogDrawerOpen, setCatalogDrawerOpen] = useState(false);
   const [selectedEncounter, setSelectedEncounter] = useState<AdaptedEncounter | null>(null);
+  const [collisionModalOpen, setCollisionModalOpen] = useState(false);
 
   // Selected Target Spacecraft
   const [selectedSat, setSelectedSat] = useState<SatelliteInfo>({
@@ -238,6 +240,7 @@ function MissionControlDashboard() {
         <AccidentReportBanner
           avoidanceActive={avoidanceActive}
           onToggleAvoidance={() => setAvoidanceActive((prev) => !prev)}
+          onOpenReconstruction={() => setCollisionModalOpen(true)}
         />
       )}
 
@@ -703,6 +706,14 @@ function MissionControlDashboard() {
           onClose={() => setSelectedEncounter(null)}
         />
       )}
+
+      {/* =========================================================================
+          FORENSIC COLLISION RECONSTRUCTION MODAL (PURE REACT + SVG + CSS)
+          ========================================================================= */}
+      <CollisionReconstructionModal
+        isOpen={collisionModalOpen}
+        onClose={() => setCollisionModalOpen(false)}
+      />
     </div>
   );
 }
