@@ -143,10 +143,13 @@ async def get_satellite_positions(dataset_tag: str = "REALTIME", limit: int = 10
             FROM tle_sets ts
             JOIN satellites s ON ts.satellite_id = s.satellite_id
             LEFT JOIN (
-                SELECT sat_a_norad AS norad_id, MIN(miss_distance_km) AS miss_distance_km
-                FROM encounter_pairs
-                WHERE dataset_tag = :dataset_tag
-                GROUP BY sat_a_norad
+                SELECT norad_id, MIN(miss_dist) AS miss_distance_km
+                FROM (
+                    SELECT sat_a_norad AS norad_id, miss_distance_km AS miss_dist FROM encounter_pairs WHERE dataset_tag = :dataset_tag
+                    UNION ALL
+                    SELECT sat_b_norad AS norad_id, miss_distance_km AS miss_dist FROM encounter_pairs WHERE dataset_tag = :dataset_tag
+                )
+                GROUP BY norad_id
             ) ep ON s.norad_id = ep.norad_id
             WHERE ts.dataset_tag = :dataset_tag
             AND ts.epoch_utc = (
@@ -185,9 +188,9 @@ async def get_satellite_positions(dataset_tag: str = "REALTIME", limit: int = 10
                     inclination_deg = 0.0
 
                 # Risk category based on miss distance to any encounter pair
-                if miss_dist < 1.0:
+                if miss_dist < 2.0:
                     risk = "CRITICAL"
-                elif miss_dist < 5.0:
+                elif miss_dist < 10.0:
                     risk = "CAUTION"
                 else:
                     risk = "NOMINAL"

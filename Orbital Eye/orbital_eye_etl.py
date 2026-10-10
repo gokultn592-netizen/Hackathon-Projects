@@ -217,55 +217,61 @@ def compute_encounters(
     pairs: List[OrbitPair] = []
     n = len(satellites)
     raw_pairs = []
+    showcase_pairs = [
+        {"sat_a": 25544, "sat_b": 43013, "miss": 0.42, "prob": 0.88, "vel": 7.20, "b": 42.1}, # ISS x NOAA 20 (CRITICAL)
+        {"sat_a": 44714, "sat_b": 38771, "miss": 0.85, "prob": 0.65, "vel": 11.40, "b": 78.5}, # Starlink-1008 x MetOp-B (CRITICAL)
+        {"sat_a": 48274, "sat_b": 41335, "miss": 1.45, "prob": 0.42, "vel": 8.90, "b": 112.3}, # CSS Tianhe x Sentinel-3A (CRITICAL)
+        {"sat_a": 20580, "sat_b": 27424, "miss": 2.60, "prob": 0.18, "vel": 9.70, "b": 154.0}, # HST x Aqua (CAUTION)
+        {"sat_a": 25994, "sat_b": 54234, "miss": 3.85, "prob": 0.14, "vel": 12.10, "b": 189.6}, # Terra x NOAA 21 (CAUTION)
+        {"sat_a": 44718, "sat_b": 43689, "miss": 5.20, "prob": 0.09, "vel": 10.50, "b": 225.2}, # Starlink-1012 x MetOp-C (CAUTION)
+        {"sat_a": 49044, "sat_b": 65159, "miss": 7.40, "prob": 0.05, "vel": 8.30, "b": 261.8}, # ISS Nauka x MetOp-SGA1 (CAUTION)
+        {"sat_a": 53239, "sat_b": 43437, "miss": 12.10, "prob": 0.00, "vel": 6.80, "b": 298.4}, # CSS Wentian x Sentinel-3B (NOMINAL)
+        {"sat_a": 54216, "sat_b": 44723, "miss": 18.60, "prob": 0.00, "vel": 7.40, "b": 335.0}, # CSS Mengtian x Starlink-1017 (NOMINAL)
+        {"sat_a": 44725, "sat_b": 44741, "miss": 27.40, "prob": 0.00, "vel": 9.10, "b": 18.2}, # Starlink-1020 x Starlink-1036 (NOMINAL)
+    ]
+
+    used_pairs = set()
+    tca_utc = datetime(2026, 10, 3, 12, 0, 0, tzinfo=timezone.utc)
+
+    for sp in showcase_pairs:
+        pairs.append(
+            OrbitPair(
+                sat_a_id=sp['sat_a'],
+                sat_b_id=sp['sat_b'],
+                tca_utc=tca_utc,
+                miss_distance_km=sp['miss'],
+                rel_velocity_kms=sp['vel'],
+                b_plane_angle_deg=sp['b'],
+                collision_prob=sp['prob'],
+                dataset_tag=dataset_tag,
+            )
+        )
+        used_pairs.add(tuple(sorted([sp['sat_a'], sp['sat_b']])))
+
+    remaining_combos = []
     for i in range(n):
         for j in range(i + 1, n):
-            raw_pairs.append((satellites[i], satellites[j]))
+            na = satellites[i].norad_id
+            nb = satellites[j].norad_id
+            key = tuple(sorted([na, nb]))
+            if key not in used_pairs:
+                remaining_combos.append((na, nb))
 
-    total = len(raw_pairs)
-    tca_utc = datetime(2026, 10, 3, 12, 0, 0, tzinfo=timezone.utc)
-    for idx, (a, b) in enumerate(raw_pairs, start=1):
-        if idx == 1:
-            miss_distance_km = 0.35
-            collision_prob = 0.95
-            rel_velocity_kms = 7.20
-        elif idx == 2:
-            miss_distance_km = 0.72
-            collision_prob = 0.78
-            rel_velocity_kms = 10.40
-        elif idx == 3:
-            miss_distance_km = 1.15
-            collision_prob = 0.54
-            rel_velocity_kms = 12.10
-        elif idx == 4:
-            miss_distance_km = 1.58
-            collision_prob = 0.38
-            rel_velocity_kms = 8.90
-        elif idx <= 120:
-            progress = (idx - 4) / 116.0
-            miss_distance_km = round(0.40 + progress * 1.55, 2)
-            collision_prob = round(0.85 - progress * 0.65, 2)
-            rel_velocity_kms = round(6.8 + ((idx * 11) % 65) / 10.0, 2)
-        elif idx <= 720:
-            progress = (idx - 120) / 600.0
-            miss_distance_km = round(2.05 + progress * 7.85, 2)
-            collision_prob = round(0.18 - progress * 0.16, 2)
-            rel_velocity_kms = round(7.0 + ((idx * 13) % 70) / 10.0, 2)
-        else:
-            progress = (idx - 720) / (total - 720)
-            miss_distance_km = round(10.05 + progress * 37.95, 2)
-            collision_prob = 0.0
-            rel_velocity_kms = round(6.5 + ((idx * 17) % 80) / 10.0, 2)
-
+    total_rem = len(remaining_combos)
+    for idx, (na, nb) in enumerate(remaining_combos, start=1):
+        progress = idx / float(total_rem)
+        miss_distance_km = round(28.00 + progress * 20.00, 2)
+        rel_velocity_kms = round(6.50 + ((idx * 17) % 75) / 10.0, 2)
         b_angle = round(15.0 + (idx * 3.7) % 330, 1)
         pairs.append(
             OrbitPair(
-                sat_a_id=a.norad_id,
-                sat_b_id=b.norad_id,
+                sat_a_id=na,
+                sat_b_id=nb,
                 tca_utc=tca_utc,
                 miss_distance_km=miss_distance_km,
                 rel_velocity_kms=rel_velocity_kms,
                 b_plane_angle_deg=b_angle,
-                collision_prob=collision_prob,
+                collision_prob=0.00,
                 dataset_tag=dataset_tag,
             )
         )
