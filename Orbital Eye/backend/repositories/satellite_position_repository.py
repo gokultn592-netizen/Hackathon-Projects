@@ -44,14 +44,13 @@ def _normalize_tle_line2(line2: str) -> str:
 def _tle_to_position(tle_line1: str, tle_line2: str, dt_utc: datetime):
     """
     Propagate a TLE to a given UTC datetime using SGP4.
-    Returns (x_km, y_km, z_km, velocity_km_s) in ECI frame, or None on error.
     """
     try:
-        norm_l2 = _normalize_tle_line2(tle_line2)
         try:
-            sat = Satrec.twoline2rv(tle_line1, norm_l2)
-        except Exception:
             sat = Satrec.twoline2rv(tle_line1, tle_line2)
+        except Exception:
+            norm_l2 = _normalize_tle_line2(tle_line2)
+            sat = Satrec.twoline2rv(tle_line1, norm_l2)
 
         jd, fr = jday(dt_utc.year, dt_utc.month, dt_utc.day,
                       dt_utc.hour, dt_utc.minute,
