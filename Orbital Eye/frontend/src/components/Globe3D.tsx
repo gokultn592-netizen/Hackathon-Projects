@@ -88,6 +88,12 @@ export default function Globe3D({
     showOrbitsRef.current = showOrbits;
   }, [showOrbits]);
 
+  // BUG 2: datasetRef to safely gate avoidance in animation loop
+  const datasetRef = useRef(dataset);
+  useEffect(() => {
+    datasetRef.current = dataset;
+  }, [dataset]);
+
   // Stable camera control ref for buttons
   const cameraControlRef = useRef<{
     zoomIn: () => void;
@@ -96,21 +102,23 @@ export default function Globe3D({
     focusTarget: () => void;
   } | null>(null);
 
-  // Scene object references to persist across prop updates without recreating WebGL context
+  // Persistent Three.js scene refs
   const sceneRef = useRef<THREE.Scene | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const orbitsRef = useRef<OrbitDefinition[]>([]);
+  const earthMeshRef = useRef<THREE.Mesh | null>(null);
   const collisionPointLightRef = useRef<THREE.PointLight | null>(null);
   const thrusterBurnLightRef = useRef<THREE.PointLight | null>(null);
   const clearanceVectorGeoRef = useRef<THREE.BufferGeometry | null>(null);
   const clearanceVectorMatRef = useRef<THREE.LineBasicMaterial | null>(null);
-  const sharedGeoRef = useRef<THREE.OctahedronGeometry | null>(null);
   const sharedMaterialsRef = useRef<{
     criticalMat: THREE.MeshStandardMaterial;
     cautionMat: THREE.MeshStandardMaterial;
     nominalMat: THREE.MeshStandardMaterial;
     avoidanceEscapeMat: THREE.MeshStandardMaterial;
   } | null>(null);
+  const animationFrameIdRef = useRef<number>(0);
+  const orbitsRef = useRef<OrbitDefinition[]>([]);
 
   // Deep comparison trigger effect for camera buttons
   useEffect(() => {
@@ -125,7 +133,7 @@ export default function Globe3D({
   }, [cameraTrigger?.type, cameraTrigger?.timestamp]);
 
   // =========================================================================
-  // 1. LIFECYCLE: INITIALIZE THREE.JS SCENE ONCE ON MOUNT
+  // SINGLE UNIFIED LIFECYCLE EFFECT (BUG 1 FIX: ZERO ORPHAN MESHES, 1 WEBGL CONTEXT)
   // =========================================================================
   useEffect(() => {
     const container = mountRef.current;
@@ -134,440 +142,417 @@ export default function Globe3D({
     let width = container.clientWidth || window.innerWidth;
     let height = container.clientHeight || window.innerHeight;
 
-    // --- THREE.JS SCENE SETUP ---
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x00020a);
-    sceneRef.current = scene;
+    // --- 1. INITIALIZE SCENE ONCE IF NOT YET CREATED ---
+    if (!sceneRef.current) {
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x00020a);
+      sceneRef.current = scene;
 
-    const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 1000);
-    const defaultCamPos = new THREE.Vector3(0, 1.8, 3.2);
-    camera.position.copy(defaultCamPos);
-    camera.lookAt(0, 0, 0);
-    cameraRef.current = camera;
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.toneMapping = THREE.ReinhardToneMapping;
-    renderer.toneMappingExposure = 0.85;
-    container.innerHTML = '';
-    container.appendChild(renderer.domElement);
-
-    // --- LIGHTING ---
-    const ambientLight = new THREE.AmbientLight(0x0a1628, 1.8);
-    scene.add(ambientLight);
-
-    const sunLight = new THREE.DirectionalLight(0xffffff, 2.6);
-    sunLight.position.set(6, 4, 5);
-    scene.add(sunLight);
-
-    const rimLight = new THREE.DirectionalLight(0x00e5ff, 1.2);
-    rimLight.position.set(-5, -2, -4);
-    scene.add(rimLight);
-
-    // Collision point alert light (ACCIDENT mode)
-    const collisionPointLight = new THREE.PointLight(0xef4444, 0, 2.5);
-    scene.add(collisionPointLight);
-    collisionPointLightRef.current = collisionPointLight;
-
-    // Avoidance thruster burn light
-    const thrusterBurnLight = new THREE.PointLight(0xff7700, 0, 2.0);
-    scene.add(thrusterBurnLight);
-    thrusterBurnLightRef.current = thrusterBurnLight;
-
-    // --- REALISTIC EARTH TEXTURE (NASA Visible Earth) ---
-    const loader = new THREE.TextureLoader();
-    const earthTexture = loader.load(
-      'https://eoimages.gsfc.nasa.gov/images/imagerecords/73000/73909/world.topo.bathy.200412.3x5400x2700.jpg'
-    );
-    const earthMat = new THREE.MeshStandardMaterial({
-      map: earthTexture,
-      roughness: 0.72,
-      metalness: 0.0,
-    });
-
-    // Earth Sphere (Radius 1.0)
-    const earthGeo = new THREE.SphereGeometry(1.0, 64, 64);
-    const earthMesh = new THREE.Mesh(earthGeo, earthMat);
-    earthMesh.rotation.z = (23.44 * Math.PI) / 180;
-    scene.add(earthMesh);
-
-    // Atmosphere Rayleigh Glow Shell (Radius 1.02)
-    const atmosphereGeo = new THREE.SphereGeometry(1.022, 64, 64);
-    const atmosphereMat = new THREE.MeshPhongMaterial({
-      color: 0x00e5ff,
-      emissive: 0x00e5ff,
-      emissiveIntensity: 0.18,
-      transparent: true,
-      opacity: 0.10,
-      side: THREE.BackSide,
-      blending: THREE.AdditiveBlending,
-    });
-    const atmosphereMesh = new THREE.Mesh(atmosphereGeo, atmosphereMat);
-    scene.add(atmosphereMesh);
-
-    // Atmospheric Outer Rim
-    const rimGeo = new THREE.SphereGeometry(1.045, 32, 32);
-    const rimMat = new THREE.MeshBasicMaterial({
-      color: 0x00e5ff,
-      transparent: true,
-      opacity: 0.025,
-      side: THREE.BackSide,
-      blending: THREE.AdditiveBlending,
-    });
-    const rimMesh = new THREE.Mesh(rimGeo, rimMat);
-    scene.add(rimMesh);
-
-    // Common shared materials
-    const satOctahedronGeo = new THREE.OctahedronGeometry(0.013, 0);
-    sharedGeoRef.current = satOctahedronGeo;
-
-    const criticalMat = new THREE.MeshStandardMaterial({
-      color: 0xef4444,
-      emissive: 0xef4444,
-      emissiveIntensity: 0.7,
-      roughness: 0.3,
-    });
-    const cautionMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      emissive: 0xf59e0b,
-      emissiveIntensity: 0.65,
-      roughness: 0.3,
-    });
-    const nominalMat = new THREE.MeshStandardMaterial({
-      color: 0x00e5ff,
-      emissive: 0x00e5ff,
-      emissiveIntensity: 0.6,
-      roughness: 0.3,
-    });
-    const avoidanceEscapeMat = new THREE.MeshStandardMaterial({
-      color: 0x10b981,
-      emissive: 0x10b981,
-      emissiveIntensity: 0.8,
-      roughness: 0.2,
-    });
-    sharedMaterialsRef.current = { criticalMat, cautionMat, nominalMat, avoidanceEscapeMat };
-
-    // Clearance Vector Line (ACCIDENT mode avoidance)
-    const clearanceVectorGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
-    clearanceVectorGeoRef.current = clearanceVectorGeo;
-    const clearanceVectorMat = new THREE.LineBasicMaterial({
-      color: 0x10b981,
-      transparent: true,
-      opacity: 0,
-      linewidth: 2,
-    });
-    clearanceVectorMatRef.current = clearanceVectorMat;
-    const clearanceVectorLine = new THREE.Line(clearanceVectorGeo, clearanceVectorMat);
-    scene.add(clearanceVectorLine);
-
-    // --- INTERACTION & RAYCASTING ---
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2(-999, -999);
-    let isDragging = false;
-    let prevMouseX = 0;
-    let prevMouseY = 0;
-    let spherical = {
-      radius: defaultCamPos.length(),
-      theta: Math.atan2(defaultCamPos.x, defaultCamPos.z),
-      phi: Math.acos(defaultCamPos.y / defaultCamPos.length()),
-    };
-
-    const updateCameraFromSpherical = () => {
-      spherical.radius = Math.max(1.35, Math.min(6.5, spherical.radius));
-      spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
-      camera.position.x = spherical.radius * Math.sin(spherical.phi) * Math.sin(spherical.theta);
-      camera.position.y = spherical.radius * Math.cos(spherical.phi);
-      camera.position.z = spherical.radius * Math.sin(spherical.phi) * Math.cos(spherical.theta);
+      const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 1000);
+      const defaultCamPos = new THREE.Vector3(0, 1.8, 3.2);
+      camera.position.copy(defaultCamPos);
       camera.lookAt(0, 0, 0);
-    };
+      cameraRef.current = camera;
 
-    const onMouseDown = (e: MouseEvent) => {
-      isDragging = true;
-      prevMouseX = e.clientX;
-      prevMouseY = e.clientY;
-    };
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.toneMapping = THREE.ReinhardToneMapping;
+      renderer.toneMappingExposure = 0.85;
+      container.innerHTML = '';
+      container.appendChild(renderer.domElement);
+      rendererRef.current = renderer;
 
-    const onMouseMove = (e: MouseEvent) => {
-      const rect = container.getBoundingClientRect();
-      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      // Lights
+      const ambientLight = new THREE.AmbientLight(0x0a1628, 1.8);
+      scene.add(ambientLight);
 
-      if (isDragging) {
-        const dx = e.clientX - prevMouseX;
-        const dy = e.clientY - prevMouseY;
-        prevMouseX = e.clientX;
-        prevMouseY = e.clientY;
-        spherical.theta -= dx * 0.005;
-        spherical.phi -= dy * 0.005;
-        updateCameraFromSpherical();
-      }
-    };
+      const sunLight = new THREE.DirectionalLight(0xffffff, 2.6);
+      sunLight.position.set(6, 4, 5);
+      scene.add(sunLight);
 
-    const onMouseUp = () => {
-      isDragging = false;
-    };
+      const rimLight = new THREE.DirectionalLight(0x00e5ff, 1.2);
+      rimLight.position.set(-5, -2, -4);
+      scene.add(rimLight);
 
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      spherical.radius += e.deltaY * 0.002;
-      updateCameraFromSpherical();
-    };
+      // Collision point alert light (ACCIDENT mode)
+      const collisionPointLight = new THREE.PointLight(0xef4444, 0, 2.5);
+      scene.add(collisionPointLight);
+      collisionPointLightRef.current = collisionPointLight;
 
-    const onClick = (e: MouseEvent) => {
-      const rect = container.getBoundingClientRect();
-      const clickMouse = new THREE.Vector2(
-        ((e.clientX - rect.left) / rect.width) * 2 - 1,
-        -((e.clientY - rect.top) / rect.height) * 2 + 1
+      // Avoidance thruster burn light
+      const thrusterBurnLight = new THREE.PointLight(0xff7700, 0, 2.0);
+      scene.add(thrusterBurnLight);
+      thrusterBurnLightRef.current = thrusterBurnLight;
+
+      // Earth with NASA Visible Earth satellite texture
+      const loader = new THREE.TextureLoader();
+      const earthTexture = loader.load(
+        'https://eoimages.gsfc.nasa.gov/images/imagerecords/73000/73909/world.topo.bathy.200412.3x5400x2700.jpg'
       );
-      raycaster.setFromCamera(clickMouse, camera);
-      const meshes = orbitsRef.current.map((o) => o.mesh);
-      const intersects = raycaster.intersectObjects(meshes);
-
-      if (intersects.length > 0) {
-        const hit = intersects[0].object as THREE.Mesh;
-        const encIdx = hit.userData.encounterIndex;
-        const targetOrbit = orbitsRef.current.find((o) => o.encounterIndex === encIdx);
-        if (targetOrbit && onSelectSat) {
-          onSelectSat(targetOrbit.info);
-          // Lerp camera towards target satellite
-          const targetPos = targetOrbit.mesh.position;
-          spherical.theta = Math.atan2(targetPos.x, targetPos.z);
-          spherical.phi = Math.acos(targetPos.y / targetPos.length());
-          spherical.radius = 1.85;
-          updateCameraFromSpherical();
-        }
-      }
-    };
-
-    container.addEventListener('mousedown', onMouseDown);
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-    container.addEventListener('wheel', onWheel, { passive: false });
-    container.addEventListener('click', onClick);
-
-    // Camera controller methods exposed to props
-    cameraControlRef.current = {
-      zoomIn: () => {
-        spherical.radius = Math.max(1.35, spherical.radius - 0.45);
-        updateCameraFromSpherical();
-      },
-      zoomOut: () => {
-        spherical.radius = Math.min(6.5, spherical.radius + 0.45);
-        updateCameraFromSpherical();
-      },
-      reset: () => {
-        spherical.radius = defaultCamPos.length();
-        spherical.theta = Math.atan2(defaultCamPos.x, defaultCamPos.z);
-        spherical.phi = Math.acos(defaultCamPos.y / defaultCamPos.length());
-        updateCameraFromSpherical();
-      },
-      focusTarget: () => {
-        spherical.radius = 1.85;
-        spherical.theta = 0.35;
-        spherical.phi = 0.85;
-        updateCameraFromSpherical();
-      },
-    };
-
-    // --- ANIMATION LOOP WITH TRUE LERP AVOIDANCE ---
-    let animationFrameId: number;
-    let avoidanceLerpProgress = 0.0;
-    let lastTime = performance.now();
-
-    const animate = (currentTime: number) => {
-      animationFrameId = requestAnimationFrame(animate);
-
-      const dtSec = Math.min(0.1, (currentTime - lastTime) / 1000);
-      lastTime = currentTime;
-
-      const rate = isPausedRef.current ? 0 : playbackSpeedRef.current;
-
-      // 1. Earth slow authentic counter-clockwise rotation
-      earthMesh.rotation.y += 0.0006 * rate;
-
-      // 2. Real Three.js Smooth Lerp Avoidance Maneuver over 3 seconds
-      if (avoidanceRef.current) {
-        avoidanceLerpProgress = Math.min(1.0, avoidanceLerpProgress + dtSec / 3.0);
-      } else {
-        avoidanceLerpProgress = Math.max(0.0, avoidanceLerpProgress - dtSec / 2.0);
-      }
-
-      // Flash thruster burn light during active divergence
-      if (avoidanceLerpProgress > 0.01 && avoidanceLerpProgress < 0.95 && avoidanceRef.current) {
-        thrusterBurnLight.intensity = Math.sin(avoidanceLerpProgress * Math.PI) * 3.5;
-      } else {
-        thrusterBurnLight.intensity = 0;
-      }
-
-      // 3. Update Satellite Positions and Trails (Strictly Clamped to Radius via Quaternion)
-      orbitsRef.current.forEach((orbit) => {
-        orbit.theta += orbit.speed * rate;
-
-        let effectiveRadius = orbit.radius;
-
-        // In accident mode, animate Iridium 33 diverging by +25km orbital elevation
-        if (orbit.mesh.userData.isIridium) {
-          effectiveRadius = THREE.MathUtils.lerp(orbit.radius, orbit.radius + 0.042, avoidanceLerpProgress);
-          // Color transition: red to green
-          if (avoidanceLerpProgress > 0.4) {
-            orbit.mesh.material = avoidanceEscapeMat;
-            (orbit.trailLine.material as THREE.LineBasicMaterial).color.setHex(0x10b981);
-          } else {
-            orbit.mesh.material = criticalMat;
-            (orbit.trailLine.material as THREE.LineBasicMaterial).color.setHex(0xef4444);
-          }
-          thrusterBurnLight.position.copy(orbit.mesh.position);
-        }
-
-        // Exact orbital position along precomputed plane using quaternion
-        const currentPos = new THREE.Vector3(
-          effectiveRadius * Math.cos(orbit.theta),
-          0,
-          effectiveRadius * Math.sin(orbit.theta)
-        ).applyQuaternion(orbit.planeQuaternion);
-
-        orbit.mesh.position.copy(currentPos);
-
-        // Update trailing arc (last 90° = Math.PI / 2 radians)
-        const trailGeo = orbit.trailLine.geometry;
-        const posAttr = trailGeo.getAttribute('position') as THREE.BufferAttribute;
-        if (posAttr && posAttr.count > 0) {
-          const totalPts = posAttr.count;
-          const arcSpan = Math.PI / 2;
-          for (let p = 0; p < totalPts; p++) {
-            const ptTheta = orbit.theta - arcSpan * (1 - p / (totalPts - 1));
-            const pt = new THREE.Vector3(
-              effectiveRadius * Math.cos(ptTheta),
-              0,
-              effectiveRadius * Math.sin(ptTheta)
-            ).applyQuaternion(orbit.planeQuaternion);
-            posAttr.setXYZ(p, pt.x, pt.y, pt.z);
-          }
-          posAttr.needsUpdate = true;
-        }
-
-        orbit.trailLine.visible = showOrbitsRef.current;
+      const earthMat = new THREE.MeshStandardMaterial({
+        map: earthTexture,
+        roughness: 0.72,
+        metalness: 0.0,
       });
 
-      // 4. Update Avoidance Clearance Vector (between Iridium and Cosmos)
-      if (orbitsRef.current.length >= 2 && orbitsRef.current[0].mesh.userData.isIridium) {
-        const p1 = orbitsRef.current[0].mesh.position;
-        const p2 = orbitsRef.current[1].mesh.position;
-        const clearanceAttr = clearanceVectorGeo.getAttribute('position') as THREE.BufferAttribute;
-        if (clearanceAttr) {
-          clearanceAttr.setXYZ(0, p1.x, p1.y, p1.z);
-          clearanceAttr.setXYZ(1, p2.x, p2.y, p2.z);
-          clearanceAttr.needsUpdate = true;
-        }
-        clearanceVectorMat.opacity = avoidanceLerpProgress * 0.85;
+      const earthGeo = new THREE.SphereGeometry(1.0, 64, 64);
+      const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+      earthMesh.rotation.z = (23.44 * Math.PI) / 180;
+      scene.add(earthMesh);
+      earthMeshRef.current = earthMesh;
 
-        // Collision Point screen projection for CSS concentric pulsing rings
-        const colPos = collisionPointLight.position.clone();
-        colPos.project(camera);
-        const isBehind = colPos.z > 1.0;
-        setCollisionScreenPos({
-          x: ((colPos.x + 1) * width) / 2,
-          y: ((-colPos.y + 1) * height) / 2,
-          visible: !isBehind && avoidanceLerpProgress < 0.85,
+      // Atmosphere Rayleigh Glow Shell (Radius 1.02)
+      const atmosphereGeo = new THREE.SphereGeometry(1.022, 64, 64);
+      const atmosphereMat = new THREE.MeshPhongMaterial({
+        color: 0x00e5ff,
+        emissive: 0x00e5ff,
+        emissiveIntensity: 0.18,
+        transparent: true,
+        opacity: 0.10,
+        side: THREE.BackSide,
+        blending: THREE.AdditiveBlending,
+      });
+      const atmosphereMesh = new THREE.Mesh(atmosphereGeo, atmosphereMat);
+      scene.add(atmosphereMesh);
+
+      // Atmospheric Outer Rim
+      const rimGeo = new THREE.SphereGeometry(1.045, 32, 32);
+      const rimMat = new THREE.MeshBasicMaterial({
+        color: 0x00e5ff,
+        transparent: true,
+        opacity: 0.025,
+        side: THREE.BackSide,
+        blending: THREE.AdditiveBlending,
+      });
+      const rimMesh = new THREE.Mesh(rimGeo, rimMat);
+      scene.add(rimMesh);
+
+      // Shared materials template
+      const criticalMat = new THREE.MeshStandardMaterial({
+        color: 0xef4444,
+        emissive: 0xef4444,
+        emissiveIntensity: 0.7,
+        roughness: 0.3,
+      });
+      const cautionMat = new THREE.MeshStandardMaterial({
+        color: 0xf59e0b,
+        emissive: 0xf59e0b,
+        emissiveIntensity: 0.65,
+        roughness: 0.3,
+      });
+      const nominalMat = new THREE.MeshStandardMaterial({
+        color: 0x00e5ff,
+        emissive: 0x00e5ff,
+        emissiveIntensity: 0.6,
+        roughness: 0.3,
+      });
+      const avoidanceEscapeMat = new THREE.MeshStandardMaterial({
+        color: 0x10b981,
+        emissive: 0x10b981,
+        emissiveIntensity: 0.8,
+        roughness: 0.2,
+      });
+      sharedMaterialsRef.current = { criticalMat, cautionMat, nominalMat, avoidanceEscapeMat };
+
+      // Clearance Vector Line (ACCIDENT mode avoidance)
+      const clearanceVectorGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+      clearanceVectorGeoRef.current = clearanceVectorGeo;
+      const clearanceVectorMat = new THREE.LineBasicMaterial({
+        color: 0x10b981,
+        transparent: true,
+        opacity: 0,
+        linewidth: 2,
+      });
+      clearanceVectorMatRef.current = clearanceVectorMat;
+      const clearanceVectorLine = new THREE.Line(clearanceVectorGeo, clearanceVectorMat);
+      scene.add(clearanceVectorLine);
+
+      // Mouse & Camera Spherical Controls
+      const raycaster = new THREE.Raycaster();
+      const mouse = new THREE.Vector2(-999, -999);
+      let isDragging = false;
+      let prevMouseX = 0;
+      let prevMouseY = 0;
+      const defaultCamPosVal = new THREE.Vector3(0, 1.8, 3.2);
+      let spherical = {
+        radius: defaultCamPosVal.length(),
+        theta: Math.atan2(defaultCamPosVal.x, defaultCamPosVal.z),
+        phi: Math.acos(defaultCamPosVal.y / defaultCamPosVal.length()),
+      };
+
+      const updateCameraFromSpherical = () => {
+        spherical.radius = Math.max(1.35, Math.min(6.5, spherical.radius));
+        spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+        camera.position.x = spherical.radius * Math.sin(spherical.phi) * Math.sin(spherical.theta);
+        camera.position.y = spherical.radius * Math.cos(spherical.phi);
+        camera.position.z = spherical.radius * Math.sin(spherical.phi) * Math.cos(spherical.theta);
+        camera.lookAt(0, 0, 0);
+      };
+
+      const onMouseDown = (e: MouseEvent) => {
+        isDragging = true;
+        prevMouseX = e.clientX;
+        prevMouseY = e.clientY;
+      };
+
+      const onMouseMove = (e: MouseEvent) => {
+        const rect = container.getBoundingClientRect();
+        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+        if (isDragging) {
+          const dx = e.clientX - prevMouseX;
+          const dy = e.clientY - prevMouseY;
+          prevMouseX = e.clientX;
+          prevMouseY = e.clientY;
+          spherical.theta -= dx * 0.005;
+          spherical.phi -= dy * 0.005;
+          updateCameraFromSpherical();
+        }
+      };
+
+      const onMouseUp = () => {
+        isDragging = false;
+      };
+
+      const onWheel = (e: WheelEvent) => {
+        e.preventDefault();
+        spherical.radius += e.deltaY * 0.002;
+        updateCameraFromSpherical();
+      };
+
+      const onClick = (e: MouseEvent) => {
+        const rect = container.getBoundingClientRect();
+        const clickMouse = new THREE.Vector2(
+          ((e.clientX - rect.left) / rect.width) * 2 - 1,
+          -((e.clientY - rect.top) / rect.height) * 2 + 1
+        );
+        raycaster.setFromCamera(clickMouse, camera);
+        const meshes = orbitsRef.current.map((o) => o.mesh);
+        const intersects = raycaster.intersectObjects(meshes);
+
+        if (intersects.length > 0) {
+          const hit = intersects[0].object as THREE.Mesh;
+          const encIdx = hit.userData.encounterIndex;
+          const targetOrbit = orbitsRef.current.find((o) => o.encounterIndex === encIdx);
+          if (targetOrbit && onSelectSat) {
+            onSelectSat(targetOrbit.info);
+            const targetPos = targetOrbit.mesh.position;
+            spherical.theta = Math.atan2(targetPos.x, targetPos.z);
+            spherical.phi = Math.acos(targetPos.y / targetPos.length());
+            spherical.radius = 1.85;
+            updateCameraFromSpherical();
+          }
+        }
+      };
+
+      container.addEventListener('mousedown', onMouseDown);
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+      container.addEventListener('wheel', onWheel, { passive: false });
+      container.addEventListener('click', onClick);
+
+      cameraControlRef.current = {
+        zoomIn: () => {
+          spherical.radius = Math.max(1.35, spherical.radius - 0.45);
+          updateCameraFromSpherical();
+        },
+        zoomOut: () => {
+          spherical.radius = Math.min(6.5, spherical.radius + 0.45);
+          updateCameraFromSpherical();
+        },
+        reset: () => {
+          spherical.radius = defaultCamPosVal.length();
+          spherical.theta = Math.atan2(defaultCamPosVal.x, defaultCamPosVal.z);
+          spherical.phi = Math.acos(defaultCamPosVal.y / defaultCamPosVal.length());
+          updateCameraFromSpherical();
+        },
+        focusTarget: () => {
+          spherical.radius = 1.85;
+          spherical.theta = 0.35;
+          spherical.phi = 0.85;
+          updateCameraFromSpherical();
+        },
+      };
+
+      const onResize = () => {
+        if (!container) return;
+        width = container.clientWidth || window.innerWidth;
+        height = container.clientHeight || window.innerHeight;
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+        renderer.setSize(width, height);
+      };
+      window.addEventListener('resize', onResize);
+
+      // --- ANIMATION LOOP ---
+      let avoidanceLerpProgress = 0.0;
+      let lastTime = performance.now();
+
+      const animate = (currentTime: number) => {
+        animationFrameIdRef.current = requestAnimationFrame(animate);
+
+        const dtSec = Math.min(0.1, (currentTime - lastTime) / 1000);
+        lastTime = currentTime;
+
+        const rate = isPausedRef.current ? 0 : playbackSpeedRef.current;
+
+        // 1. Earth rotation
+        if (earthMeshRef.current) {
+          earthMeshRef.current.rotation.y += 0.0006 * rate;
+        }
+
+        // 2. Smooth Lerp Avoidance Maneuver over 3 seconds
+        if (avoidanceRef.current) {
+          avoidanceLerpProgress = Math.min(1.0, avoidanceLerpProgress + dtSec / 3.0);
+        } else {
+          avoidanceLerpProgress = Math.max(0.0, avoidanceLerpProgress - dtSec / 2.0);
+        }
+
+        // Flash thruster burn light during active divergence in ACCIDENT mode
+        if (
+          datasetRef.current === 'ACCIDENT' &&
+          avoidanceLerpProgress > 0.01 &&
+          avoidanceLerpProgress < 0.95 &&
+          avoidanceRef.current
+        ) {
+          if (thrusterBurnLightRef.current) {
+            thrusterBurnLightRef.current.intensity = Math.sin(avoidanceLerpProgress * Math.PI) * 3.5;
+          }
+        } else if (thrusterBurnLightRef.current) {
+          thrusterBurnLightRef.current.intensity = 0;
+        }
+
+        const mats = sharedMaterialsRef.current;
+
+        // 3. Update Satellite Positions and Trails
+        orbitsRef.current.forEach((orbit) => {
+          orbit.theta += orbit.speed * rate;
+
+          let effectiveRadius = orbit.radius;
+
+          // BUG 2 FIX: Gate avoidance elevation and material swap exclusively to ACCIDENT mode Iridium
+          if (datasetRef.current === 'ACCIDENT' && orbit.mesh.userData.isIridium && mats) {
+            effectiveRadius = THREE.MathUtils.lerp(orbit.radius, orbit.radius + 0.042, avoidanceLerpProgress);
+            if (avoidanceLerpProgress > 0.4) {
+              orbit.mesh.material = mats.avoidanceEscapeMat;
+              (orbit.trailLine.material as THREE.LineBasicMaterial).color.setHex(0x10b981);
+            } else {
+              orbit.mesh.material = mats.criticalMat;
+              (orbit.trailLine.material as THREE.LineBasicMaterial).color.setHex(0xef4444);
+            }
+            if (thrusterBurnLightRef.current) {
+              thrusterBurnLightRef.current.position.copy(orbit.mesh.position);
+            }
+          }
+
+          const currentPos = new THREE.Vector3(
+            effectiveRadius * Math.cos(orbit.theta),
+            0,
+            effectiveRadius * Math.sin(orbit.theta)
+          ).applyQuaternion(orbit.planeQuaternion);
+
+          orbit.mesh.position.copy(currentPos);
+
+          const trailGeo = orbit.trailLine.geometry;
+          const posAttr = trailGeo.getAttribute('position') as THREE.BufferAttribute;
+          if (posAttr && posAttr.count > 0) {
+            const totalPts = posAttr.count;
+            const arcSpan = Math.PI / 2;
+            for (let p = 0; p < totalPts; p++) {
+              const ptTheta = orbit.theta - arcSpan * (1 - p / (totalPts - 1));
+              const pt = new THREE.Vector3(
+                effectiveRadius * Math.cos(ptTheta),
+                0,
+                effectiveRadius * Math.sin(ptTheta)
+              ).applyQuaternion(orbit.planeQuaternion);
+              posAttr.setXYZ(p, pt.x, pt.y, pt.z);
+            }
+            posAttr.needsUpdate = true;
+          }
+
+          orbit.trailLine.visible = showOrbitsRef.current;
         });
-      }
 
-      // 5. Raycasting Hover Check
-      raycaster.setFromCamera(mouse, camera);
-      const meshes = orbitsRef.current.map((o) => o.mesh);
-      const intersects = raycaster.intersectObjects(meshes);
+        // 4. Update Avoidance Clearance Vector (between Iridium and Cosmos in ACCIDENT mode)
+        if (
+          datasetRef.current === 'ACCIDENT' &&
+          orbitsRef.current.length >= 2 &&
+          orbitsRef.current[0].mesh.userData.isIridium &&
+          clearanceVectorGeoRef.current &&
+          clearanceVectorMatRef.current &&
+          collisionPointLightRef.current
+        ) {
+          const p1 = orbitsRef.current[0].mesh.position;
+          const p2 = orbitsRef.current[1].mesh.position;
+          const clearanceAttr = clearanceVectorGeoRef.current.getAttribute('position') as THREE.BufferAttribute;
+          if (clearanceAttr) {
+            clearanceAttr.setXYZ(0, p1.x, p1.y, p1.z);
+            clearanceAttr.setXYZ(1, p2.x, p2.y, p2.z);
+            clearanceAttr.needsUpdate = true;
+          }
+          clearanceVectorMatRef.current.opacity = avoidanceLerpProgress * 0.85;
 
-      if (intersects.length > 0 && !isDragging) {
-        const hitMesh = intersects[0].object as THREE.Mesh;
-        const encIdx = hitMesh.userData.encounterIndex;
-        const hitOrbit = orbitsRef.current.find((o) => o.encounterIndex === encIdx);
-        if (hitOrbit) {
-          const screenPos = hitOrbit.mesh.position.clone().project(camera);
-          setHoveredSat({
-            ...hitOrbit.info,
-            screenX: ((screenPos.x + 1) * width) / 2,
-            screenY: ((-screenPos.y + 1) * height) / 2,
+          // BUG 6 FIX: Collision point projection only when avoidanceLerpProgress > 0.01 && < 0.85
+          const colPos = collisionPointLightRef.current.position.clone();
+          colPos.project(camera);
+          const isBehind = colPos.z > 1.0;
+          setCollisionScreenPos({
+            x: ((colPos.x + 1) * width) / 2,
+            y: ((-colPos.y + 1) * height) / 2,
+            visible: !isBehind && avoidanceLerpProgress > 0.01 && avoidanceLerpProgress < 0.85,
           });
+        } else if (datasetRef.current !== 'ACCIDENT') {
+          setCollisionScreenPos(null);
         }
-      } else {
-        setHoveredSat(null);
-      }
 
-      renderer.render(scene, camera);
-    };
+        // 5. Raycasting Hover Check
+        raycaster.setFromCamera(mouse, camera);
+        const meshes = orbitsRef.current.map((o) => o.mesh);
+        const intersects = raycaster.intersectObjects(meshes);
 
-    animationFrameId = requestAnimationFrame(animate);
+        if (intersects.length > 0 && !isDragging) {
+          const hitMesh = intersects[0].object as THREE.Mesh;
+          const encIdx = hitMesh.userData.encounterIndex;
+          const hitOrbit = orbitsRef.current.find((o) => o.encounterIndex === encIdx);
+          if (hitOrbit) {
+            const screenPos = hitOrbit.mesh.position.clone().project(camera);
+            setHoveredSat({
+              ...hitOrbit.info,
+              screenX: ((screenPos.x + 1) * width) / 2,
+              screenY: ((-screenPos.y + 1) * height) / 2,
+            });
+          }
+        } else {
+          setHoveredSat(null);
+        }
 
-    // Resize Handler
-    const onResize = () => {
-      if (!container) return;
-      width = container.clientWidth || window.innerWidth;
-      height = container.clientHeight || window.innerHeight;
-      camera.aspect = width / height;
-      camera.updateProjectionMatrix();
-      renderer.setSize(width, height);
-    };
-    window.addEventListener('resize', onResize);
+        renderer.render(scene, camera);
+      };
 
-    return () => {
-      cancelAnimationFrame(animationFrameId);
-      window.removeEventListener('resize', onResize);
-      container.removeEventListener('mousedown', onMouseDown);
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-      container.removeEventListener('wheel', onWheel);
-      container.removeEventListener('click', onClick);
+      animationFrameIdRef.current = requestAnimationFrame(animate);
+    }
 
-      // Free WebGL context immediately without leaking context slots
-      renderer.forceContextLoss();
-      renderer.domElement.remove();
-      renderer.dispose();
+    // --- 2. ALWAYS REMOVE OLD ORBIT MESHES FROM SCENE BEFORE REBUILDING (BUG 1 FIX) ---
+    const scene = sceneRef.current!;
+    const mats = sharedMaterialsRef.current!;
 
-      earthGeo.dispose();
-      earthMat.dispose();
-      earthTexture.dispose();
-      atmosphereGeo.dispose();
-      atmosphereMat.dispose();
-      satOctahedronGeo.dispose();
-      criticalMat.dispose();
-      cautionMat.dispose();
-      nominalMat.dispose();
-      avoidanceEscapeMat.dispose();
-      clearanceVectorGeo.dispose();
-      clearanceVectorMat.dispose();
-      sceneRef.current = null;
-      cameraRef.current = null;
-    };
-  }, []);
-
-  // =========================================================================
-  // 2. DATA SYNC: UPDATE SATELLITES IN EXISTING SCENE (ZERO WEBGL CONTEXT CREATION)
-  // =========================================================================
-  useEffect(() => {
-    const scene = sceneRef.current;
-    if (!scene || !sharedGeoRef.current || !sharedMaterialsRef.current) return;
-
-    const satOctahedronGeo = sharedGeoRef.current;
-    const { criticalMat, cautionMat, nominalMat } = sharedMaterialsRef.current;
-
-    // Remove old satellite meshes and trails from the scene
     orbitsRef.current.forEach((orbit) => {
       scene.remove(orbit.mesh);
       scene.remove(orbit.trailLine);
+      orbit.mesh.geometry.dispose();
+      (orbit.mesh.material as THREE.Material).dispose();
       orbit.trailLine.geometry.dispose();
       (orbit.trailLine.material as THREE.Material).dispose();
-      if (orbit.mesh.userData.isIridium || orbit.mesh.userData.isCosmos) {
-        (orbit.mesh.material as THREE.Material).dispose();
-      }
     });
     orbitsRef.current = [];
 
     const isAccident = dataset === 'ACCIDENT';
 
     if (isAccident) {
-      // --- ISOLATE ONLY IRIDIUM 33 AND COSMOS 2251 ---
-      // 1. Iridium 33
+      // --- ACCIDENT MODE: ISOLATE IRIDIUM 33 AND COSMOS 2251 ---
+      // 1. Iridium 33 (distinct encounterIndex: 0)
       const iridRadius = 1.0 + (780 / 6371.0) * 0.7;
       const iridInc = (86.4 * Math.PI) / 180;
       const iridRaan = 0.45;
@@ -576,7 +561,7 @@ export default function Globe3D({
       const iridIncQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), iridInc);
       iridQuat.multiplyQuaternions(iridRaanQ, iridIncQ);
 
-      const iridMesh = new THREE.Mesh(satOctahedronGeo, criticalMat.clone());
+      const iridMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.014, 0), mats.criticalMat.clone());
       iridMesh.rotation.set(0.785, 0.785, 0);
       iridMesh.userData = { encounterIndex: 0, isIridium: true };
       scene.add(iridMesh);
@@ -617,7 +602,7 @@ export default function Globe3D({
         },
       });
 
-      // 2. Cosmos 2251
+      // 2. Cosmos 2251 (distinct encounterIndex: 1)
       const cosmosRadius = 1.0 + (780 / 6371.0) * 0.7;
       const cosmosInc = (74.0 * Math.PI) / 180;
       const cosmosRaan = 2.05;
@@ -626,9 +611,9 @@ export default function Globe3D({
       const cosmosIncQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), cosmosInc);
       cosmosQuat.multiplyQuaternions(cosmosRaanQ, cosmosIncQ);
 
-      const cosmosMesh = new THREE.Mesh(satOctahedronGeo, criticalMat.clone());
+      const cosmosMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.014, 0), mats.criticalMat.clone());
       cosmosMesh.rotation.set(0.785, 0.785, 0);
-      cosmosMesh.userData = { encounterIndex: 0, isCosmos: true };
+      cosmosMesh.userData = { encounterIndex: 1, isCosmos: true };
       scene.add(cosmosMesh);
 
       const trailGeoCosmos = new THREE.BufferGeometry().setFromPoints(
@@ -651,7 +636,7 @@ export default function Globe3D({
         planeQuaternion: cosmosQuat,
         theta: Math.PI * 0.98,
         speed: 0.0035,
-        encounterIndex: 0,
+        encounterIndex: 1,
         info: {
           name: 'COSMOS 2251',
           noradId: 22675,
@@ -671,7 +656,7 @@ export default function Globe3D({
         collisionPointLightRef.current.intensity = 2.5;
       }
     } else {
-      // --- REALTIME TELEMETRY SATELLITES (REAL SGP4 ORBITAL PROPAGATION) ---
+      // --- REALTIME TELEMETRY SATELLITES ---
       const hasRealPositions = Boolean(satellitePositions && satellitePositions.length > 0);
       const totalSats = hasRealPositions
         ? Math.min(500, Math.max(10, Math.min(satellitePositions.length, encounterCount)))
@@ -683,9 +668,9 @@ export default function Globe3D({
         const pos = hasRealPositions ? satellitePositions[i] : null;
 
         const risk = (pos?.risk_category || enc.risk_category || enc.riskCategory || (i % 9 === 0 ? 'CRITICAL' : i % 3 === 0 ? 'CAUTION' : 'NOMINAL')) as 'NOMINAL' | 'CAUTION' | 'CRITICAL';
-        const mat = risk === 'CRITICAL' ? criticalMat : risk === 'CAUTION' ? cautionMat : nominalMat;
+        const mat = risk === 'CRITICAL' ? mats.criticalMat : risk === 'CAUTION' ? mats.cautionMat : mats.nominalMat;
 
-        const mesh = new THREE.Mesh(satOctahedronGeo, mat);
+        const mesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.013, 0), mat.clone());
         mesh.rotation.set(0.785, 0.785, 0);
         mesh.userData = { encounterIndex: i };
         scene.add(mesh);
@@ -700,10 +685,8 @@ export default function Globe3D({
         let incDeg: number;
         let velKms: number;
         let satName: string;
-        let noradId: number | string;
 
         if (pos) {
-          // Set real position from SGP4 directly
           mesh.position.set(pos.x, pos.y, pos.z);
           const pVec = new THREE.Vector3(pos.x, pos.y, pos.z);
           radius = pVec.length();
@@ -713,10 +696,8 @@ export default function Globe3D({
           raan = ((i * 137.5) * Math.PI) / 180;
           velKms = pos.velocity_kms;
           satName = pos.name;
-          noradId = pos.norad_id;
           speed = 0.0010 + (Math.max(1, pos.velocity_kms) / 10.0) * 0.0004;
 
-          // Compute orbital plane through pos.x, pos.y, pos.z at theta=0
           const uVec = pVec.clone().normalize();
           const raanAng = (i * 137.5 * Math.PI) / 180;
           const nRef = new THREE.Vector3(
@@ -734,18 +715,17 @@ export default function Globe3D({
           quat.setFromRotationMatrix(rotMat);
           theta = 0.0;
         } else {
-          altKm = enc.satAAltitude || 400 + (i % 16) * 45;
+          altKm = 400 + (i % 16) * 45;
           radius = 1.0 + (altKm / 6371.0) * 0.7;
-          incDeg = enc.satAInclination || 35 + ((i * 29) % 63);
+          incDeg = 35 + ((i * 29) % 63);
           inclination = (incDeg * Math.PI) / 180;
           raan = ((i * 137.5) * Math.PI) / 180;
           const raanQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), raan);
           const incQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), inclination);
           quat.multiplyQuaternions(raanQ, incQ);
           theta = ((i * 53.7) * Math.PI) / 180;
-          velKms = enc.satAVelocity || 7.5 + (i % 5) * 0.1;
-          satName = enc.satAName || enc.sat_a_name || `OBJECT-${24000 + i}`;
-          noradId = enc.satANorad || enc.sat_a_norad || (24000 + i);
+          velKms = 7.5 + (i % 5) * 0.1;
+          satName = `OBJECT-${24000 + i}`;
         }
 
         const trailGeo = new THREE.BufferGeometry().setFromPoints(
@@ -760,17 +740,18 @@ export default function Globe3D({
         const trailLine = new THREE.Line(trailGeo, trailMat);
         scene.add(trailLine);
 
+        // BUG 3 FIX: Read fields from enc and pos according to AdaptedEncounter structure
         const satInfo: SatelliteInfo = {
           name: satName,
-          noradId,
-          altitudeKm: altKm,
-          velocityKms: velKms,
-          inclinationDeg: incDeg,
+          noradId: enc.sat_a_norad ?? (pos?.norad_id ?? (24000 + i)),
+          altitudeKm: pos ? pos.alt_km : (400 + (i % 16) * 45),
+          velocityKms: pos?.velocity_kms ?? (7.5 + (i % 5) * 0.1),
+          inclinationDeg: pos?.inclination_deg ?? incDeg,
           status: risk,
-          operator: enc.satAOperator || enc.sat_a_operator || (pos ? 'SGP4 Propagated' : 'LEO Constellation'),
-          satBName: enc.satBName || enc.sat_b_name,
-          missDistanceKm: enc.missDistanceKm || enc.miss_distance_km,
-          relVelocityKms: enc.relVelocityKms || enc.rel_velocity_kms,
+          operator: pos ? 'SGP4 Propagated' : 'LEO Constellation',
+          satBName: enc.sat_b_name ?? undefined,
+          missDistanceKm: enc.miss_distance_km ?? undefined,
+          relVelocityKms: enc.rel_velocity_kms ?? undefined,
         };
 
         const orbitItem: OrbitDefinition = {
@@ -797,6 +778,23 @@ export default function Globe3D({
       setCollisionScreenPos(null);
     }
   }, [dataset, encounterCount, encounters, satellitePositions]);
+
+  // Cleanup on final component unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+      }
+      if (rendererRef.current) {
+        rendererRef.current.forceContextLoss();
+        rendererRef.current.domElement.remove();
+        rendererRef.current.dispose();
+      }
+      sceneRef.current = null;
+      rendererRef.current = null;
+      cameraRef.current = null;
+    };
+  }, []);
 
   return (
     <div className="relative w-full h-full overflow-hidden select-none">

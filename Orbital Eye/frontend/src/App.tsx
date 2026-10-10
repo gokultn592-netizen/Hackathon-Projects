@@ -45,6 +45,9 @@ function MissionControlDashboard() {
   const { data, isLoading, error } = useEncounters(dataset, limit);
   const { positions: satellitePositions, isLoading: posLoading } = useSatellitePositions(dataset, limit);
 
+  // Dynamic Oracle DB Status Badge
+  const dbStatus = error && data.length === 0 ? 'ERROR' : isLoading && data.length === 0 ? 'CONNECTING' : 'ONLINE';
+
   // UTC Mission Timeline Clock (18px JetBrains Mono)
   const [utcTime, setUtcTime] = useState('');
   useEffect(() => {
@@ -202,9 +205,25 @@ function MissionControlDashboard() {
             <span>CATALOG ({isLoading ? '—' : error ? 'ERR' : data.length})</span>
           </button>
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]" />
-            <span className="text-[11px] text-slate-400 uppercase tracking-wider hidden md:inline">
-              ORACLE DB ONLINE
+            <span
+              className={`w-2 h-2 rounded-full ${
+                dbStatus === 'ONLINE'
+                  ? 'bg-emerald-400 animate-ping'
+                  : dbStatus === 'CONNECTING'
+                  ? 'bg-amber-400 animate-pulse'
+                  : 'bg-red-500'
+              }`}
+            />
+            <span
+              className={`text-[11px] uppercase tracking-wider hidden md:inline ${
+                dbStatus === 'ONLINE'
+                  ? 'text-emerald-400'
+                  : dbStatus === 'CONNECTING'
+                  ? 'text-amber-400'
+                  : 'text-red-400'
+              }`}
+            >
+              ORACLE DB {dbStatus}
             </span>
           </div>
         </div>
@@ -400,17 +419,18 @@ function MissionControlDashboard() {
                         onClick={() => {
                           setSelectedSat({
                             name: item.satAName,
-                            noradId: item.satANorad || item.satAId || 20000,
-                            altitudeKm: 550,
+                            noradId: item.sat_a_norad ?? item.satAId ?? 0,
+                            altitudeKm: item.sat_a_norad ? 550 : 420,
                             velocityKms: item.relVelocity,
                             inclinationDeg: 53.0,
-                            status: isCrit ? 'CRITICAL' : 'CAUTION',
-                            operator: 'LEO Object',
-                            satBName: item.satBName,
+                            status: item.missDistance < 1 ? 'CRITICAL' : item.missDistance < 5 ? 'CAUTION' : 'NOMINAL',
+                            operator: 'LEO Conjunction Object',
+                            satBName: item.sat_b_name ?? item.satBName,
                             missDistanceKm: item.missDistance,
                             relVelocityKms: item.relVelocity,
                           });
                           setSelectedEncounter(item);
+                          setActiveTab('TELEMETRY');
                           setCameraTrigger({ type: 'focus', timestamp: Date.now() });
                         }}
                         className="p-2.5 bg-[#02050b] border border-cyan-500/20 hover:border-cyan-400/50 cursor-pointer flex items-center justify-between transition-colors"
