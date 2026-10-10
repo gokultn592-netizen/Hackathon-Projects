@@ -4,18 +4,18 @@ import { SatellitePosition } from '../hooks/useSatellitePositions';
 
 export interface SatelliteInfo {
   name: string;
-  noradId: number | string;
+  noradId: number;
   altitudeKm: number;
   velocityKms: number;
   inclinationDeg: number;
-  status: 'NOMINAL' | 'CAUTION' | 'CRITICAL' | 'IMPACT_SITE';
+  status: 'NOMINAL' | 'CAUTION' | 'CRITICAL';
   operator?: string;
+  satBName?: string;
   missDistanceKm?: number;
   relVelocityKms?: number;
-  satBName?: string;
 }
 
-export interface Globe3DProps {
+interface Globe3DProps {
   dataset?: string;
   encounterCount?: number;
   encounters?: any[];
@@ -48,6 +48,7 @@ interface OrbitDefinition {
   info: SatelliteInfo;
   homePosition?: THREE.Vector3;
   useRealPosition?: boolean;
+  isBackground?: boolean;
 }
 
 export default function Globe3D({
@@ -65,7 +66,16 @@ export default function Globe3D({
 }: Globe3DProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const [hoveredSat, setHoveredSat] = useState<HoveredSatInfo | null>(null);
-  const [collisionScreenPos, setCollisionScreenPos] = useState<{ x: number; y: number; visible: boolean } | null>(null);
+
+  // Tactical Accident / Avoidance HUD state pinned to 3D world position
+  const [accidentHUD, setAccidentHUD] = useState<{
+    visible: boolean;
+    phase: 'APPROACH' | 'IMPACT' | 'AVOIDED';
+    screenX: number;
+    screenY: number;
+    missDistanceKm: number;
+    timeToTcaSec: number;
+  } | null>(null);
 
   // References for live animation loop
   const avoidanceRef = useRef(avoidanceActive);
@@ -88,7 +98,6 @@ export default function Globe3D({
     showOrbitsRef.current = showOrbits;
   }, [showOrbits]);
 
-  // BUG 2: datasetRef to safely gate avoidance in animation loop
   const datasetRef = useRef(dataset);
   useEffect(() => {
     datasetRef.current = dataset;
@@ -109,18 +118,38 @@ export default function Globe3D({
   const earthMeshRef = useRef<THREE.Mesh | null>(null);
   const collisionPointLightRef = useRef<THREE.PointLight | null>(null);
   const thrusterBurnLightRef = useRef<THREE.PointLight | null>(null);
-  const clearanceVectorGeoRef = useRef<THREE.BufferGeometry | null>(null);
-  const clearanceVectorMatRef = useRef<THREE.LineBasicMaterial | null>(null);
+
+  // Forensic accident & avoidance 3D objects
+  const accidentObjectsRef = useRef<{
+    colPoint: THREE.Vector3;
+    iridColTheta: number;
+    cosmosColTheta: number;
+    iridQuat: THREE.Quaternion;
+    cosmosQuat: THREE.Quaternion;
+    flashMesh: THREE.Mesh;
+    shockwaveMesh: THREE.Mesh;
+    debrisPoints: THREE.Points;
+    debrisVelocities: THREE.Vector3[];
+    thrusterPlumeMesh: THREE.Mesh;
+    clearanceLine: THREE.Line;
+    iridMesh: THREE.Mesh;
+    cosmosMesh: THREE.Mesh;
+    iridTrailLine: THREE.Line;
+    cosmosTrailLine: THREE.Line;
+  } | null>(null);
+
   const sharedMaterialsRef = useRef<{
     criticalMat: THREE.MeshStandardMaterial;
     cautionMat: THREE.MeshStandardMaterial;
     nominalMat: THREE.MeshStandardMaterial;
     avoidanceEscapeMat: THREE.MeshStandardMaterial;
+    backgroundMat: THREE.MeshStandardMaterial;
   } | null>(null);
+
   const animationFrameIdRef = useRef<number>(0);
   const orbitsRef = useRef<OrbitDefinition[]>([]);
 
-  // Deep comparison trigger effect for camera buttons
+  // Camera trigger handler
   useEffect(() => {
     if (!cameraTrigger) return;
     const ctrl = cameraControlRef.current;
@@ -132,9 +161,7 @@ export default function Globe3D({
     else if (cameraTrigger.type === 'focus') ctrl.focusTarget();
   }, [cameraTrigger?.type, cameraTrigger?.timestamp]);
 
-  // =========================================================================
-  // SINGLE UNIFIED LIFECYCLE EFFECT (BUG 1 FIX: ZERO ORPHAN MESHES, 1 WEBGL CONTEXT)
-  // =========================================================================
+  // Unified Scene Lifecycle
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
@@ -142,7 +169,7 @@ export default function Globe3D({
     let width = container.clientWidth || window.innerWidth;
     let height = container.clientHeight || window.innerHeight;
 
-    // --- 1. INITIALIZE SCENE ONCE IF NOT YET CREATED ---
+    // 1. INITIALIZE SCENE ONCE
     if (!sceneRef.current) {
       const scene = new THREE.Scene();
       scene.background = new THREE.Color(0x00020a);
@@ -163,7 +190,7 @@ export default function Globe3D({
       container.appendChild(renderer.domElement);
       rendererRef.current = renderer;
 
-      // Lights (Balanced multi-point lighting so Earth is vivid from all angles)
+      // Lights
       const ambientLight = new THREE.AmbientLight(0x18345c, 2.5);
       scene.add(ambientLight);
 
@@ -179,23 +206,22 @@ export default function Globe3D({
       topLight.position.set(0, 6, 0);
       scene.add(topLight);
 
-      // Collision point alert light (ACCIDENT mode)
-      const collisionPointLight = new THREE.PointLight(0xef4444, 0, 2.5);
+      // Collision explosion light
+      const collisionPointLight = new THREE.PointLight(0xff5533, 0, 3.5);
       scene.add(collisionPointLight);
       collisionPointLightRef.current = collisionPointLight;
 
       // Avoidance thruster burn light
-      const thrusterBurnLight = new THREE.PointLight(0xff7700, 0, 2.0);
+      const thrusterBurnLight = new THREE.PointLight(0x00ffff, 0, 2.8);
       scene.add(thrusterBurnLight);
       thrusterBurnLightRef.current = thrusterBurnLight;
 
-      // High-tech Cybernetic Canvas Earth Texture (instant load, 0 network dependency)
+      // High-tech Earth Texture
       const canvas = document.createElement('canvas');
       canvas.width = 2048;
       canvas.height = 1024;
       const ctx = canvas.getContext('2d')!;
 
-      // Deep Space / Ocean Sapphire Gradient
       const oceanGrad = ctx.createLinearGradient(0, 0, 0, 1024);
       oceanGrad.addColorStop(0, '#04162e');
       oceanGrad.addColorStop(0.2, '#072448');
@@ -205,7 +231,7 @@ export default function Globe3D({
       ctx.fillStyle = oceanGrad;
       ctx.fillRect(0, 0, 2048, 1024);
 
-      // Lat/Long Graticule Grid Lines (15-degree resolution)
+      // Graticule Grid Lines
       ctx.strokeStyle = 'rgba(0, 240, 255, 0.15)';
       ctx.lineWidth = 1;
       for (let lat = 0; lat <= 1024; lat += 1024 / 12) {
@@ -221,27 +247,19 @@ export default function Globe3D({
         ctx.stroke();
       }
 
-      // Tropics of Cancer & Capricorn (±23.44°)
+      // Tropics
       ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
       ctx.lineWidth = 1.5;
       ctx.setLineDash([8, 8]);
       ctx.beginPath();
-      ctx.moveTo(0, 391); // Tropic of Cancer
+      ctx.moveTo(0, 391);
       ctx.lineTo(2048, 391);
-      ctx.moveTo(0, 633); // Tropic of Capricorn
+      ctx.moveTo(0, 633);
       ctx.lineTo(2048, 633);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Prime Meridian highlight
-      ctx.strokeStyle = 'rgba(0, 255, 255, 0.40)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(1024, 0);
-      ctx.lineTo(1024, 1024);
-      ctx.stroke();
-
-      // Equator Radiant Highlight
+      // Equator
       ctx.strokeStyle = 'rgba(0, 255, 255, 0.70)';
       ctx.lineWidth = 3;
       ctx.beginPath();
@@ -249,102 +267,36 @@ export default function Globe3D({
       ctx.lineTo(2048, 512);
       ctx.stroke();
 
-      // Landmass definitions with bathymetric shelf glow
-      const drawLand = (pts: [number, number][]) => {
-        if (!pts.length) return;
-
-        // Shelf glow
-        ctx.strokeStyle = 'rgba(0, 210, 255, 0.20)';
-        ctx.lineWidth = 12;
-        ctx.lineJoin = 'round';
+      // Stylized Continents
+      const drawContinent = (pathPoints: [number, number][], fill: string, stroke: string) => {
         ctx.beginPath();
-        ctx.moveTo(pts[0][0], pts[0][1]);
-        for (let k = 1; k < pts.length; k++) {
-          ctx.lineTo(pts[k][0], pts[k][1]);
+        ctx.moveTo(pathPoints[0][0], pathPoints[0][1]);
+        for (let i = 1; i < pathPoints.length; i++) {
+          ctx.lineTo(pathPoints[i][0], pathPoints[i][1]);
         }
         ctx.closePath();
-        ctx.stroke();
-
-        // Land fill
-        ctx.fillStyle = '#123d66';
+        ctx.fillStyle = fill;
         ctx.fill();
-
-        // Crisp neon coastline
-        ctx.strokeStyle = 'rgba(0, 245, 255, 0.90)';
-        ctx.lineWidth = 2.2;
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = 2;
         ctx.stroke();
       };
 
-      // North America (Alaska, Canada, US, Mexico, Central America)
-      drawLand([
-        [160, 180], [240, 140], [320, 160], [420, 170], [480, 190], [530, 230], [560, 320],
-        [510, 420], [460, 470], [420, 480], [390, 440], [350, 430], [300, 370], [250, 340],
-        [200, 310], [150, 250], [140, 200]
-      ]);
-      // Greenland
-      drawLand([[660, 110], [740, 100], [770, 160], [720, 230], [670, 210], [650, 150]]);
-      // South America
-      drawLand([
-        [430, 510], [510, 520], [570, 570], [610, 640], [570, 750], [520, 830],
-        [490, 870], [460, 810], [430, 710], [410, 610], [410, 540]
-      ]);
-      // Europe & British Isles
-      drawLand([[920, 240], [970, 220], [1050, 200], [1140, 230], [1160, 310], [1120, 380], [1030, 390], [970, 350], [930, 300]]);
-      drawLand([[910, 260], [940, 250], [930, 290], [900, 280]]); // UK / Ireland
-      // Africa
-      drawLand([
-        [960, 410], [1070, 390], [1170, 430], [1230, 510], [1210, 660], [1160, 770],
-        [1100, 820], [1030, 780], [970, 640], [930, 530], [940, 450]
-      ]);
-      // Madagascar
-      drawLand([[1240, 710], [1270, 700], [1260, 780], [1230, 770]]);
-      // Asia (Russia, China, India, SE Asia, Japan)
-      drawLand([
-        [1160, 210], [1320, 170], [1540, 160], [1710, 220], [1750, 330], [1680, 410],
-        [1570, 480], [1480, 470], [1430, 540], [1370, 600], [1320, 540], [1280, 450],
-        [1220, 410], [1180, 320]
-      ]);
-      // India sub-peninsula
-      drawLand([[1320, 470], [1400, 480], [1390, 590], [1340, 620], [1310, 560]]);
-      // Japan
-      drawLand([[1720, 320], [1760, 350], [1740, 410], [1700, 360]]);
-      // Australia & New Zealand
-      drawLand([[1540, 670], [1680, 640], [1750, 710], [1740, 810], [1660, 850], [1560, 820], [1520, 740]]);
-      drawLand([[1790, 810], [1830, 830], [1800, 890], [1770, 860]]); // New Zealand
-      // Antarctica
-      drawLand([[200, 930], [600, 920], [1100, 930], [1600, 920], [2000, 930], [2048, 1024], [0, 1024]]);
+      const cFill = 'rgba(7, 48, 86, 0.88)';
+      const cStroke = 'rgba(0, 240, 255, 0.45)';
 
-      // Glowing Major Metropolitan Cities and Ground Spaceports
-      const cities: [number, number, string][] = [
-        [440, 380, 'NYC'], [360, 390, 'LA'], [420, 420, 'Houston'], [460, 430, 'Canaveral'],
-        [940, 280, 'London'], [970, 310, 'Paris'], [1030, 290, 'Berlin'], [1080, 260, 'Moscow'],
-        [1190, 330, 'Baikonur'], [1090, 440, 'Cairo'], [1210, 470, 'Dubai'], [1330, 540, 'New Delhi'],
-        [1350, 570, 'Mumbai'], [1360, 600, 'Bengaluru'], [1560, 380, 'Beijing'], [1600, 420, 'Shanghai'],
-        [1670, 380, 'Tokyo'], [1640, 360, 'Seoul'], [1460, 620, 'Singapore'], [1710, 780, 'Sydney'],
-        [520, 660, 'Brasilia'], [530, 780, 'Buenos Aires'], [1130, 790, 'Johannesburg']
-      ];
-
-      cities.forEach(([cx, cy]) => {
-        // Golden ambient glow
-        ctx.fillStyle = 'rgba(255, 220, 100, 0.35)';
-        ctx.beginPath();
-        ctx.arc(cx, cy, 7, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Electric cyan halo
-        ctx.fillStyle = 'rgba(0, 245, 255, 0.50)';
-        ctx.beginPath();
-        ctx.arc(cx, cy, 4.5, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Brilliant core dot
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(cx, cy, 2.2, 0, Math.PI * 2);
-        ctx.fill();
-      });
+      // Continents paths
+      drawContinent([[340, 150], [580, 170], [640, 290], [530, 480], [420, 460], [310, 320]], cFill, cStroke);
+      drawContinent([[490, 480], [610, 520], [660, 640], [570, 840], [490, 780], [450, 560]], cFill, cStroke);
+      drawContinent([[920, 210], [1080, 200], [1160, 310], [980, 340], [890, 270]], cFill, cStroke);
+      drawContinent([[910, 340], [1120, 350], [1180, 560], [1080, 780], [980, 790], [880, 510]], cFill, cStroke);
+      drawContinent([[1080, 160], [1680, 180], [1780, 350], [1520, 490], [1320, 430], [1180, 290]], cFill, cStroke);
+      drawContinent([[1480, 560], [1660, 570], [1710, 720], [1520, 740]], cFill, cStroke);
 
       const earthTexture = new THREE.CanvasTexture(canvas);
+      earthTexture.wrapS = THREE.RepeatWrapping;
+      earthTexture.wrapT = THREE.ClampToEdgeWrapping;
+
       const earthMat = new THREE.MeshStandardMaterial({
         map: earthTexture,
         roughness: 0.55,
@@ -357,7 +309,7 @@ export default function Globe3D({
       scene.add(earthMesh);
       earthMeshRef.current = earthMesh;
 
-      // Atmosphere Rayleigh Glow Shell (Radius 1.022)
+      // Atmosphere Glow Shell
       const atmosphereGeo = new THREE.SphereGeometry(1.022, 64, 64);
       const atmosphereMat = new THREE.MeshPhongMaterial({
         color: 0x00f0ff,
@@ -368,62 +320,43 @@ export default function Globe3D({
         side: THREE.BackSide,
         blending: THREE.AdditiveBlending,
       });
-      const atmosphereMesh = new THREE.Mesh(atmosphereGeo, atmosphereMat);
-      scene.add(atmosphereMesh);
+      scene.add(new THREE.Mesh(atmosphereGeo, atmosphereMat));
 
-      // Atmospheric Outer Rim
-      const rimGeo = new THREE.SphereGeometry(1.045, 32, 32);
-      const rimMat = new THREE.MeshBasicMaterial({
-        color: 0x00e5ff,
-        transparent: true,
-        opacity: 0.04,
-        side: THREE.BackSide,
-        blending: THREE.AdditiveBlending,
-      });
-      const rimMesh = new THREE.Mesh(rimGeo, rimMat);
-      scene.add(rimMesh);
-
-      // Shared materials template
+      // Shared materials
       const criticalMat = new THREE.MeshStandardMaterial({
         color: 0xef4444,
         emissive: 0xef4444,
-        emissiveIntensity: 0.7,
-        roughness: 0.3,
+        emissiveIntensity: 0.85,
+        roughness: 0.2,
       });
       const cautionMat = new THREE.MeshStandardMaterial({
         color: 0xf59e0b,
         emissive: 0xf59e0b,
-        emissiveIntensity: 0.65,
+        emissiveIntensity: 0.7,
         roughness: 0.3,
       });
       const nominalMat = new THREE.MeshStandardMaterial({
         color: 0x00e5ff,
         emissive: 0x00e5ff,
-        emissiveIntensity: 0.6,
+        emissiveIntensity: 0.65,
         roughness: 0.3,
       });
       const avoidanceEscapeMat = new THREE.MeshStandardMaterial({
         color: 0x10b981,
         emissive: 0x10b981,
-        emissiveIntensity: 0.8,
-        roughness: 0.2,
+        emissiveIntensity: 0.95,
+        roughness: 0.1,
       });
-      sharedMaterialsRef.current = { criticalMat, cautionMat, nominalMat, avoidanceEscapeMat };
-
-      // Clearance Vector Line (ACCIDENT mode avoidance)
-      const clearanceVectorGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
-      clearanceVectorGeoRef.current = clearanceVectorGeo;
-      const clearanceVectorMat = new THREE.LineBasicMaterial({
-        color: 0x10b981,
+      const backgroundMat = new THREE.MeshStandardMaterial({
+        color: 0x38bdf8,
+        emissive: 0x0284c7,
+        emissiveIntensity: 0.35,
         transparent: true,
-        opacity: 0,
-        linewidth: 2,
+        opacity: 0.45,
       });
-      clearanceVectorMatRef.current = clearanceVectorMat;
-      const clearanceVectorLine = new THREE.Line(clearanceVectorGeo, clearanceVectorMat);
-      scene.add(clearanceVectorLine);
+      sharedMaterialsRef.current = { criticalMat, cautionMat, nominalMat, avoidanceEscapeMat, backgroundMat };
 
-      // Mouse & Camera Spherical Controls
+      // Mouse & Camera Controls
       const raycaster = new THREE.Raycaster();
       const mouse = new THREE.Vector2(-999, -999);
       let isDragging = false;
@@ -457,13 +390,13 @@ export default function Globe3D({
         mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
         if (isDragging) {
-          const dx = e.clientX - prevMouseX;
-          const dy = e.clientY - prevMouseY;
+          const deltaX = e.clientX - prevMouseX;
+          const deltaY = e.clientY - prevMouseY;
+          spherical.theta -= deltaX * 0.005;
+          spherical.phi -= deltaY * 0.005;
+          updateCameraFromSpherical();
           prevMouseX = e.clientX;
           prevMouseY = e.clientY;
-          spherical.theta -= dx * 0.005;
-          spherical.phi -= dy * 0.005;
-          updateCameraFromSpherical();
         }
       };
 
@@ -477,44 +410,18 @@ export default function Globe3D({
         updateCameraFromSpherical();
       };
 
-      const onClick = (e: MouseEvent) => {
-        const rect = container.getBoundingClientRect();
-        const clickMouse = new THREE.Vector2(
-          ((e.clientX - rect.left) / rect.width) * 2 - 1,
-          -((e.clientY - rect.top) / rect.height) * 2 + 1
-        );
-        raycaster.setFromCamera(clickMouse, camera);
-        const meshes = orbitsRef.current.map((o) => o.mesh);
-        const intersects = raycaster.intersectObjects(meshes);
-
-        if (intersects.length > 0) {
-          const hit = intersects[0].object as THREE.Mesh;
-          const encIdx = hit.userData.encounterIndex;
-          const targetOrbit = orbitsRef.current.find((o) => o.encounterIndex === encIdx);
-          if (targetOrbit && onSelectSat) {
-            onSelectSat(targetOrbit.info);
-            const targetPos = targetOrbit.mesh.position;
-            spherical.theta = Math.atan2(targetPos.x, targetPos.z);
-            spherical.phi = Math.acos(targetPos.y / targetPos.length());
-            spherical.radius = 1.85;
-            updateCameraFromSpherical();
-          }
-        }
-      };
-
       container.addEventListener('mousedown', onMouseDown);
       window.addEventListener('mousemove', onMouseMove);
       window.addEventListener('mouseup', onMouseUp);
       container.addEventListener('wheel', onWheel, { passive: false });
-      container.addEventListener('click', onClick);
 
       cameraControlRef.current = {
         zoomIn: () => {
-          spherical.radius = Math.max(1.35, spherical.radius - 0.45);
+          spherical.radius = Math.max(1.35, spherical.radius - 0.4);
           updateCameraFromSpherical();
         },
         zoomOut: () => {
-          spherical.radius = Math.min(6.5, spherical.radius + 0.45);
+          spherical.radius = Math.min(6.5, spherical.radius + 0.4);
           updateCameraFromSpherical();
         },
         reset: () => {
@@ -542,8 +449,8 @@ export default function Globe3D({
       window.addEventListener('resize', onResize);
 
       // --- ANIMATION LOOP ---
-      let avoidanceLerpProgress = 0.0;
       let lastTime = performance.now();
+      let simElapsedTime = 0;
 
       const animate = (currentTime: number) => {
         animationFrameIdRef.current = requestAnimationFrame(animate);
@@ -552,60 +459,251 @@ export default function Globe3D({
         lastTime = currentTime;
 
         const rate = isPausedRef.current ? 0 : playbackSpeedRef.current;
+        simElapsedTime += dtSec * rate;
 
         // 1. Earth rotation
         if (earthMeshRef.current) {
           earthMeshRef.current.rotation.y += 0.0006 * rate;
         }
 
-        // 2. Smooth Lerp Avoidance Maneuver over 3 seconds
-        if (avoidanceRef.current) {
-          avoidanceLerpProgress = Math.min(1.0, avoidanceLerpProgress + dtSec / 3.0);
-        } else {
-          avoidanceLerpProgress = Math.max(0.0, avoidanceLerpProgress - dtSec / 2.0);
-        }
-
-        // Flash thruster burn light during active divergence in ACCIDENT mode
-        if (
-          datasetRef.current === 'ACCIDENT' &&
-          avoidanceLerpProgress > 0.01 &&
-          avoidanceLerpProgress < 0.95 &&
-          avoidanceRef.current
-        ) {
-          if (thrusterBurnLightRef.current) {
-            thrusterBurnLightRef.current.intensity = Math.sin(avoidanceLerpProgress * Math.PI) * 3.5;
-          }
-        } else if (thrusterBurnLightRef.current) {
-          thrusterBurnLightRef.current.intensity = 0;
-        }
-
         const mats = sharedMaterialsRef.current;
+        const isAccident = datasetRef.current === 'ACCIDENT';
 
-        // 3. Update Satellite Positions and Trails
+        // 2. ACCIDENT / AVOIDANCE FORENSIC TIMELINE CYCLE
+        if (isAccident && accidentObjectsRef.current) {
+          const acc = accidentObjectsRef.current;
+          const cycleDuration = 12.0; // 12-second dramatic cycle
+          const cycleTime = simElapsedTime % cycleDuration;
+          const tRel = cycleTime - 8.0; // -8.0s (approach) to 0.0s (impact/cross) to +4.0s (aftermath)
+          const omega = 0.052; // angular orbital velocity rad/sec
+
+          const isAvoidance = avoidanceRef.current;
+
+          // Compute satellite thetas synchronized to the exact collision point
+          const iridTheta = acc.iridColTheta + tRel * omega;
+          const cosmosTheta = acc.cosmosColTheta + tRel * omega;
+
+          const baseRadius = 1.0866; // 789 km altitude
+
+          if (isAvoidance) {
+            // AVOIDANCE: Iridium fires thrusters and lifts orbit to +24.85 km (+0.065 scene units)
+            const liftProgress = THREE.MathUtils.smoothstep(tRel, -6.5, -1.0);
+            const iridRadius = baseRadius + liftProgress * 0.065;
+
+            const iridPos = new THREE.Vector3(
+              iridRadius * Math.cos(iridTheta),
+              0,
+              iridRadius * Math.sin(iridTheta)
+            ).applyQuaternion(acc.iridQuat);
+
+            const cosmosPos = new THREE.Vector3(
+              baseRadius * Math.cos(cosmosTheta),
+              0,
+              baseRadius * Math.sin(cosmosTheta)
+            ).applyQuaternion(acc.cosmosQuat);
+
+            acc.iridMesh.position.copy(iridPos);
+            acc.cosmosMesh.position.copy(cosmosPos);
+            acc.iridMesh.visible = true;
+            acc.cosmosMesh.visible = true;
+
+            // Emerald green escape material
+            if (mats) {
+              acc.iridMesh.material = mats.avoidanceEscapeMat;
+              (acc.iridTrailLine.material as THREE.LineBasicMaterial).color.setHex(0x10b981);
+            }
+
+            // Thruster exhaust plume active during burn (-6.5s to -1.0s)
+            if (tRel >= -6.5 && tRel <= -1.0) {
+              acc.thrusterPlumeMesh.visible = true;
+              acc.thrusterPlumeMesh.position.copy(iridPos);
+              const flameScale = 1.0 + Math.sin(currentTime * 0.03) * 0.35;
+              acc.thrusterPlumeMesh.scale.set(flameScale, flameScale, flameScale);
+              if (thrusterBurnLightRef.current) {
+                thrusterBurnLightRef.current.position.copy(iridPos);
+                thrusterBurnLightRef.current.intensity = 3.5;
+              }
+            } else {
+              acc.thrusterPlumeMesh.visible = false;
+              if (thrusterBurnLightRef.current) {
+                thrusterBurnLightRef.current.intensity = 0;
+              }
+            }
+
+            // Green clearance line connecting them around conjunction
+            if (tRel >= -2.0 && tRel <= 3.0) {
+              acc.clearanceLine.visible = true;
+              const lineGeo = acc.clearanceLine.geometry as THREE.BufferGeometry;
+              const posAttr = lineGeo.getAttribute('position') as THREE.BufferAttribute;
+              posAttr.setXYZ(0, iridPos.x, iridPos.y, iridPos.z);
+              posAttr.setXYZ(1, cosmosPos.x, cosmosPos.y, cosmosPos.z);
+              posAttr.needsUpdate = true;
+              (acc.clearanceLine.material as THREE.LineBasicMaterial).opacity = 0.9;
+            } else {
+              acc.clearanceLine.visible = false;
+            }
+
+            // No explosion
+            acc.flashMesh.visible = false;
+            acc.shockwaveMesh.visible = false;
+            acc.debrisPoints.visible = false;
+            if (collisionPointLightRef.current) {
+              collisionPointLightRef.current.intensity = 0;
+            }
+
+            // Update Tactical HUD: AVOIDED
+            const screenPoint = iridPos.clone().project(camera);
+            setAccidentHUD({
+              visible: screenPoint.z <= 1.0,
+              phase: tRel < -1.0 ? 'APPROACH' : 'AVOIDED',
+              screenX: ((screenPoint.x + 1) * width) / 2,
+              screenY: ((-screenPoint.y + 1) * height) / 2,
+              missDistanceKm: tRel < -1.0 ? Math.max(12.0, Math.abs(tRel) * 11.65) : 124.85,
+              timeToTcaSec: -tRel,
+            });
+          } else {
+            // NOMINAL COLLISION SCENARIO (NO AVOIDANCE)
+            if (mats) {
+              acc.iridMesh.material = mats.criticalMat;
+              (acc.iridTrailLine.material as THREE.LineBasicMaterial).color.setHex(0xef4444);
+            }
+            acc.thrusterPlumeMesh.visible = false;
+            acc.clearanceLine.visible = false;
+            if (thrusterBurnLightRef.current) {
+              thrusterBurnLightRef.current.intensity = 0;
+            }
+
+            if (tRel < 0) {
+              // --- APPROACH PHASE: Satellites race toward each other ---
+              const iridPos = new THREE.Vector3(
+                baseRadius * Math.cos(iridTheta),
+                0,
+                baseRadius * Math.sin(iridTheta)
+              ).applyQuaternion(acc.iridQuat);
+
+              const cosmosPos = new THREE.Vector3(
+                baseRadius * Math.cos(cosmosTheta),
+                0,
+                baseRadius * Math.sin(cosmosTheta)
+              ).applyQuaternion(acc.cosmosQuat);
+
+              acc.iridMesh.position.copy(iridPos);
+              acc.cosmosMesh.position.copy(cosmosPos);
+              acc.iridMesh.visible = true;
+              acc.cosmosMesh.visible = true;
+
+              acc.flashMesh.visible = false;
+              acc.shockwaveMesh.visible = false;
+              acc.debrisPoints.visible = false;
+              if (collisionPointLightRef.current) {
+                collisionPointLightRef.current.intensity = 0;
+              }
+
+              const midPos = iridPos.clone().add(cosmosPos).multiplyScalar(0.5);
+              const screenPoint = midPos.project(camera);
+              setAccidentHUD({
+                visible: screenPoint.z <= 1.0,
+                phase: 'APPROACH',
+                screenX: ((screenPoint.x + 1) * width) / 2,
+                screenY: ((-screenPoint.y + 1) * height) / 2,
+                missDistanceKm: Math.max(0.012, Math.abs(tRel) * 11.65),
+                timeToTcaSec: -tRel,
+              });
+            } else if (tRel >= 0 && tRel <= 3.6) {
+              // --- IMPACT PHASE: Blinding Kinetic Explosion & Debris Cloud ---
+              acc.iridMesh.visible = false;
+              acc.cosmosMesh.visible = false;
+
+              // Plasma Flash Sphere
+              acc.flashMesh.visible = true;
+              acc.flashMesh.position.copy(acc.colPoint);
+              const flashScale = 0.05 + tRel * 0.12;
+              acc.flashMesh.scale.set(flashScale, flashScale, flashScale);
+              (acc.flashMesh.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 1.0 - tRel * 0.35);
+
+              // Expanding Shockwave Torus
+              acc.shockwaveMesh.visible = true;
+              acc.shockwaveMesh.position.copy(acc.colPoint);
+              acc.shockwaveMesh.lookAt(acc.colPoint.clone().multiplyScalar(2));
+              const shockScale = 0.08 + tRel * 0.32;
+              acc.shockwaveMesh.scale.set(shockScale, shockScale, shockScale);
+              (acc.shockwaveMesh.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 0.95 - tRel * 0.28);
+
+              // 48 Ballistic Debris Fragments Expanding in 3D Space
+              acc.debrisPoints.visible = true;
+              const debGeo = acc.debrisPoints.geometry as THREE.BufferGeometry;
+              const debAttr = debGeo.getAttribute('position') as THREE.BufferAttribute;
+              for (let i = 0; i < acc.debrisVelocities.length; i++) {
+                const vel = acc.debrisVelocities[i];
+                debAttr.setXYZ(
+                  i,
+                  acc.colPoint.x + vel.x * tRel * 0.18,
+                  acc.colPoint.y + vel.y * tRel * 0.18,
+                  acc.colPoint.z + vel.z * tRel * 0.18
+                );
+              }
+              debAttr.needsUpdate = true;
+              (acc.debrisPoints.material as THREE.PointsMaterial).opacity = Math.max(0, 1.0 - tRel * 0.25);
+
+              // Flashing Point Light
+              if (collisionPointLightRef.current) {
+                collisionPointLightRef.current.position.copy(acc.colPoint);
+                collisionPointLightRef.current.intensity = Math.max(0, 8.0 - tRel * 2.2);
+              }
+
+              const screenPoint = acc.colPoint.clone().project(camera);
+              setAccidentHUD({
+                visible: screenPoint.z <= 1.0,
+                phase: 'IMPACT',
+                screenX: ((screenPoint.x + 1) * width) / 2,
+                screenY: ((-screenPoint.y + 1) * height) / 2,
+                missDistanceKm: 0.012,
+                timeToTcaSec: 0,
+              });
+            } else {
+              // Resetting cycle
+              acc.flashMesh.visible = false;
+              acc.shockwaveMesh.visible = false;
+              acc.debrisPoints.visible = false;
+              setAccidentHUD(null);
+            }
+          }
+
+          // Update orbital trails for Iridium & Cosmos
+          const updateTrail = (line: THREE.Line, quat: THREE.Quaternion, thetaStart: number, radius: number) => {
+            const posAttr = line.geometry.getAttribute('position') as THREE.BufferAttribute;
+            if (posAttr) {
+              const totalPts = posAttr.count;
+              const arcSpan = Math.PI * 0.65;
+              for (let p = 0; p < totalPts; p++) {
+                const ptTheta = thetaStart - arcSpan * (1 - p / (totalPts - 1));
+                const pt = new THREE.Vector3(
+                  radius * Math.cos(ptTheta),
+                  0,
+                  radius * Math.sin(ptTheta)
+                ).applyQuaternion(quat);
+                posAttr.setXYZ(p, pt.x, pt.y, pt.z);
+              }
+              posAttr.needsUpdate = true;
+            }
+          };
+
+          updateTrail(acc.iridTrailLine, acc.iridQuat, iridTheta, isAvoidance ? baseRadius + 0.065 : baseRadius);
+          updateTrail(acc.cosmosTrailLine, acc.cosmosQuat, cosmosTheta, baseRadius);
+        } else if (!isAccident) {
+          setAccidentHUD(null);
+        }
+
+        // 3. Update Background & Realtime Satellites
         orbitsRef.current.forEach((orbit) => {
+          if (orbit.mesh.userData.isAccidentTarget) return; // Handled above
+
           orbit.theta += orbit.speed * rate;
 
-          let effectiveRadius = orbit.radius;
-
-          // BUG 2 FIX: Gate avoidance elevation and material swap exclusively to ACCIDENT mode Iridium
-          if (datasetRef.current === 'ACCIDENT' && orbit.mesh.userData.isIridium && mats) {
-            effectiveRadius = THREE.MathUtils.lerp(orbit.radius, orbit.radius + 0.042, avoidanceLerpProgress);
-            if (avoidanceLerpProgress > 0.4) {
-              orbit.mesh.material = mats.avoidanceEscapeMat;
-              (orbit.trailLine.material as THREE.LineBasicMaterial).color.setHex(0x10b981);
-            } else {
-              orbit.mesh.material = mats.criticalMat;
-              (orbit.trailLine.material as THREE.LineBasicMaterial).color.setHex(0xef4444);
-            }
-            if (thrusterBurnLightRef.current) {
-              thrusterBurnLightRef.current.position.copy(orbit.mesh.position);
-            }
-          }
-
           const currentPos = new THREE.Vector3(
-            effectiveRadius * Math.cos(orbit.theta),
+            orbit.radius * Math.cos(orbit.theta),
             0,
-            effectiveRadius * Math.sin(orbit.theta)
+            orbit.radius * Math.sin(orbit.theta)
           ).applyQuaternion(orbit.planeQuaternion);
 
           orbit.mesh.position.copy(currentPos);
@@ -618,9 +716,9 @@ export default function Globe3D({
             for (let p = 0; p < totalPts; p++) {
               const ptTheta = orbit.theta - arcSpan * (1 - p / (totalPts - 1));
               const pt = new THREE.Vector3(
-                effectiveRadius * Math.cos(ptTheta),
+                orbit.radius * Math.cos(ptTheta),
                 0,
-                effectiveRadius * Math.sin(ptTheta)
+                orbit.radius * Math.sin(ptTheta)
               ).applyQuaternion(orbit.planeQuaternion);
               posAttr.setXYZ(p, pt.x, pt.y, pt.z);
             }
@@ -630,39 +728,7 @@ export default function Globe3D({
           orbit.trailLine.visible = showOrbitsRef.current;
         });
 
-        // 4. Update Avoidance Clearance Vector (between Iridium and Cosmos in ACCIDENT mode)
-        if (
-          datasetRef.current === 'ACCIDENT' &&
-          orbitsRef.current.length >= 2 &&
-          orbitsRef.current[0].mesh.userData.isIridium &&
-          clearanceVectorGeoRef.current &&
-          clearanceVectorMatRef.current &&
-          collisionPointLightRef.current
-        ) {
-          const p1 = orbitsRef.current[0].mesh.position;
-          const p2 = orbitsRef.current[1].mesh.position;
-          const clearanceAttr = clearanceVectorGeoRef.current.getAttribute('position') as THREE.BufferAttribute;
-          if (clearanceAttr) {
-            clearanceAttr.setXYZ(0, p1.x, p1.y, p1.z);
-            clearanceAttr.setXYZ(1, p2.x, p2.y, p2.z);
-            clearanceAttr.needsUpdate = true;
-          }
-          clearanceVectorMatRef.current.opacity = avoidanceLerpProgress * 0.85;
-
-          // BUG 6 FIX: Collision point projection only when avoidanceLerpProgress > 0.01 && < 0.85
-          const colPos = collisionPointLightRef.current.position.clone();
-          colPos.project(camera);
-          const isBehind = colPos.z > 1.0;
-          setCollisionScreenPos({
-            x: ((colPos.x + 1) * width) / 2,
-            y: ((-colPos.y + 1) * height) / 2,
-            visible: !isBehind && avoidanceLerpProgress > 0.01 && avoidanceLerpProgress < 0.85,
-          });
-        } else if (datasetRef.current !== 'ACCIDENT') {
-          setCollisionScreenPos(null);
-        }
-
-        // 5. Raycasting Hover Check
+        // 4. Raycasting Hover Check
         raycaster.setFromCamera(mouse, camera);
         const meshes = orbitsRef.current.map((o) => o.mesh);
         const intersects = raycaster.intersectObjects(meshes);
@@ -689,10 +755,11 @@ export default function Globe3D({
       animationFrameIdRef.current = requestAnimationFrame(animate);
     }
 
-    // --- 2. ALWAYS REMOVE OLD ORBIT MESHES FROM SCENE BEFORE REBUILDING (BUG 1 FIX) ---
+    // --- REBUILD ORBITS ON DATASET / SATELLITE UPDATE ---
     const scene = sceneRef.current!;
     const mats = sharedMaterialsRef.current!;
 
+    // Dispose old orbit meshes
     orbitsRef.current.forEach((orbit) => {
       scene.remove(orbit.mesh);
       scene.remove(orbit.trailLine);
@@ -703,115 +770,278 @@ export default function Globe3D({
     });
     orbitsRef.current = [];
 
+    // Clean up old accident objects if any
+    if (accidentObjectsRef.current) {
+      scene.remove(accidentObjectsRef.current.flashMesh);
+      scene.remove(accidentObjectsRef.current.shockwaveMesh);
+      scene.remove(accidentObjectsRef.current.debrisPoints);
+      scene.remove(accidentObjectsRef.current.thrusterPlumeMesh);
+      scene.remove(accidentObjectsRef.current.clearanceLine);
+      accidentObjectsRef.current = null;
+    }
+
     const isAccident = dataset === 'ACCIDENT';
 
     if (isAccident) {
-      // --- ACCIDENT MODE: ISOLATE IRIDIUM 33 AND COSMOS 2251 ---
-      // 1. Iridium 33 (distinct encounterIndex: 0)
-      const iridRadius = 1.0 + (780 / 6371.0) * 0.7;
+      // =========================================================================
+      // ACCIDENT MODE: TRUE ORBITAL INTERSECTION & KINETIC EXPLOSION SETUP
+      // =========================================================================
+
+      // 1. Iridium 33 orbital plane (Inclination 86.4°, RAAN 0.45)
       const iridInc = (86.4 * Math.PI) / 180;
       const iridRaan = 0.45;
-      const iridQuat = new THREE.Quaternion();
       const iridRaanQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), iridRaan);
       const iridIncQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), iridInc);
-      iridQuat.multiplyQuaternions(iridRaanQ, iridIncQ);
+      const iridQuat = new THREE.Quaternion().multiplyQuaternions(iridRaanQ, iridIncQ);
 
-      const iridMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.014, 0), mats.criticalMat.clone());
+      // 2. Cosmos 2251 orbital plane (Inclination 74.0°, RAAN 2.05)
+      const cosmosInc = (74.0 * Math.PI) / 180;
+      const cosmosRaan = 2.05;
+      const cosmosRaanQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), cosmosRaan);
+      const cosmosIncQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), cosmosInc);
+      const cosmosQuat = new THREE.Quaternion().multiplyQuaternions(cosmosRaanQ, cosmosIncQ);
+
+      // 3. Mathematical intersection of the two orbital planes
+      const n1 = new THREE.Vector3(0, 1, 0).applyQuaternion(iridQuat);
+      const n2 = new THREE.Vector3(0, 1, 0).applyQuaternion(cosmosQuat);
+      const colDir = new THREE.Vector3().crossVectors(n1, n2).normalize();
+      if (colDir.y < 0) colDir.negate(); // Pick Northern Hemisphere (Siberia intersect, 72.5° N)
+
+      const baseRadius = 1.0 + (789 / 6371.0) * 0.7; // ~1.0866 units
+      const colPoint = colDir.clone().multiplyScalar(baseRadius);
+
+      // Angle theta where each satellite intersects colPoint
+      const iridLocal = colPoint.clone().applyQuaternion(iridQuat.clone().invert());
+      const iridColTheta = Math.atan2(iridLocal.z, iridLocal.x);
+
+      const cosmosLocal = colPoint.clone().applyQuaternion(cosmosQuat.clone().invert());
+      const cosmosColTheta = Math.atan2(cosmosLocal.z, cosmosLocal.x);
+
+      // Create Iridium 33 mesh (Cyan octahedron)
+      const iridMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.015, 0), mats.criticalMat.clone());
       iridMesh.rotation.set(0.785, 0.785, 0);
-      iridMesh.userData = { encounterIndex: 0, isIridium: true };
+      iridMesh.userData = { encounterIndex: 0, isAccidentTarget: true, isIridium: true };
       scene.add(iridMesh);
 
-      const trailPointsIrid = 36;
-      const trailGeoIrid = new THREE.BufferGeometry().setFromPoints(
-        new Array(trailPointsIrid).fill(0).map(() => new THREE.Vector3())
-      );
-      const trailMatIrid = new THREE.LineBasicMaterial({
-        color: 0xef4444,
-        transparent: true,
-        opacity: 0.45,
-      });
+      const trailPts = 36;
+      const trailGeoIrid = new THREE.BufferGeometry().setFromPoints(new Array(trailPts).fill(0).map(() => new THREE.Vector3()));
+      const trailMatIrid = new THREE.LineBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.85, linewidth: 2 });
       const trailLineIrid = new THREE.Line(trailGeoIrid, trailMatIrid);
       scene.add(trailLineIrid);
 
+      // Create Cosmos 2251 mesh (Red octahedron)
+      const cosmosMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.015, 0), mats.criticalMat.clone());
+      cosmosMesh.rotation.set(0.785, 0.785, 0);
+      cosmosMesh.userData = { encounterIndex: 1, isAccidentTarget: true, isCosmos: true };
+      scene.add(cosmosMesh);
+
+      const trailGeoCosmos = new THREE.BufferGeometry().setFromPoints(new Array(trailPts).fill(0).map(() => new THREE.Vector3()));
+      const trailMatCosmos = new THREE.LineBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.85, linewidth: 2 });
+      const trailLineCosmos = new THREE.Line(trailGeoCosmos, trailMatCosmos);
+      scene.add(trailLineCosmos);
+
+      // 4. Kinetic Plasma Flash Sphere
+      const flashGeo = new THREE.SphereGeometry(0.08, 16, 16);
+      const flashMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+      });
+      const flashMesh = new THREE.Mesh(flashGeo, flashMat);
+      flashMesh.visible = false;
+      scene.add(flashMesh);
+
+      // 5. Expanding Shockwave Torus Ring
+      const shockGeo = new THREE.RingGeometry(0.04, 0.08, 32);
+      const shockMat = new THREE.MeshBasicMaterial({
+        color: 0xff4422,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+      });
+      const shockwaveMesh = new THREE.Mesh(shockGeo, shockMat);
+      shockwaveMesh.visible = false;
+      scene.add(shockwaveMesh);
+
+      // 6. 48 Ballistic Debris Fragments
+      const debCount = 48;
+      const debPositions = new Float32Array(debCount * 3);
+      const debVelocities: THREE.Vector3[] = [];
+
+      for (let i = 0; i < debCount; i++) {
+        debPositions[i * 3] = colPoint.x;
+        debPositions[i * 3 + 1] = colPoint.y;
+        debPositions[i * 3 + 2] = colPoint.z;
+
+        // Half inherit Iridium's forward vector, half inherit Cosmos's forward vector
+        const isIridShard = i % 2 === 0;
+        const baseDir = isIridShard
+          ? new THREE.Vector3(-Math.sin(iridColTheta), 0, Math.cos(iridColTheta)).applyQuaternion(iridQuat)
+          : new THREE.Vector3(-Math.sin(cosmosColTheta), 0, Math.cos(cosmosColTheta)).applyQuaternion(cosmosQuat);
+
+        const spread = new THREE.Vector3(
+          (Math.random() - 0.5) * 0.8,
+          (Math.random() - 0.5) * 0.8,
+          (Math.random() - 0.5) * 0.8
+        );
+        debVelocities.push(baseDir.add(spread).normalize().multiplyScalar(0.25 + Math.random() * 0.35));
+      }
+
+      const debGeo = new THREE.BufferGeometry();
+      debGeo.setAttribute('position', new THREE.BufferAttribute(debPositions, 3));
+      const debMat = new THREE.PointsMaterial({
+        color: 0xff8833,
+        size: 0.016,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+      });
+      const debrisPoints = new THREE.Points(debGeo, debMat);
+      debrisPoints.visible = false;
+      scene.add(debrisPoints);
+
+      // 7. Thruster Plume Mesh on Iridium
+      const plumeGeo = new THREE.ConeGeometry(0.012, 0.038, 8);
+      plumeGeo.rotateX(Math.PI / 2);
+      const plumeMat = new THREE.MeshBasicMaterial({
+        color: 0x00ffff,
+        transparent: true,
+        opacity: 0.9,
+        blending: THREE.AdditiveBlending,
+      });
+      const thrusterPlumeMesh = new THREE.Mesh(plumeGeo, plumeMat);
+      thrusterPlumeMesh.visible = false;
+      scene.add(thrusterPlumeMesh);
+
+      // 8. Avoidance Clearance Line
+      const clearanceGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+      const clearanceMat = new THREE.LineBasicMaterial({
+        color: 0x10b981,
+        transparent: true,
+        opacity: 0,
+        linewidth: 2,
+      });
+      const clearanceLine = new THREE.Line(clearanceGeo, clearanceMat);
+      clearanceLine.visible = false;
+      scene.add(clearanceLine);
+
+      accidentObjectsRef.current = {
+        colPoint,
+        iridColTheta,
+        cosmosColTheta,
+        iridQuat,
+        cosmosQuat,
+        flashMesh,
+        shockwaveMesh,
+        debrisPoints,
+        debrisVelocities: debVelocities,
+        thrusterPlumeMesh,
+        clearanceLine,
+        iridMesh,
+        cosmosMesh,
+        iridTrailLine: trailLineIrid,
+        cosmosTrailLine: trailLineCosmos,
+      };
+
+      // Add to orbitsRef for hover inspection
       orbitsRef.current.push({
         mesh: iridMesh,
         trailLine: trailLineIrid,
-        radius: iridRadius,
+        radius: baseRadius,
         inclination: iridInc,
         raan: iridRaan,
         planeQuaternion: iridQuat,
-        theta: 0.0,
+        theta: iridColTheta,
         speed: 0.0035,
         encounterIndex: 0,
         info: {
           name: 'IRIDIUM 33',
           noradId: 24946,
-          altitudeKm: 780,
+          altitudeKm: 789.2,
           velocityKms: 7.46,
           inclinationDeg: 86.4,
           status: 'CRITICAL',
-          operator: 'Iridium Satellite LLC',
+          operator: 'Iridium Satellite LLC (USA)',
           satBName: 'COSMOS 2251',
           missDistanceKm: 0.012,
-          relVelocityKms: 11.7,
+          relVelocityKms: 11.65,
         },
       });
-
-      // 2. Cosmos 2251 (distinct encounterIndex: 1)
-      const cosmosRadius = 1.0 + (780 / 6371.0) * 0.7;
-      const cosmosInc = (74.0 * Math.PI) / 180;
-      const cosmosRaan = 2.05;
-      const cosmosQuat = new THREE.Quaternion();
-      const cosmosRaanQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), cosmosRaan);
-      const cosmosIncQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), cosmosInc);
-      cosmosQuat.multiplyQuaternions(cosmosRaanQ, cosmosIncQ);
-
-      const cosmosMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.014, 0), mats.criticalMat.clone());
-      cosmosMesh.rotation.set(0.785, 0.785, 0);
-      cosmosMesh.userData = { encounterIndex: 1, isCosmos: true };
-      scene.add(cosmosMesh);
-
-      const trailGeoCosmos = new THREE.BufferGeometry().setFromPoints(
-        new Array(trailPointsIrid).fill(0).map(() => new THREE.Vector3())
-      );
-      const trailMatCosmos = new THREE.LineBasicMaterial({
-        color: 0xef4444,
-        transparent: true,
-        opacity: 0.45,
-      });
-      const trailLineCosmos = new THREE.Line(trailGeoCosmos, trailMatCosmos);
-      scene.add(trailLineCosmos);
 
       orbitsRef.current.push({
         mesh: cosmosMesh,
         trailLine: trailLineCosmos,
-        radius: cosmosRadius,
+        radius: baseRadius,
         inclination: cosmosInc,
         raan: cosmosRaan,
         planeQuaternion: cosmosQuat,
-        theta: Math.PI * 0.98,
+        theta: cosmosColTheta,
         speed: 0.0035,
         encounterIndex: 1,
         info: {
           name: 'COSMOS 2251',
           noradId: 22675,
-          altitudeKm: 780,
+          altitudeKm: 789.2,
           velocityKms: 7.46,
           inclinationDeg: 74.0,
           status: 'CRITICAL',
           operator: 'Russian Space Forces (Derelict)',
           satBName: 'IRIDIUM 33',
           missDistanceKm: 0.012,
-          relVelocityKms: 11.7,
+          relVelocityKms: 11.65,
         },
       });
 
-      if (collisionPointLightRef.current) {
-        collisionPointLightRef.current.position.set(0.15, 0.95, 0.35);
-        collisionPointLightRef.current.intensity = 2.5;
+      // 9. POPULATE 35 BACKGROUND SATELLITES SO GLOBE IS BEAUTIFULLY POPULATED & ALIVE
+      const backgroundCount = 35;
+      for (let b = 0; b < backgroundCount; b++) {
+        const bgMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.009, 0), mats.backgroundMat.clone());
+        bgMesh.rotation.set(0.785, 0.785, 0);
+        bgMesh.userData = { encounterIndex: 100 + b, isBackground: true };
+        scene.add(bgMesh);
+
+        const bgAltKm = 400 + (b % 14) * 45;
+        const bgRadius = 1.0 + (bgAltKm / 6371.0) * 0.7;
+        const bgIncDeg = 28.5 + ((b * 27.3) % 70);
+        const bgInc = (bgIncDeg * Math.PI) / 180;
+        const bgRaan = ((b * 137.5) * Math.PI) / 180;
+        const bgRaanQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), bgRaan);
+        const bgIncQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), bgInc);
+        const bgQuat = new THREE.Quaternion().multiplyQuaternions(bgRaanQ, bgIncQ);
+
+        const bgTrailGeo = new THREE.BufferGeometry().setFromPoints(new Array(16).fill(0).map(() => new THREE.Vector3()));
+        const bgTrailMat = new THREE.LineBasicMaterial({ color: 0x0284c7, transparent: true, opacity: 0.22 });
+        const bgTrailLine = new THREE.Line(bgTrailGeo, bgTrailMat);
+        scene.add(bgTrailLine);
+
+        orbitsRef.current.push({
+          mesh: bgMesh,
+          trailLine: bgTrailLine,
+          radius: bgRadius,
+          inclination: bgInc,
+          raan: bgRaan,
+          planeQuaternion: bgQuat,
+          theta: ((b * 41.5) * Math.PI) / 180,
+          speed: 0.0015 + (b % 5) * 0.0003,
+          encounterIndex: 100 + b,
+          isBackground: true,
+          info: {
+            name: `FLEET-SAT-${25000 + b}`,
+            noradId: 25000 + b,
+            altitudeKm: bgAltKm,
+            velocityKms: 7.62,
+            inclinationDeg: bgIncDeg,
+            status: 'NOMINAL',
+            operator: 'Global Constellation',
+          },
+        });
       }
     } else {
-      // --- REALTIME TELEMETRY SATELLITES ---
+      // =========================================================================
+      // REALTIME TELEMETRY FLEET
+      // =========================================================================
       const hasRealPositions = Boolean(satellitePositions && satellitePositions.length > 0);
       const totalSats = hasRealPositions
         ? Math.min(500, Math.max(10, Math.min(satellitePositions.length, encounterCount)))
@@ -847,7 +1077,6 @@ export default function Globe3D({
         const incQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), inclination);
         const quat = new THREE.Quaternion().multiplyQuaternions(raanQ, incQ);
 
-        // Distribute satellites smoothly around their orbital rings
         const theta = ((i * 47.3 + (i % 7) * 19) * Math.PI) / 180;
         const velKms =
           pos?.velocity_kms ??
@@ -859,30 +1088,15 @@ export default function Globe3D({
         const trailGeo = new THREE.BufferGeometry().setFromPoints(
           new Array(trailPointsCount).fill(0).map(() => new THREE.Vector3())
         );
-        const trailColor = risk === 'CRITICAL' ? 0xef4444 : risk === 'CAUTION' ? 0xf59e0b : 0x00e5ff;
         const trailMat = new THREE.LineBasicMaterial({
-          color: trailColor,
+          color: risk === 'CRITICAL' ? 0xef4444 : risk === 'CAUTION' ? 0xf59e0b : 0x00e5ff,
           transparent: true,
-          opacity: 0.22,
+          opacity: 0.45,
         });
         const trailLine = new THREE.Line(trailGeo, trailMat);
         scene.add(trailLine);
 
-        // BUG 3 FIX: Read fields from enc and pos according to AdaptedEncounter structure
-        const satInfo: SatelliteInfo = {
-          name: satName,
-          noradId: enc.sat_a_norad ?? (pos?.norad_id ?? (24000 + i)),
-          altitudeKm: pos ? pos.alt_km : (400 + (i % 16) * 45),
-          velocityKms: pos?.velocity_kms ?? (7.5 + (i % 5) * 0.1),
-          inclinationDeg: pos?.inclination_deg ?? incDeg,
-          status: risk,
-          operator: pos ? 'SGP4 Propagated' : 'LEO Constellation',
-          satBName: enc.sat_b_name ?? undefined,
-          missDistanceKm: enc.miss_distance_km ?? undefined,
-          relVelocityKms: enc.rel_velocity_kms ?? undefined,
-        };
-
-        const orbitItem: OrbitDefinition = {
+        orbitsRef.current.push({
           mesh,
           trailLine,
           radius,
@@ -892,64 +1106,143 @@ export default function Globe3D({
           theta,
           speed,
           encounterIndex: i,
-          info: satInfo,
-          homePosition: pos ? new THREE.Vector3(pos.x, pos.y, pos.z) : undefined,
-          useRealPosition: Boolean(pos),
-        };
-
-        orbitsRef.current.push(orbitItem);
+          info: {
+            name: satName,
+            noradId: pos?.norad_id ?? enc.satANorad ?? enc.sat_a_norad ?? 25500 + i,
+            altitudeKm: altKm,
+            velocityKms: velKms,
+            inclinationDeg: incDeg,
+            status: risk,
+            operator: enc.operator || 'Civilian / Commercial LEO',
+            satBName: enc.satBName || enc.satB || enc.sat_b_name,
+            missDistanceKm: enc.missDistance ?? enc.miss_distance_km,
+            relVelocityKms: enc.relVelocity ?? enc.rel_velocity_kms,
+          },
+        });
       }
-
-      if (collisionPointLightRef.current) {
-        collisionPointLightRef.current.intensity = 0;
-      }
-      setCollisionScreenPos(null);
     }
-  }, [dataset, encounterCount, encounters, satellitePositions]);
-
-  // Cleanup on final component unmount
-  useEffect(() => {
-    return () => {
-      if (animationFrameIdRef.current) {
-        cancelAnimationFrame(animationFrameIdRef.current);
-      }
-      if (rendererRef.current) {
-        rendererRef.current.forceContextLoss();
-        rendererRef.current.domElement.remove();
-        rendererRef.current.dispose();
-      }
-      sceneRef.current = null;
-      rendererRef.current = null;
-      cameraRef.current = null;
-    };
-  }, []);
+  }, [dataset, encounters, satellitePositions, encounterCount]);
 
   return (
-    <div className="relative w-full h-full overflow-hidden select-none">
-      {/* Three.js Canvas Container */}
+    <div className="relative w-full h-full select-none overflow-hidden bg-[#00020a]">
+      {/* 3D Canvas Mount */}
       <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
       {/* Subtle Vignette Overlay */}
       <div className="absolute inset-0 pointer-events-none globe-vignette" />
 
-      {/* ACCIDENT Mode: 3 Concentric Ring Pulse DOM Overlay at Collision Point */}
-      {dataset === 'ACCIDENT' && collisionScreenPos && collisionScreenPos.visible && (
+      {/* =========================================================================
+          DYNAMIC ACCIDENT & AVOIDANCE FORENSIC TACTICAL HUD BADGE
+          ========================================================================= */}
+      {dataset === 'ACCIDENT' && accidentHUD && accidentHUD.visible && (
         <div
-          className="absolute pointer-events-none z-30"
+          className="absolute pointer-events-none z-30 transition-transform duration-75"
           style={{
-            left: `${collisionScreenPos.x}px`,
-            top: `${collisionScreenPos.y}px`,
+            left: `${accidentHUD.screenX}px`,
+            top: `${accidentHUD.screenY}px`,
           }}
         >
-          <div className="relative w-12 h-12 -translate-x-1/2 -translate-y-1/2">
-            <div className="absolute inset-0 rounded-full border border-red-500 ring-pulse-1" />
-            <div className="absolute inset-0 rounded-full border border-red-400 ring-pulse-2" />
-            <div className="absolute inset-0 rounded-full border border-amber-400 ring-pulse-3" />
-            <div className="absolute top-1/2 left-1/2 w-2 h-2 -translate-x-1/2 -translate-y-1/2 bg-red-500 rounded-full shadow-[0_0_8px_#ef4444]" />
-            <div className="absolute left-6 top-1/2 -translate-y-1/2 whitespace-nowrap bg-black/85 border border-red-500/40 px-2 py-0.5 text-[9px] font-mono text-red-400 uppercase tracking-widest">
-              IMPACT INTERSECTION
+          {accidentHUD.phase === 'APPROACH' && (
+            <div className="relative -translate-x-1/2 -translate-y-[135%]">
+              <div className="bg-[#05080f]/95 border border-red-500/70 p-2 shadow-[0_0_15px_rgba(239,68,68,0.35)] min-w-[210px] backdrop-blur-md">
+                <div className="flex items-center justify-between border-b border-red-500/30 pb-1 mb-1.5">
+                  <span className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-red-400">
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                    CONJUNCTION APPROACH
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-300">
+                    T{accidentHUD.timeToTcaSec >= 0 ? `-${accidentHUD.timeToTcaSec.toFixed(1)}s` : `+${Math.abs(accidentHUD.timeToTcaSec).toFixed(1)}s`}
+                  </span>
+                </div>
+                <div className="space-y-0.5 text-[9px] font-mono text-slate-300">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">MISS DISTANCE:</span>
+                    <span className="text-red-400 font-bold">{accidentHUD.missDistanceKm.toFixed(2)} km</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">CROSSING:</span>
+                    <span>IRIDIUM 33 × COSMOS 2251</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">INTERSECT:</span>
+                    <span className="text-amber-400">72.5° N, 97.9° E (SIBERIA)</span>
+                  </div>
+                </div>
+              </div>
+              <div className="w-0.5 h-4 bg-red-500/80 mx-auto" />
+              <div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444] mx-auto -mt-1" />
             </div>
-          </div>
+          )}
+
+          {accidentHUD.phase === 'IMPACT' && (
+            <div className="relative -translate-x-1/2 -translate-y-[135%]">
+              <div className="bg-red-950/95 border-2 border-red-500 p-2.5 shadow-[0_0_25px_rgba(239,68,68,0.7)] min-w-[240px] backdrop-blur-md animate-pulse">
+                <div className="flex items-center justify-between border-b border-red-500/40 pb-1 mb-1.5">
+                  <span className="text-[11px] font-mono font-black text-white flex items-center gap-1">
+                    💥 HYPER-VELOCITY IMPACT!
+                  </span>
+                  <span className="text-[9px] font-mono bg-red-500 text-black font-bold px-1 py-0.5">
+                    LETHAL
+                  </span>
+                </div>
+                <div className="space-y-0.5 text-[9px] font-mono text-slate-200">
+                  <div className="flex justify-between">
+                    <span className="text-red-300">MISS DISTANCE:</span>
+                    <span className="text-white font-bold">0.012 KM (COLLISION)</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-red-300">KINETIC ENERGY:</span>
+                    <span className="text-amber-300 font-bold">32.4 GIGA-JOULES</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-red-300">TRACKED FRAGMENTS:</span>
+                    <span className="text-white font-bold">2,296 OBJECTS</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-red-300">RELATIVE SPEED:</span>
+                    <span className="text-white">11.65 KM/S (MACH 34)</span>
+                  </div>
+                </div>
+              </div>
+              <div className="w-0.5 h-4 bg-red-500 mx-auto" />
+              <div className="w-3 h-3 rounded-full bg-white shadow-[0_0_12px_#ffffff] mx-auto -mt-1.5 animate-ping" />
+            </div>
+          )}
+
+          {accidentHUD.phase === 'AVOIDED' && (
+            <div className="relative -translate-x-1/2 -translate-y-[135%]">
+              <div className="bg-emerald-950/95 border-2 border-emerald-400 p-2.5 shadow-[0_0_22px_rgba(16,185,129,0.5)] min-w-[240px] backdrop-blur-md">
+                <div className="flex items-center justify-between border-b border-emerald-500/40 pb-1 mb-1.5">
+                  <span className="text-[11px] font-mono font-bold text-emerald-300 flex items-center gap-1.5">
+                    🛡️ COLLISION AVERTED!
+                  </span>
+                  <span className="text-[9px] font-mono bg-emerald-500 text-black font-bold px-1 py-0.5">
+                    CLEARED
+                  </span>
+                </div>
+                <div className="space-y-0.5 text-[9px] font-mono text-slate-200">
+                  <div className="flex justify-between">
+                    <span className="text-emerald-400">SAFE CLEARANCE:</span>
+                    <span className="text-emerald-300 font-bold">+124.85 KM</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-emerald-400">ORBIT LIFT:</span>
+                    <span className="text-white">+24.85 KM (814.0 KM ALT)</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-emerald-400">MANEUVER BURN:</span>
+                    <span className="text-amber-300">+12.50 M/S (ALONG-TRACK)</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-emerald-400">RESIDUAL PC:</span>
+                    <span className="text-emerald-400 font-bold">0.000000 (ZERO RISK)</span>
+                  </div>
+                </div>
+              </div>
+              <div className="w-0.5 h-4 bg-emerald-400 mx-auto" />
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#10b981] mx-auto -mt-1" />
+            </div>
+          )}
         </div>
       )}
 
@@ -993,6 +1286,12 @@ export default function Globe3D({
               <span className="text-slate-500">INCLINATION:</span>
               <span>{(Number(hoveredSat.inclinationDeg) || 0).toFixed(1)}°</span>
             </div>
+            {hoveredSat.satBName && (
+              <div className="flex justify-between pt-1 border-t border-cyan-500/20">
+                <span className="text-slate-500">CONJUNCTION:</span>
+                <span className="text-red-400">{hoveredSat.satBName}</span>
+              </div>
+            )}
           </div>
         </div>
       )}
