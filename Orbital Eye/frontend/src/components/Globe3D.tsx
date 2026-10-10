@@ -175,117 +175,19 @@ export default function Globe3D({
     scene.add(thrusterBurnLight);
     thrusterBurnLightRef.current = thrusterBurnLight;
 
-    // --- PROCEDURAL REALISTIC EARTH TEXTURE ---
-    const canvas = document.createElement('canvas');
-    canvas.width = 2048;
-    canvas.height = 1024;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      // 1. Deep Ocean
-      ctx.fillStyle = '#041830';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      // Subtle longitude / latitude celestial grid lines
-      ctx.strokeStyle = 'rgba(0, 229, 255, 0.05)';
-      ctx.lineWidth = 1;
-      for (let x = 0; x <= canvas.width; x += 128) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvas.height);
-        ctx.stroke();
-      }
-      for (let y = 0; y <= canvas.height; y += 128) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(canvas.width, y);
-        ctx.stroke();
-      }
-
-      // 2. Continental Landmass Outlines & Fills (7 Continents approximations)
-      ctx.fillStyle = '#0a2840';
-      ctx.strokeStyle = 'rgba(0, 229, 255, 0.85)';
-      ctx.lineWidth = 2.0;
-
-      const drawPolygon = (pts: [number, number][]) => {
-        ctx.beginPath();
-        pts.forEach(([px, py], idx) => {
-          const x = (px / 360) * canvas.width;
-          const y = ((90 - py) / 180) * canvas.height;
-          if (idx === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
-        });
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-      };
-
-      // North America
-      drawPolygon([
-        [-165, 65], [-140, 70], [-100, 72], [-70, 60], [-55, 48],
-        [-75, 30], [-82, 25], [-97, 18], [-105, 22], [-124, 38],
-        [-130, 50], [-160, 58], [-165, 65]
-      ]);
-      // South America
-      drawPolygon([
-        [-80, 10], [-50, 0], [-35, -5], [-40, -22], [-53, -33],
-        [-65, -54], [-75, -45], [-72, -18], [-80, -2], [-80, 10]
-      ]);
-      // Eurasia (Europe + Asia)
-      drawPolygon([
-        [-10, 36], [0, 45], [10, 55], [30, 70], [60, 72], [110, 76],
-        [170, 68], [170, 60], [140, 50], [130, 35], [120, 22],
-        [105, 10], [80, 12], [70, 22], [50, 25], [35, 32], [28, 41],
-        [-5, 43], [-10, 36]
-      ]);
-      // Africa
-      drawPolygon([
-        [-18, 32], [12, 37], [32, 31], [42, 12], [51, 11],
-        [40, -10], [33, -34], [18, -34], [12, -15], [9, 5],
-        [-15, 12], [-18, 32]
-      ]);
-      // Australia
-      drawPolygon([
-        [113, -22], [135, -12], [148, -19], [153, -28], [148, -38],
-        [138, -35], [122, -35], [114, -26], [113, -22]
-      ]);
-      // Antarctica
-      drawPolygon([
-        [-180, -70], [-90, -68], [0, -65], [90, -66], [180, -70],
-        [180, -90], [-180, -90]
-      ]);
-      // Greenland
-      drawPolygon([
-        [-55, 60], [-20, 70], [-25, 82], [-60, 82], [-55, 60]
-      ]);
-
-      // 3. Night-side City Light Clusters
-      ctx.fillStyle = '#ffdf7a';
-      const cityClusters: [number, number, number][] = [
-        [-74, 40, 2.5], [-118, 34, 2.0], [-0.1, 51.5, 2.5], [2.3, 48.8, 2.0],
-        [139, 35.6, 2.8], [116, 39.9, 2.5], [121, 31.2, 2.5], [77, 28.6, 2.5],
-        [72.8, 19, 2.0], [55, 25, 2.0], [31.2, 30, 2.0], [-43, -22.9, 2.0],
-        [151, -33.8, 2.0], [37.6, 55.7, 2.5]
-      ];
-      cityClusters.forEach(([lon, lat, r]) => {
-        const cx = (lon / 360) * canvas.width;
-        const cy = ((90 - lat) / 180) * canvas.height;
-        ctx.beginPath();
-        ctx.arc(cx, cy, r * 1.5, 0, Math.PI * 2);
-        ctx.fill();
-      });
-    }
-
-    const earthTexture = new THREE.CanvasTexture(canvas);
-    earthTexture.wrapS = THREE.RepeatWrapping;
-    earthTexture.wrapT = THREE.ClampToEdgeWrapping;
+    // --- REALISTIC EARTH TEXTURE (NASA Visible Earth) ---
+    const loader = new THREE.TextureLoader();
+    const earthTexture = loader.load(
+      'https://eoimages.gsfc.nasa.gov/images/imagerecords/73000/73909/world.topo.bathy.200412.3x5400x2700.jpg'
+    );
+    const earthMat = new THREE.MeshStandardMaterial({
+      map: earthTexture,
+      roughness: 0.72,
+      metalness: 0.0,
+    });
 
     // Earth Sphere (Radius 1.0)
     const earthGeo = new THREE.SphereGeometry(1.0, 64, 64);
-    const earthMat = new THREE.MeshStandardMaterial({
-      map: earthTexture,
-      roughness: 0.85,
-      metalness: 0.12,
-    });
     const earthMesh = new THREE.Mesh(earthGeo, earthMat);
     earthMesh.rotation.z = (23.44 * Math.PI) / 180;
     scene.add(earthMesh);
