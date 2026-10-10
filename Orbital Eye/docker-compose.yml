@@ -1,26 +1,50 @@
+version: '3.9'
+
 services:
+  # Oracle listener service (optional — relies on external Oracle instance)
+  # Note: This project connects to an external Oracle DB (XEPDB1) via .env.
+  # The backend reads ORACLE_HOST, ORACLE_PORT, ORACLE_SERVICE from .env.
+
   backend:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: orbitaleye-backend
+      dockerfile: docker/Dockerfile.backend
+    container_name: orbital-eye-backend
     ports:
       - "8000:8000"
-    restart: always
+    env_file:
+      - .env
+    environment:
+      - ORACLE_USER=${ORACLE_USER}
+      - ORACLE_PASS=${ORACLE_PASS}
+      - ORACLE_HOST=${ORACLE_HOST:-localhost}
+      - ORACLE_PORT=${ORACLE_PORT:-1521}
+      - ORACLE_SERVICE=${ORACLE_SERVICE:-XEPDB1}
+    volumes:
+      - ./backend:/app/backend:ro
+    restart: "no"
+    networks:
+      - orbital-net
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: orbitaleye-frontend
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+    container_name: orbital-eye-frontend
     ports:
       - "3000:3000"
+    env_file:
+      - .env
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - REACT_APP_API_URL=http://localhost:8000  # CORS enabled; backend allows *
+    volumes:
+      - ./frontend/src:/app/src:ro
+    restart: "no"
+    networks:
+      - orbital-net
     depends_on:
       - backend
-    restart: always
 
 networks:
-  default:
-    name: orbitaleye-network
+  orbital-net:
+    driver: bridge

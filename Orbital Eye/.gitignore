@@ -1,0 +1,13 @@
+.env
+.env.local
+node_modules/
+dist/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+*.log
+backend.pid
+output/*.sql

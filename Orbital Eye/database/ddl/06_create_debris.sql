@@ -1,0 +1,35 @@
+-- Metadata Header --
+-- DDL Script: Debris Table Creation
+-- Generated for OrbitalEye DBMS Edition
+-- Project: OrbitalEye DBMS Edition
+-- Note: Matches INSERT ALL ... SELECT FROM DUAL batches from seed_accident.sql
+-- Columns verified: debris_id, parent_event_id, parent_pair_id,
+--   debris_norad_ref, status, mass_kg, altitude_km, relative_velocity_kms, dataset_tag
+
+SET SERVEROUTPUT ON;
+
+CREATE TABLE debris (
+    debris_id NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    parent_event_id NUMBER NOT NULL,
+    parent_pair_id NUMBER NOT NULL,
+    debris_norad_ref NUMBER,
+    status VARCHAR2(20) NOT NULL,
+    mass_kg NUMBER,
+    altitude_km NUMBER,
+    relative_velocity_kms NUMBER,
+    dataset_tag VARCHAR2(20) NOT NULL CHECK (dataset_tag IN ('REALTIME', 'ACCIDENT')),
+
+    -- Foreign Keys
+    CONSTRAINT fk_debris_parent_event
+        FOREIGN KEY (parent_event_id)
+        REFERENCES encounter_events(event_id),
+
+    CONSTRAINT fk_debris_parent_pair
+        FOREIGN KEY (parent_pair_id)
+        REFERENCES encounter_pairs(pair_id)
+);
+
+CREATE INDEX idx_debris_dataset_tag ON debris(dataset_tag);
+CREATE INDEX idx_debris_norad_ref ON debris(debris_norad_ref);
+CREATE INDEX idx_debris_parent_event ON debris(parent_event_id);
+CREATE INDEX idx_debris_parent_pair ON debris(parent_pair_id);
