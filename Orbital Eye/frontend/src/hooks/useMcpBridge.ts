@@ -109,8 +109,14 @@ export function useMcpBridge({
     function connect() {
       if (isUnmounted) return;
       try {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.hostname || 'localhost';
-        ws = new WebSocket(`ws://${host}:8000/ws/bridge`);
+        // In local Vite dev, frontend runs on 3000/5173 and backend on 8000.
+        // In production / reverse proxy, route through the current origin's port.
+        const isDevPort = window.location.port === '3000' || window.location.port === '5173';
+        const portPart = isDevPort ? ':8000' : (window.location.port ? `:${window.location.port}` : '');
+        const wsUrl = `${protocol}//${host}${portPart}/ws/bridge`;
+        ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
         ws.onopen = () => {

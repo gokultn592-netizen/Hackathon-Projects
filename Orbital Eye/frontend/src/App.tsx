@@ -4,7 +4,6 @@ import ErrorBoundary from './components/ErrorBoundary';
 import EncounterTable from './components/EncounterTable';
 import Globe3D, { SatelliteInfo, LiveAccidentTelemetry } from './components/Globe3D';
 import AccidentReportBanner from './components/AccidentReportBanner';
-import CollisionReconstructionModal from './components/CollisionReconstructionModal';
 import { useUrlSync } from './hooks/useUrlSync';
 import { useEncounters } from './hooks/useEncounters';
 import { useSatellitePositions } from './hooks/useSatellitePositions';
@@ -27,10 +26,20 @@ import {
   Globe,
   Sun,
 } from './components/Icons';
-import DevSettingsModal, { DevSettingsData } from './components/DevSettingsModal';
-import ServiceHealthCheckerModal from './components/ServiceHealthCheckerModal';
+import type { DevSettingsData } from './components/DevSettingsModal';
 import { PLANETARY_BODIES, CelestialBodyData } from './utils/solarSystem';
 import { PlanetaryTelemetryCard } from './components/PlanetaryTelemetryCard';
+
+// Lazy-loaded modals to minimize initial bundle size and optimize first contentful paint
+const CollisionReconstructionModal = React.lazy(
+  () => import('./components/CollisionReconstructionModal')
+);
+const DevSettingsModal = React.lazy(
+  () => import('./components/DevSettingsModal')
+);
+const ServiceHealthCheckerModal = React.lazy(
+  () => import('./components/ServiceHealthCheckerModal')
+);
 
 interface SatellitePreset {
   id: string;
@@ -656,7 +665,7 @@ function MissionControlDashboard() {
           speedMultiplier={speedMultiplier}
           isRealtime={isRealtime}
           onAccidentTelemetryUpdate={setLiveAccidentTelemetry}
-          isModalOpen={collisionModalOpen}
+          isModalOpen={collisionModalOpen || devSettingsOpen || healthModalOpen || Boolean(selectedEncounter)}
           viewMode={viewMode}
           selectedPlanetId={selectedPlanet?.id}
           onSelectPlanet={setSelectedPlanet}
@@ -1334,30 +1343,42 @@ function MissionControlDashboard() {
       )}
 
       {/* ====== 2009 COLLISION FORENSIC MODAL ====== */}
-      <CollisionReconstructionModal
-        isOpen={collisionModalOpen}
-        onClose={() => setCollisionModalOpen(false)}
-      />
+      <React.Suspense fallback={null}>
+        {collisionModalOpen && (
+          <CollisionReconstructionModal
+            isOpen={collisionModalOpen}
+            onClose={() => setCollisionModalOpen(false)}
+          />
+        )}
+      </React.Suspense>
 
       {/* ====== DEVELOPER SETTINGS MODAL (/api/settings) ====== */}
-      <DevSettingsModal
-        isOpen={devSettingsOpen}
-        onClose={() => setDevSettingsOpen(false)}
-        onOpenHealthChecker={() => setHealthModalOpen(true)}
-        onSettingsChange={(newSettings) => {
-          setSpeedMultiplier(newSettings.speed_multiplier);
-          setIsRealtime(newSettings.is_realtime);
-          if (newSettings.satellite_limit !== limit) {
-            setUrlState({ limit: newSettings.satellite_limit });
-          }
-        }}
-      />
+      <React.Suspense fallback={null}>
+        {devSettingsOpen && (
+          <DevSettingsModal
+            isOpen={devSettingsOpen}
+            onClose={() => setDevSettingsOpen(false)}
+            onOpenHealthChecker={() => setHealthModalOpen(true)}
+            onSettingsChange={(newSettings: DevSettingsData) => {
+              setSpeedMultiplier(newSettings.speed_multiplier);
+              setIsRealtime(newSettings.is_realtime);
+              if (newSettings.satellite_limit !== limit) {
+                setUrlState({ limit: newSettings.satellite_limit });
+              }
+            }}
+          />
+        )}
+      </React.Suspense>
 
       {/* ====== SERVICE HEALTH & REAL-DATA AUTHENTICITY CHECKER MODAL ====== */}
-      <ServiceHealthCheckerModal
-        isOpen={healthModalOpen}
-        onClose={() => setHealthModalOpen(false)}
-      />
+      <React.Suspense fallback={null}>
+        {healthModalOpen && (
+          <ServiceHealthCheckerModal
+            isOpen={healthModalOpen}
+            onClose={() => setHealthModalOpen(false)}
+          />
+        )}
+      </React.Suspense>
     </div>
   );
 }

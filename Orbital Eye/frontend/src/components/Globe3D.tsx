@@ -1621,6 +1621,12 @@ export default function Globe3D({
       const animate = (currentTime: number) => {
         animationFrameIdRef.current = requestAnimationFrame(animate);
 
+        // When a full-screen dialog/modal is open, pause heavy scene computation & GPU rendering to preserve battery and GPU cycles
+        if (isModalOpenRef.current) {
+          lastTime = currentTime;
+          return;
+        }
+
         const dtSec = Math.min(0.1, (currentTime - lastTime) / 1000);
         lastTime = currentTime;
         simElapsedTime += dtSec;

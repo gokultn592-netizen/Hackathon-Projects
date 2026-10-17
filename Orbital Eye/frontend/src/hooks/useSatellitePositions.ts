@@ -15,43 +15,58 @@ export interface SatellitePosition {
   risk_category: 'CRITICAL' | 'CAUTION' | 'NOMINAL';
 }
 
-export function useSatellitePositions(dataset: string, limit: number, refreshIntervalMs = 30000) {
+export function useSatellitePositions(
+  dataset: string,
+  limit: number,
+  refreshIntervalMs = 30000
+) {
   const [positions, setPositions] = useState<SatellitePosition[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const fetchPositions = async () => {
-    try {
-      // First try direct backend URL, then fall back to Vite proxy /api
-      let res = await fetch(
-        `http://localhost:8000/api/satellites/positions?dataset=${dataset}&limit=${limit}`
-      ).catch(() => null);
-      if (!res || !res.ok) {
-        res = await fetch(
-          `/api/satellites/positions?dataset=${dataset}&limit=${limit}`
-        );
-      }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: SatellitePosition[] = await res.json();
-      setPositions(data);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch positions');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   useEffect(() => {
+    const controller = new AbortController();
     setIsLoading(true);
-    fetchPositions();
-    // Refresh every 30 seconds (SGP4 positions change over time)
-    intervalRef.current = setInterval(fetchPositions, refreshIntervalMs);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+
+    const fetchPositions = async () => {
+      try {
+        const query = `dataset=${encodeURIComponent(dataset)}&limit=${limit}`;
+        // First try relative proxy path (/api), fallback to explicit localhost:8000
+        let res = await fetch(`/api/satellites/positions?${query}`, {
+          signal: controller.signal,
+        }).catch((err) => {
+          if (err.name === 'AbortError') throw err;
+          return null;
+        });
+
+        if (!res || !res.ok) {
+          res = await fetch(`http://localhost:8000/api/satellites/positions?${query}`, {
+            signal: controller.signal,
+          });
+        }
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data: SatellitePosition[] = await res.json();
+        setPositions(data);
+        setError(null);
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+        setError(err.message || 'Failed to fetch positions');
+      } finally {
+        setIsLoading(false);
+      }
     };
-  }, [dataset, limit]);
+
+    fetchPositions();
+
+    // Adaptive periodic telemetry polling
+    const intervalId = setInterval(fetchPositions, refreshIntervalMs);
+
+    return () => {
+      controller.abort();
+      clearInterval(intervalId);
+    };
+  }, [dataset, limit, refreshIntervalMs]);
 
   return { positions, isLoading, error };
 }

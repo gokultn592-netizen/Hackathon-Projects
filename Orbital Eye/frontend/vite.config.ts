@@ -17,6 +17,27 @@ export default defineConfig(({ mode }) => {
     resolve: {
       dedupe: ['react', 'react-dom'],
     },
+    build: {
+      chunkSizeWarningLimit: 600,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('three') || id.includes('@react-three')) {
+                return 'three-vendor';
+              }
+              if (id.includes('lucide-react')) {
+                return 'icons-vendor';
+              }
+              if (id.includes('react') || id.includes('react-dom') || id.includes('@tanstack')) {
+                return 'react-vendor';
+              }
+              return 'vendor';
+            }
+          },
+        },
+      },
+    },
     server: {
       port: 3000,
       host: '0.0.0.0',
