@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scene 11 – Impact Numbers</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: #0a0a0f;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+
+    #stage {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      background: #0a0a0f;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #stats-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 120px;
+      width: 100%;
+      max-width: 1560px;
+    }
+
+    .stat-block {
+      position: relative;
+      flex: 1;
+      max-width: 440px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      opacity: 0;
+    }
+
+    .stat-number {
+      font-size: 80px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin-bottom: 18px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .stat-label {
+      font-size: 16px;
+      font-weight: 400;
+      color: #aaaaaa;
+      letter-spacing: 0.05em;
+      line-height: 1.5;
+    }
+
+    #num1 {
+      color: #00d4ff;
+      text-shadow: 0 0 32px rgba(0, 212, 255, 0.35);
+    }
+
+    #num2 {
+      color: #ffffff;
+      text-shadow: 0 0 28px rgba(255, 255, 255, 0.25);
+    }
+
+    #num3 {
+      color: #ef4444;
+      text-shadow: 0 0 36px rgba(239, 68, 68, 0.4);
+    }
+
+    /* ── Subtle Cyan Glow behind Stat 3 ─────────────────────────── */
+    #stat3-glow {
+      position: absolute;
+      top: -30px;
+      left: calc(50% - 170px);
+      width: 340px;
+      height: 220px;
+      background: radial-gradient(ellipse at center, rgba(0, 212, 255, 0.5) 0%, rgba(0, 212, 255, 0.18) 45%, rgba(0, 212, 255, 0) 75%);
+      pointer-events: none;
+      z-index: -1;
+      opacity: 0;
+    }
+  </style>
+</head>
+<body>
+  <div
+    id="stage"
+    data-composition-id="scene11"
+    data-start="0"
+    data-duration="12"
+    data-width="1920"
+    data-height="1080"
+    data-fps="30"
+  >
+    <div id="stats-row">
+      <!-- Stat 1: 6 Oracle database tables -->
+      <div class="stat-block" id="stat1">
+        <div class="stat-number" id="num1">0</div>
+        <div class="stat-label">Oracle database tables</div>
+      </div>
+
+      <!-- Stat 2: 200+ encounters tracked per query -->
+      <div class="stat-block" id="stat2">
+        <div class="stat-number" id="num2">0+</div>
+        <div class="stat-label">encounters tracked per query</div>
+      </div>
+
+      <!-- Stat 3: < 5km miss distance = CRITICAL alert -->
+      <div class="stat-block" id="stat3">
+        <div id="stat3-glow"></div>
+        <div class="stat-number" id="num3">&lt; 5km</div>
+        <div class="stat-label">miss distance = CRITICAL alert</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GSAP 3 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+
+  <script>
+    (function () {
+      const num1El = document.getElementById('num1');
+      const num2El = document.getElementById('num2');
+
+      const tl = gsap.timeline({ paused: true });
+
+      // ── Stat 1 (appears at 1s) ─────────────────────────────────────────────
+      // Fade/slide in container
+      tl.fromTo('#stat1',
+        { opacity: 0, y: 30 },
+        { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' },
+        1.0
+      );
+
+      // Count 0 → 6
+      const count1 = { val: 0 };
+      tl.to(count1, {
+        val: 6,
+        duration: 1.2,
+        ease: 'power2.out',
+        onUpdate: function () {
+          num1El.textContent = Math.round(count1.val);
+        },
+      }, 1.0);
+
+      // ── Stat 2 (appears at 3.5s) ───────────────────────────────────────────
+      // Fade/slide in container
+      tl.fromTo('#stat2',
+        { opacity: 0, y: 30 },
+        { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' },
+        3.5
+      );
+
+      // Count 0 → 200 with '+' suffix
+      const count2 = { val: 0 };
+      tl.to(count2, {
+        val: 200,
+        duration: 1.6,
+        ease: 'power3.out',
+        onUpdate: function () {
+          num2El.textContent = Math.round(count2.val) + '+';
+        },
+      }, 3.5);
+
+      // ── Stat 3 (appears at 6.0s) ───────────────────────────────────────────
+      tl.fromTo('#stat3',
+        { opacity: 0, y: 30 },
+        { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' },
+        6.0
+      );
+
+      // ── At 10s: Cyan glow pulses behind "< 5km" ────────────────────────────
+      tl.fromTo('#stat3-glow',
+        { opacity: 0, scale: 0.7, transformOrigin: 'center center' },
+        { opacity: 0.85, scale: 1.25, duration: 0.8, ease: 'sine.out' },
+        10.0
+      );
+      tl.to('#stat3-glow', {
+        opacity: 0.35,
+        scale: 1.05,
+        duration: 0.8,
+        ease: 'sine.inOut',
+      }, 10.8);
+
+      // 12s: hold
+
+      // ── Register with HyperFrames ─────────────────────────────────────────
+      window.__timelines = window.__timelines || {};
+      window.__timelines['scene11'] = tl;
+    })();
+  </script>
+</body>
+</html>

@@ -8,3 +8,5 @@ __pycache__/
 *.log
 output/*.sql
 .env.local
+.hyperframes/
+*.hf-transaction*

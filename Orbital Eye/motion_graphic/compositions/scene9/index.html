@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scene 9 – Real-Time Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: #0a0a0f;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+
+    #stage {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      background: #0a0a0f;
+    }
+
+    /* ── LEFT PANEL ─────────────────────────────────────────────── */
+    #left-panel {
+      position: absolute;
+      left: 100px;
+      top: 0;
+      width: 280px;
+      height: 1080px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0;
+    }
+
+    #step-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #00d4ff;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-bottom: 36px;
+      opacity: 0;
+    }
+
+    /* Vertical progress bar — 3 segments, ALL THREE lit cyan */
+    #progress-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      opacity: 0;
+    }
+
+    .seg {
+      width: 3px;
+      height: 60px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .seg.active {
+      background: #00d4ff;
+      box-shadow: 0 0 8px 2px rgba(0, 212, 255, 0.5);
+    }
+
+    /* ── RIGHT PANEL ────────────────────────────────────────────── */
+    #right-panel {
+      position: absolute;
+      left: 480px;
+      top: 0;
+      width: 1320px;
+      height: 1080px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0;
+    }
+
+    /* Thin cyan rule above title */
+    #rule-top {
+      width: 64px;
+      height: 2px;
+      background: #00d4ff;
+      margin-bottom: 28px;
+      opacity: 0;
+    }
+
+    #title {
+      font-size: 48px;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: 0.06em;
+      line-height: 1.1;
+      margin-bottom: 44px;
+      opacity: 0;
+    }
+
+    /* ── FEATURES LIST ──────────────────────────────────────────── */
+    #features-list {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      max-width: 900px;
+    }
+
+    .feature-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 16px;
+      color: #ffffff;
+      letter-spacing: 0.03em;
+      line-height: 1.4;
+      opacity: 0;
+    }
+
+    .bullet {
+      color: #00d4ff;
+      font-size: 15px;
+      line-height: 1;
+      filter: drop-shadow(0 0 6px rgba(0, 212, 255, 0.7));
+      flex-shrink: 0;
+    }
+
+    .highlight {
+      color: #00d4ff;
+      font-weight: 600;
+    }
+
+    .mono-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      color: rgba(0, 212, 255, 0.85);
+      background: rgba(0, 212, 255, 0.08);
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid rgba(0, 212, 255, 0.2);
+    }
+
+    /* ── BOTTOM RIGHT BADGE ─────────────────────────────────────── */
+    #footer-text {
+      position: absolute;
+      right: 120px;
+      bottom: 72px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #888888;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      opacity: 0;
+    }
+  </style>
+</head>
+<body>
+  <div
+    id="stage"
+    data-composition-id="scene9"
+    data-start="0"
+    data-duration="10"
+    data-width="1920"
+    data-height="1080"
+    data-fps="30"
+  >
+    <!-- Left panel -->
+    <div id="left-panel">
+      <div id="step-label">03 &nbsp;/&nbsp; 03</div>
+      <div id="progress-bar">
+        <div class="seg active"></div>
+        <div class="seg active"></div>
+        <div class="seg active"></div>
+      </div>
+    </div>
+
+    <!-- Right panel -->
+    <div id="right-panel">
+      <div id="rule-top"></div>
+      <div id="title">REAL-TIME DASHBOARD</div>
+
+      <!-- Feature list -->
+      <div id="features-list">
+        <div class="feature-item" id="feat1">
+          <span class="bullet">✦</span>
+          <span>Dataset Toggle &nbsp;—&nbsp; <span class="highlight">REALTIME</span> vs <span class="highlight">ACCIDENT</span></span>
+        </div>
+
+        <div class="feature-item" id="feat2">
+          <span class="bullet">✦</span>
+          <span>Virtualized encounter table &nbsp;<span class="mono-tag">@tanstack/react-virtual</span></span>
+        </div>
+
+        <div class="feature-item" id="feat3">
+          <span class="bullet">✦</span>
+          <span>Color-coded miss distance alerts</span>
+        </div>
+
+        <div class="feature-item" id="feat4">
+          <span class="bullet">✦</span>
+          <span>CSV Export with timestamp</span>
+        </div>
+
+        <div class="feature-item" id="feat5">
+          <span class="bullet">✦</span>
+          <span>URL sync &nbsp;—&nbsp; browser back/forward supported</span>
+        </div>
+
+        <div class="feature-item" id="feat6">
+          <span class="bullet">✦</span>
+          <span>ErrorBoundary resilience</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom right footer tag -->
+    <div id="footer-text">Live from Oracle XE &nbsp;·&nbsp; FastAPI &nbsp;·&nbsp; React</div>
+  </div>
+
+  <!-- GSAP 3 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+
+  <script>
+    (function () {
+      const tl = gsap.timeline({ paused: true });
+
+      // ── Left panel ────────────────────────────────────────────────────────
+
+      // 0.4s: step label fades in
+      tl.to('#step-label', {
+        opacity: 1,
+        duration: 0.5,
+        ease: 'power2.out',
+      }, 0.4);
+
+      // 0.7s: progress bar fades in (all 3 segs active)
+      tl.to('#progress-bar', {
+        opacity: 1,
+        duration: 0.5,
+        ease: 'power2.out',
+      }, 0.7);
+
+      // ── Right panel ───────────────────────────────────────────────────────
+
+      // 0.6s: rule draws in (scaleX 0→1, transform-origin left)
+      tl.fromTo('#rule-top',
+        { opacity: 0, scaleX: 0, transformOrigin: 'left center' },
+        { opacity: 1, scaleX: 1, duration: 0.4, ease: 'power2.out' },
+        0.6
+      );
+
+      // 1.0s: title slides in from right
+      tl.fromTo('#title',
+        { opacity: 0, x: 80 },
+        { opacity: 1, x: 0, duration: 0.55, ease: 'power3.out' },
+        1.0
+      );
+
+      // Feature items stagger 0.6s apart, sliding in from right
+      const featureIds = ['#feat1', '#feat2', '#feat3', '#feat4', '#feat5', '#feat6'];
+      featureIds.forEach(function (sel, i) {
+        tl.fromTo(sel,
+          { opacity: 0, x: 60 },
+          { opacity: 1, x: 0, duration: 0.45, ease: 'power2.out' },
+          1.8 + i * 0.6
+        );
+      });
+
+      // At 8s: bottom right text fades in
+      tl.to('#footer-text', {
+        opacity: 1,
+        duration: 0.7,
+        ease: 'power2.out',
+      }, 8.0);
+
+      // 10s: hold
+
+      // ── Register with HyperFrames ─────────────────────────────────────────
+      window.__timelines = window.__timelines || {};
+      window.__timelines['scene9'] = tl;
+    })();
+  </script>
+</body>
+</html>

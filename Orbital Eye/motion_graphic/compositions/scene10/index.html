@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scene 10 – Tech Stack</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: #0a0a0f;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+
+    #stage {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      background: #0a0a0f;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ── TITLE ABOVE GRID ───────────────────────────────────────── */
+    #grid-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: #ffffff;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 48px;
+      height: 28px;
+      line-height: 28px;
+      opacity: 0;
+    }
+
+    /* ── 2×3 GRID (3 columns × 2 rows) ─────────────────────────── */
+    #badges-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 210px);
+      gap: 24px;
+    }
+
+    .badge {
+      width: 210px;
+      height: 84px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      opacity: 0;
+      padding: 0 16px;
+      white-space: nowrap;
+    }
+
+    #badge1 {
+      color: #ef4444;
+      border: 1px solid #ef4444;
+      background: rgba(239, 68, 68, 0.08);
+      box-shadow: 0 0 24px rgba(239, 68, 68, 0.15);
+    }
+
+    #badge2 {
+      color: #22c55e;
+      border: 1px solid #22c55e;
+      background: rgba(34, 197, 94, 0.08);
+      box-shadow: 0 0 24px rgba(34, 197, 94, 0.15);
+    }
+
+    #badge3 {
+      color: #00d4ff;
+      border: 1px solid #00d4ff;
+      background: rgba(0, 212, 255, 0.08);
+      box-shadow: 0 0 24px rgba(0, 212, 255, 0.15);
+    }
+
+    #badge4 {
+      color: #a855f7;
+      border: 1px solid #a855f7;
+      background: rgba(168, 85, 247, 0.08);
+      box-shadow: 0 0 24px rgba(168, 85, 247, 0.15);
+    }
+
+    #badge5 {
+      color: #3b82f6;
+      border: 1px solid #2563eb;
+      background: rgba(37, 99, 235, 0.08);
+      box-shadow: 0 0 24px rgba(37, 99, 235, 0.15);
+    }
+
+    #badge6 {
+      color: #f59e0b;
+      border: 1px solid #f59e0b;
+      background: rgba(245, 158, 11, 0.08);
+      box-shadow: 0 0 24px rgba(245, 158, 11, 0.15);
+    }
+  </style>
+</head>
+<body>
+  <div
+    id="stage"
+    data-composition-id="scene10"
+    data-start="0"
+    data-duration="10"
+    data-width="1920"
+    data-height="1080"
+    data-fps="30"
+  >
+    <!-- Title above grid -->
+    <div id="grid-title">Built on production-grade infrastructure</div>
+
+    <!-- 2×3 Grid of Tech Badges -->
+    <div id="badges-grid">
+      <!-- Badge 1: Oracle XE -->
+      <div class="badge" id="badge1">Oracle XE</div>
+
+      <!-- Badge 2: FastAPI -->
+      <div class="badge" id="badge2">FastAPI</div>
+
+      <!-- Badge 3: React + TypeScript -->
+      <div class="badge" id="badge3">React + TypeScript</div>
+
+      <!-- Badge 4: TanStack Virtual -->
+      <div class="badge" id="badge4">TanStack Virtual</div>
+
+      <!-- Badge 5: Docker -->
+      <div class="badge" id="badge5">Docker</div>
+
+      <!-- Badge 6: TLE / CelesTrak -->
+      <div class="badge" id="badge6">TLE / CelesTrak</div>
+    </div>
+  </div>
+
+  <!-- GSAP 3 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+
+  <script>
+    (function () {
+      const tl = gsap.timeline({ paused: true });
+
+      // Badges pop in with scale(0)→scale(1) + fade, stagger 0.4s
+      const badgeIds = ['#badge1', '#badge2', '#badge3', '#badge4', '#badge5', '#badge6'];
+      badgeIds.forEach(function (sel, i) {
+        tl.fromTo(sel,
+          { opacity: 0, scale: 0, transformOrigin: 'center center' },
+          { opacity: 1, scale: 1, duration: 0.5, ease: 'back.out(1.7)' },
+          1.0 + i * 0.4
+        );
+      });
+
+      // At 8s: Title fades in above grid
+      tl.to('#grid-title', {
+        opacity: 1,
+        duration: 0.8,
+        ease: 'power2.out',
+      }, 8.0);
+
+      // 10s: hold
+
+      // ── Register with HyperFrames ─────────────────────────────────────────
+      window.__timelines = window.__timelines || {};
+      window.__timelines['scene10'] = tl;
+    })();
+  </script>
+</body>
+</html>
