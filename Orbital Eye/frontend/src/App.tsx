@@ -440,6 +440,77 @@ function MissionControlDashboard() {
   const [presentationMode, setPresentationMode] = useState<boolean>(false);
   const prevSpeedRef = React.useRef(1.0);
   const [telemetryCardVisible, setTelemetryCardVisible] = useState(false);
+
+  // Real-Time System Health State (Dynamic live probe of /api/system/health-checker)
+  const [systemHealth, setSystemHealth] = useState<{
+    status: 'HEALTHY' | 'DEGRADED' | 'DOWN';
+    connectedCount: number;
+    totalCount: number;
+    dbConnected: boolean;
+    backendOnline: boolean;
+  }>({
+    status: 'HEALTHY',
+    connectedCount: 3,
+    totalCount: 3,
+    dbConnected: true,
+    backendOnline: true,
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    const probeHealth = async () => {
+      try {
+        let res = await fetch('/api/system/health-checker').catch(() => null);
+        if (!res || !res.ok) {
+          res = await fetch('http://localhost:8000/api/system/health-checker').catch(() => null);
+        }
+        if (!res || !res.ok) {
+          if (isMounted) {
+            setSystemHealth({
+              status: 'DOWN',
+              connectedCount: 0,
+              totalCount: 3,
+              dbConnected: false,
+              backendOnline: false,
+            });
+          }
+          return;
+        }
+        const healthJson = await res.json();
+        const dbOk = healthJson.services?.database?.status === 'CONNECTED';
+        const backendOk = healthJson.services?.backend?.status === 'ONLINE';
+        const physicsOk = Boolean(healthJson.services?.physics_engine?.physics_pass);
+        const count = (dbOk ? 1 : 0) + (backendOk ? 1 : 0) + (physicsOk ? 1 : 0);
+
+        if (isMounted) {
+          setSystemHealth({
+            status: healthJson.overall_status === 'HEALTHY' ? 'HEALTHY' : 'DEGRADED',
+            connectedCount: count,
+            totalCount: 3,
+            dbConnected: dbOk,
+            backendOnline: backendOk,
+          });
+        }
+      } catch {
+        if (isMounted) {
+          setSystemHealth({
+            status: 'DOWN',
+            connectedCount: 0,
+            totalCount: 3,
+            dbConnected: false,
+            backendOnline: false,
+          });
+        }
+      }
+    };
+
+    probeHealth();
+    const interval = setInterval(probeHealth, 6000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
   const [isFavorite, setIsFavorite] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
@@ -1426,11 +1497,25 @@ function MissionControlDashboard() {
         <button
           type="button"
           onClick={() => setHealthModalOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-bold rounded-full border bg-emerald-950/70 border-emerald-500/50 text-emerald-300 hover:border-emerald-400 hover:text-white transition-all shadow-lg cursor-pointer"
+          className={`flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-bold rounded-full border transition-all shadow-lg cursor-pointer ${
+            systemHealth.status === 'HEALTHY'
+              ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300 hover:border-emerald-400 hover:text-white'
+              : systemHealth.status === 'DEGRADED'
+              ? 'bg-amber-950/80 border-amber-500/60 text-amber-300 hover:border-amber-400 animate-pulse'
+              : 'bg-red-950/80 border-red-500/60 text-red-300 hover:border-red-400 animate-pulse'
+          }`}
           title="Service Health & Real-Data Authenticity Checker (Backend, Oracle 21c XE, SGP4)"
         >
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-          <span>3/3 SERVICES OK</span>
+          <ShieldCheck className={`w-3.5 h-3.5 ${
+            systemHealth.status === 'HEALTHY' ? 'text-emerald-400' : systemHealth.status === 'DEGRADED' ? 'text-amber-400' : 'text-red-400'
+          }`} />
+          <span>
+            {systemHealth.status === 'HEALTHY'
+              ? `${systemHealth.connectedCount}/${systemHealth.totalCount} SERVICES OK`
+              : systemHealth.status === 'DEGRADED'
+              ? (!systemHealth.dbConnected ? 'DATABASE DISCONNECTED' : `${systemHealth.connectedCount}/${systemHealth.totalCount} DEGRADED`)
+              : 'BACKEND OFFLINE'}
+          </span>
         </button>
 
         {/* Real-Time Conjunction Threat Level Pill */}

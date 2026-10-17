@@ -31,6 +31,45 @@ router = APIRouter(prefix="/api/system", tags=["System Diagnostics"])
 # Record start time when module loads
 APP_START_TIME = time.time()
 
+# In-memory fault simulation flags for automated fault-tolerance testing and live verification
+_fault_simulations: Dict[str, bool] = {
+    "database": False,
+    "physics": False,
+}
+
+
+@router.get("/fault-injection")
+async def get_fault_injection_status() -> Dict[str, Any]:
+    """Retrieve the current fault simulation flags."""
+    return {
+        "database_cut": _fault_simulations.get("database", False),
+        "physics_cut": _fault_simulations.get("physics", False),
+    }
+
+
+@router.post("/fault-injection")
+async def set_fault_injection(service: str = "database", action: str = "cut") -> Dict[str, Any]:
+    """
+    Intentionally cut or restore a service for fault-tolerance verification.
+    service: 'database' or 'physics'
+    action: 'cut' (sever connection) or 'restore' (re-establish connection)
+    """
+    if service not in _fault_simulations:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid service '{service}'. Valid options are: 'database', 'physics'"
+        )
+
+    is_cut = (action.lower() == "cut")
+    _fault_simulations[service] = is_cut
+    logger.warning("Fault injection updated: service='%s', is_cut=%s", service, is_cut)
+    return {
+        "service": service,
+        "action": action,
+        "is_cut": is_cut,
+        "message": f"Service '{service}' is now {'SEVERED / DISCONNECTED' if is_cut else 'RESTORED / CONNECTED'}"
+    }
+
 
 @router.get("/health-checker")
 async def perform_full_system_health_check() -> Dict[str, Any]:
@@ -56,6 +95,8 @@ async def perform_full_system_health_check() -> Dict[str, Any]:
         "active_routes": [
             "GET /api/health",
             "GET /api/system/health-checker",
+            "GET /api/system/fault-injection",
+            "POST /api/system/fault-injection",
             "GET /api/settings",
             "PUT /api/settings",
             "GET /api/satellites/positions",
@@ -96,6 +137,9 @@ async def perform_full_system_health_check() -> Dict[str, Any]:
     sample_for_physics = None
 
     try:
+        if _fault_simulations.get("database", False):
+            raise RuntimeError("SIMULATED_FAULT: Oracle 21c XE connection intentionally severed for fault tolerance verification")
+
         t_db_start = time.perf_counter()
         conn = await pool.acquire()
 
@@ -246,16 +290,22 @@ async def perform_full_system_health_check() -> Dict[str, Any]:
     auth_token = hashlib.sha256(raw_hash_input.encode("utf-8")).hexdigest()[:32].upper()
 
     authenticity_certificate = {
-        "guaranteed_real_data": True,
+        "guaranteed_real_data": overall_ok,
         "mock_data_detected": False,
         "data_provenance": "Oracle Database 21c XE (ORBITAL_EYE@XEPDB1) persistent tables; SGP4 ephemeris propagation from official Space-Track/CelesTrak TLE records.",
         "cryptographic_verification_token": auth_token,
         "verification_timestamp_utc": now_utc.isoformat(),
-        "anti_mock_audit": "PASSED (0 static fallback coordinates; 100% live database rows + SGP4 propagation)",
+        "anti_mock_audit": (
+            "PASSED (0 static fallback coordinates; 100% live database rows + SGP4 propagation)"
+            if overall_ok else
+            "DEGRADED (Database severed: 0 rows accessible; live queries halted)"
+        ),
         "assurance_statement": (
             "OrbitalEye DBMS Edition guarantees that every satellite position, velocity vector, "
             "and collision encounter displayed is derived directly from live Oracle SQL tables and "
             "evaluated with real-time SGP4 physics. No synthetic mock datasets are active."
+            if overall_ok else
+            "WARNING: Oracle Database connection is currently severed. Live telemetry is degraded."
         )
     }
 

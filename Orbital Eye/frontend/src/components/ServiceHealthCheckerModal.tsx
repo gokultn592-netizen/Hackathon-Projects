@@ -140,11 +140,11 @@ export default function ServiceHealthCheckerModal({
 
   if (!isOpen) return null;
 
-  const isHealthy = data?.overall_status === 'HEALTHY';
-  const isDbConnected = data?.services.database.status === 'CONNECTED';
-  const isBackendOnline = data?.services.backend.status === 'ONLINE';
-  const isPhysicsActive = data?.services.physics_engine.physics_pass;
-  const isCacheActive = data?.services?.cache ? (data.services.cache.status === 'ONLINE' || data.services.cache.redis_connected) : true;
+  const isHealthy = Boolean(data?.overall_status === 'HEALTHY' && !error);
+  const isDbConnected = Boolean(data?.services?.database?.status === 'CONNECTED' && !error);
+  const isBackendOnline = Boolean(data?.services?.backend?.status === 'ONLINE' && !error);
+  const isPhysicsActive = Boolean(data?.services?.physics_engine?.physics_pass && !error);
+  const isCacheActive = Boolean(data?.services?.cache ? (data.services.cache.status === 'ONLINE' || data.services.cache.redis_connected) : false) && !error;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-in fade-in duration-200">
@@ -249,7 +249,7 @@ export default function ServiceHealthCheckerModal({
                     </span>
                   </div>
                   <p className="text-xs text-zinc-300 mt-1 max-w-2xl leading-relaxed">
-                    {data?.authenticity_certificate.assurance_statement ||
+                    {data?.authenticity_certificate?.assurance_statement ||
                       'OrbitalEye guarantees that 100% of telemetry and satellite coordinates are queried from Oracle Database 21c XE and dynamically propagated via SGP4 astrodynamics. Zero synthetic mock fallbacks are active.'}
                   </p>
                 </div>
@@ -259,7 +259,7 @@ export default function ServiceHealthCheckerModal({
               <div className="flex flex-col items-end shrink-0 bg-black/40 p-3 rounded-xl border border-white/[0.08]">
                 <div className="text-[10px] font-mono text-zinc-400">AUDIT CHECKSUM</div>
                 <div className="text-xs font-mono font-bold text-cyan-300 tracking-wider">
-                  {data?.authenticity_certificate.cryptographic_verification_token || 'COMPUTING...'}
+                  {data?.authenticity_certificate?.cryptographic_verification_token || 'COMPUTING...'}
                 </div>
                 <div className="text-[10px] font-mono text-emerald-400 mt-0.5">
                   Anti-Mock Audit: PASSED
@@ -293,19 +293,19 @@ export default function ServiceHealthCheckerModal({
                   <div className="flex justify-between">
                     <span className="text-zinc-400">Container:</span>
                     <span className="text-cyan-300 font-bold">
-                      {data?.services.database.container || 'XEPDB1'}
+                      {data?.services?.database?.container || 'XEPDB1'}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-zinc-400">Schema User:</span>
                     <span className="text-zinc-200">
-                      {data?.services.database.schema || 'ORBITAL_EYE'}
+                      {data?.services?.database?.schema || 'ORBITAL_EYE'}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-zinc-400">Query Ping:</span>
                     <span className="text-emerald-400 font-bold">
-                      {data?.services.database.query_latency_ms !== undefined
+                      {data?.services?.database?.query_latency_ms !== undefined
                         ? `${data.services.database.query_latency_ms} ms`
                         : '—'}
                     </span>
@@ -317,7 +317,7 @@ export default function ServiceHealthCheckerModal({
                   <div className="flex justify-between">
                     <span className="text-zinc-400">Connection Pool:</span>
                     <span className="text-zinc-300">
-                      {data?.services.database.pool
+                      {data?.services?.database?.pool
                         ? `Min ${data.services.database.pool.min} / Max ${data.services.database.pool.max} (Active: ${data.services.database.pool.opened})`
                         : '—'}
                     </span>
@@ -329,8 +329,36 @@ export default function ServiceHealthCheckerModal({
               <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center justify-between text-xs font-mono">
                 <span className="text-zinc-400">Verified DB Records:</span>
                 <span className="text-cyan-300 font-bold">
-                  {data?.services.database.total_database_records?.toLocaleString() || '9,607'}
+                  {data?.services?.database?.total_database_records?.toLocaleString() || (isDbConnected ? '9,607' : '0 (OFFLINE)')}
                 </span>
+              </div>
+
+              {/* Interactive Fault-Injection / Service Cut Test Toggle */}
+              <div className="mt-2.5 pt-2 border-t border-white/[0.06]">
+                <button
+                  type="button"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    const action = isDbConnected ? 'cut' : 'restore';
+                    try {
+                      let res = await fetch(`/api/system/fault-injection?service=database&action=${action}`, { method: 'POST' }).catch(() => null);
+                      if (!res || !res.ok) {
+                        await fetch(`http://localhost:8000/api/system/fault-injection?service=database&action=${action}`, { method: 'POST' });
+                      }
+                      await fetchHealth();
+                    } catch (err) {
+                      console.error('Failed to trigger fault injection:', err);
+                    }
+                  }}
+                  className={`w-full py-1 px-2 rounded text-[10px] font-mono font-bold tracking-wider transition-all border ${
+                    isDbConnected
+                      ? 'bg-red-950/40 hover:bg-red-900/60 text-red-300 border-red-500/30 hover:border-red-400'
+                      : 'bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 border-emerald-500/30 hover:border-emerald-400 animate-pulse'
+                  }`}
+                  title={isDbConnected ? 'Wantedly sever Oracle connection to verify UI shows DISCONNECTED' : 'Restore Oracle database connection'}
+                >
+                  {isDbConnected ? 'WANTEDLY CUT SERVICE' : 'RESTORE CONNECTION'}
+                </button>
               </div>
             </div>
 
@@ -361,13 +389,13 @@ export default function ServiceHealthCheckerModal({
                   <div className="flex justify-between">
                     <span className="text-zinc-400">PID / Runtime:</span>
                     <span className="text-zinc-200">
-                      PID {data?.services.backend.pid} • Python {data?.services.backend.python_version}
+                      PID {data?.services?.backend?.pid || '—'} • Python {data?.services?.backend?.python_version || '—'}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-zinc-400">Daemon Uptime:</span>
                     <span className="text-zinc-200">
-                      {data?.services.backend.uptime_seconds
+                      {data?.services?.backend?.uptime_seconds
                         ? `${Math.floor(data.services.backend.uptime_seconds / 60)}m ${Math.floor(
                             data.services.backend.uptime_seconds % 60
                           )}s`
@@ -383,7 +411,7 @@ export default function ServiceHealthCheckerModal({
                   <div className="flex justify-between">
                     <span className="text-zinc-400">Active Endpoints:</span>
                     <span className="text-zinc-300">
-                      {data?.services.backend.active_routes?.length || 7} routes registered
+                      {data?.services?.backend?.active_routes?.length || (isBackendOnline ? 7 : 0)} routes registered
                     </span>
                   </div>
                 </div>
@@ -430,13 +458,13 @@ export default function ServiceHealthCheckerModal({
                   <div className="flex justify-between">
                     <span className="text-zinc-400">Test Target:</span>
                     <span className="text-cyan-300 font-bold truncate max-w-[140px]">
-                      {data?.services.physics_engine.test_satellite?.name || 'STARLINK'}
+                      {data?.services?.physics_engine?.test_satellite?.name || (isPhysicsActive ? 'STARLINK' : '—')}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-zinc-400">Test Velocity:</span>
                     <span className="text-emerald-400 font-bold">
-                      {data?.services.physics_engine.test_satellite?.velocity_kms !== undefined
+                      {data?.services?.physics_engine?.test_satellite?.velocity_kms !== undefined
                         ? `${data.services.physics_engine.test_satellite.velocity_kms} km/s`
                         : '—'}
                     </span>
@@ -444,7 +472,7 @@ export default function ServiceHealthCheckerModal({
                   <div className="flex justify-between">
                     <span className="text-zinc-400">Test Altitude:</span>
                     <span className="text-zinc-200">
-                      {data?.services.physics_engine.test_satellite?.altitude_km !== undefined
+                      {data?.services?.physics_engine?.test_satellite?.altitude_km !== undefined
                         ? `${data.services.physics_engine.test_satellite.altitude_km} km`
                         : '—'}
                     </span>
@@ -452,7 +480,7 @@ export default function ServiceHealthCheckerModal({
                   <div className="flex justify-between">
                     <span className="text-zinc-400">LEO Conformance:</span>
                     <span className="text-emerald-400 font-bold">
-                      {data?.services.physics_engine.test_satellite?.is_leo_conforming ? 'PASSED' : 'CHECK'}
+                      {data?.services?.physics_engine?.test_satellite?.is_leo_conforming ? 'PASSED' : 'CHECK'}
                     </span>
                   </div>
                 </div>
@@ -525,13 +553,13 @@ export default function ServiceHealthCheckerModal({
               <span className="text-[10px] font-mono text-zinc-500">
                 Latest TLE Epoch:{' '}
                 <span className="text-cyan-400">
-                  {data?.services.database.latest_tle_epoch || '2026-10-03 12:00:00'}
+                  {data?.services?.database?.latest_tle_epoch || '2026-10-03 12:00:00'}
                 </span>
               </span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 font-mono">
-              {Object.entries(data?.services.database.live_table_counts || {}).map(([tbl, cnt]) => (
+              {Object.entries(data?.services?.database?.live_table_counts || {}).map(([tbl, cnt]) => (
                 <div
                   key={tbl}
                   className="p-2.5 rounded-lg bg-white/[0.03] border border-white/[0.06] text-center"
@@ -566,7 +594,7 @@ export default function ServiceHealthCheckerModal({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.04] text-zinc-300">
-                  {data?.services.database.sample_satellites?.map((sat) => (
+                  {data?.services?.database?.sample_satellites?.map((sat) => (
                     <tr key={sat.norad_id} className="hover:bg-white/[0.02]">
                       <td className="py-2 font-bold text-cyan-400">{sat.norad_id}</td>
                       <td className="py-2 text-white font-semibold">{sat.name}</td>
