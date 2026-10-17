@@ -10,6 +10,7 @@ from fastapi import APIRouter, Query, HTTPException, status
 from pydantic import BaseModel, Field, conint
 
 from repositories.encounter_repository import get_encounters
+from routes.settings import get_active_settings
 from schemas import EncounterPairResponse
 
 logger = logging.getLogger(__name__)
@@ -18,19 +19,6 @@ router = APIRouter(
     prefix="/api/encounters",
     tags=["encounters"],
 )
-
-
-class QueryParams(BaseModel):
-    dataset: str = Field(
-        default="REALTIME",
-        description="Dataset tag filter (REALTIME or ACCIDENT)",
-        example="REALTIME",
-    )
-    limit: conint(ge=1, le=500) = Field(
-        default=50,
-        description="Maximum number of results (1-500)",
-        example=50,
-    )
 
 
 @router.get(
@@ -50,11 +38,12 @@ class QueryParams(BaseModel):
 )
 async def list_encounters(
     dataset: str = Query(default="REALTIME", description="Dataset tag filter"),
-    limit: int = Query(default=50, ge=1, le=500, description="Result limit (1-500)"),
+    limit: int | None = Query(default=None, ge=1, le=1000, description="Result limit (1-1000)"),
 ):
     try:
-        logger.info("GET /api/encounters dataset=%s limit=%d", dataset, limit)
-        results = await get_encounters(dataset_tag=dataset, limit=limit)
+        active_limit = limit if limit is not None else get_active_settings().satellite_limit
+        logger.info("GET /api/encounters dataset=%s limit=%d", dataset, active_limit)
+        results = await get_encounters(dataset_tag=dataset, limit=active_limit)
         return results
     except Exception as exc:
         # Sanitized error — never expose raw Oracle codes

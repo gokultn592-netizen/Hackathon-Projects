@@ -2,6 +2,7 @@
 Repository: compute real-time satellite positions from TLE data using SGP4.
 """
 
+import asyncio
 import logging
 import math
 from datetime import datetime, timezone
@@ -12,6 +13,7 @@ from sgp4.api import Satrec, jday
 
 from db import get_pool
 from schemas import SatellitePositionResponse
+from redis_cache import get_cached_json, set_cached_json
 
 logger = logging.getLogger(__name__)
 
@@ -120,10 +122,68 @@ def _geo_to_scene_xyz(lat_deg: float, lon_deg: float, alt_km: float):
     return x, y, z
 
 
+def _batch_propagate_rows(rows: list, dt_now: datetime, dataset_tag: str) -> List[SatellitePositionResponse]:
+    """
+    CPU-bound batch propagation worker.
+    Runs SGP4 math and geodetic coordinate transformations off the main asyncio loop.
+    """
+    positions = []
+    for row in rows:
+        norad_id = int(row[0])
+        name = str(row[1])
+        tle1 = str(row[2])
+        tle2 = str(row[3])
+        miss_dist = float(row[4]) if row[4] is not None else 999.0
+
+        result = _tle_to_position(tle1, tle2, dt_now)
+        if result is None:
+            continue
+
+        x_km, y_km, z_km, vel = result
+        lat, lon, alt = _eci_to_geo(x_km, y_km, z_km, dt_now)
+        sx, sy, sz = _geo_to_scene_xyz(lat, lon, alt)
+
+        # Parse inclination from TLE line 2 (columns 8-16)
+        try:
+            inclination_deg = float(tle2[8:16].strip())
+        except Exception:
+            inclination_deg = 0.0
+
+        # Risk category based on miss distance to any encounter pair
+        if miss_dist < 2.0:
+            risk = "CRITICAL"
+        elif miss_dist < 10.0:
+            risk = "CAUTION"
+        else:
+            risk = "NOMINAL"
+
+        positions.append(SatellitePositionResponse(
+            norad_id=norad_id,
+            name=name,
+            x=round(sx, 6),
+            y=round(sy, 6),
+            z=round(sz, 6),
+            lat_deg=round(lat, 4),
+            lon_deg=round(lon, 4),
+            alt_km=round(alt, 2),
+            velocity_kms=round(vel, 3),
+            inclination_deg=round(inclination_deg, 2),
+            dataset_tag=dataset_tag,
+            risk_category=risk,
+        ))
+    return positions
+
+
 async def get_satellite_positions(dataset_tag: str = "REALTIME", limit: int = 100) -> List[SatellitePositionResponse]:
     """
-    Query TLE data from Oracle, propagate to NOW with SGP4, return 3D positions.
+    Query TLE data from Oracle (or Redis cache), propagate to NOW with SGP4, return 3D positions.
     """
+    cache_key = f"orbitaleye:positions:{dataset_tag}:{limit}"
+    cached_data = await get_cached_json(cache_key)
+    if cached_data is not None:
+        logger.debug("Cache hit for satellite positions: %s (%d records)", cache_key, len(cached_data))
+        return [SatellitePositionResponse(**item) for item in cached_data]
+
     pool = get_pool()
     conn = None
     dt_now = datetime.now(timezone.utc)
@@ -161,54 +221,15 @@ async def get_satellite_positions(dataset_tag: str = "REALTIME", limit: int = 10
             FETCH FIRST :limit ROWS ONLY
         """
 
-        positions = []
         async with conn.cursor() as cursor:
             await cursor.execute(sql, {"dataset_tag": dataset_tag, "limit": limit})
             rows = await cursor.fetchall()
 
-            for row in rows:
-                norad_id = int(row[0])
-                name = str(row[1])
-                tle1 = str(row[2])
-                tle2 = str(row[3])
-                miss_dist = float(row[4]) if row[4] is not None else 999.0
+        # Offload CPU-bound SGP4 physics propagation to worker thread
+        positions = await asyncio.to_thread(_batch_propagate_rows, rows, dt_now, dataset_tag)
 
-                result = _tle_to_position(tle1, tle2, dt_now)
-                if result is None:
-                    continue
-
-                x_km, y_km, z_km, vel = result
-                lat, lon, alt = _eci_to_geo(x_km, y_km, z_km, dt_now)
-                sx, sy, sz = _geo_to_scene_xyz(lat, lon, alt)
-
-                # Parse inclination from TLE line 2 (columns 8-16)
-                try:
-                    inclination_deg = float(tle2[8:16].strip())
-                except Exception:
-                    inclination_deg = 0.0
-
-                # Risk category based on miss distance to any encounter pair
-                if miss_dist < 2.0:
-                    risk = "CRITICAL"
-                elif miss_dist < 10.0:
-                    risk = "CAUTION"
-                else:
-                    risk = "NOMINAL"
-
-                positions.append(SatellitePositionResponse(
-                    norad_id=norad_id,
-                    name=name,
-                    x=round(sx, 6),
-                    y=round(sy, 6),
-                    z=round(sz, 6),
-                    lat_deg=round(lat, 4),
-                    lon_deg=round(lon, 4),
-                    alt_km=round(alt, 2),
-                    velocity_kms=round(vel, 3),
-                    inclination_deg=round(inclination_deg, 2),
-                    dataset_tag=dataset_tag,
-                    risk_category=risk,
-                ))
+        # Cache in Redis / memory with 3-second TTL
+        await set_cached_json(cache_key, [p.model_dump() for p in positions], ttl_seconds=3)
 
         logger.info("SGP4 propagated %d satellites for dataset_tag=%s", len(positions), dataset_tag)
         return positions

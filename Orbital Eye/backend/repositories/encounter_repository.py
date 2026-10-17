@@ -12,6 +12,7 @@ import oracledb
 
 from schemas import EncounterPairResponse
 from db import get_pool
+from redis_cache import get_cached_json, set_cached_json
 
 logger = logging.getLogger(__name__)
 
@@ -21,12 +22,15 @@ async def get_encounters(
     limit: int = 50,
 ) -> List[EncounterPairResponse]:
     """
-    Query encounter pairs from Oracle, joining with satellites (twice)
+    Query encounter pairs from Oracle (or Redis cache), joining with satellites
     to resolve NORAD IDs to satellite names.
-
-    Uses bind variables exclusively (no string interpolation in SQL).
-    Connection is properly released in a finally block.
     """
+    cache_key = f"orbitaleye:encounters:{dataset_tag}:{limit}"
+    cached_data = await get_cached_json(cache_key)
+    if cached_data is not None:
+        logger.debug("Cache hit for encounters: %s (%d records)", cache_key, len(cached_data))
+        return [EncounterPairResponse(**item) for item in cached_data]
+
     pool = get_pool()
     conn = None
     start_time = time.time()
@@ -83,6 +87,10 @@ async def get_encounters(
         logger.info(
             "Encounter query completed (%d rows, %.3fs)", len(results), elapsed
         )
+
+        # Cache results in Redis / memory for 20 seconds
+        await set_cached_json(cache_key, [r.model_dump() for r in results], ttl_seconds=20)
+
         return results
 
     except oracledb.Error as e:

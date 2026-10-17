@@ -5,6 +5,7 @@ Route: /api/satellites/positions — real-time SGP4 propagated positions
 import logging
 from fastapi import APIRouter, Query, HTTPException, status
 from repositories.satellite_position_repository import get_satellite_positions
+from routes.settings import get_active_settings
 from schemas import SatellitePositionResponse
 
 logger = logging.getLogger(__name__)
@@ -26,10 +27,11 @@ router = APIRouter(
 )
 async def satellite_positions(
     dataset: str = Query(default="REALTIME", description="REALTIME or ACCIDENT"),
-    limit: int = Query(default=100, ge=1, le=500, description="Max satellites to return"),
+    limit: int | None = Query(default=None, ge=1, le=1000, description="Max satellites to return"),
 ):
     try:
-        return await get_satellite_positions(dataset_tag=dataset, limit=limit)
+        active_limit = limit if limit is not None else get_active_settings().satellite_limit
+        return await get_satellite_positions(dataset_tag=dataset, limit=active_limit)
     except Exception as exc:
         logger.error("Satellite positions query failed: %s", exc, exc_info=True)
         raise HTTPException(

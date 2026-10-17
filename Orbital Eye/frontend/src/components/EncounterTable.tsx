@@ -9,6 +9,7 @@ interface EncounterTableProps {
   error?: string | null;
   onSelectEncounter?: (enc: AdaptedEncounter) => void;
   onClose?: () => void;
+  id?: string;
 }
 
 export default function EncounterTable({
@@ -18,12 +19,16 @@ export default function EncounterTable({
   error,
   onSelectEncounter,
   onClose,
+  id,
 }: EncounterTableProps) {
   const isDataLoading = isLoading || loading;
   const [searchQuery, setSearchQuery] = useState('');
   const [riskFilter, setRiskFilter] = useState<'ALL' | 'CRITICAL' | 'CAUTION' | 'NOMINAL'>('ALL');
 
-  // Counts for tabs
+  // Count encounters by risk level based on miss distance and collision probability
+  // CRITICAL: miss distance < 2km OR collision probability > 25%
+  // CAUTION: miss distance 2-10km OR collision probability 5-25%
+  // NOMINAL: miss distance >= 10km AND collision probability <= 5%
   const counts = useMemo(() => {
     let crit = 0;
     let caut = 0;
@@ -78,6 +83,7 @@ export default function EncounterTable({
     <aside
       aria-label="Conjunction Catalog Panel"
       className="fixed right-0 top-12 bottom-[52px] w-[480px] max-w-full z-40 bg-[#05080f] border-l border-cyan-500/30 flex flex-col font-mono shadow-[-12px_0_30px_rgba(0,0,0,0.8)]"
+      id={id}
     >
       {/* Panel Header */}
       <div className="h-12 px-4 flex items-center justify-between border-b border-cyan-500/20 bg-[#02050b] shrink-0">
@@ -110,9 +116,10 @@ export default function EncounterTable({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="SEARCH CATALOG (NAME, NORAD)..."
+          aria-label="Search encounter catalog"
           className="w-full h-10 pl-9 pr-4 bg-transparent text-xs text-white placeholder-slate-600 focus:outline-none focus:border-b focus:border-cyan-400 tracking-wider font-mono"
         />
-        <Search className="absolute left-3 top-3 w-3.5 h-3.5 text-slate-500" />
+        <Search className="absolute left-3 top-3 w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
       </div>
 
       {/* Risk Filter Tabs (Flat Rectangular) */}
@@ -141,7 +148,7 @@ export default function EncounterTable({
       </div>
 
       {/* Rows List (44px height per row, no card borders, left 4px colored risk bar) */}
-      <div className="flex-1 overflow-y-auto divide-y divide-cyan-500/10">
+      <div className="flex-1 overflow-y-auto divide-y divide-cyan-500/20">
         {isDataLoading && (
           <div className="p-8 text-center text-xs text-slate-500 uppercase tracking-widest animate-pulse">
             RETRIEVING ORACLE TELEMETRY DATA...

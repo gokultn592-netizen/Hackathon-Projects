@@ -62,3 +62,17 @@ class SatellitePositionResponse(BaseModel):
     dataset_tag: str
     risk_category: str  # "CRITICAL" | "CAUTION" | "NOMINAL"
 
+
+class SettingsModel(BaseModel):
+    satellite_limit: int = Field(default=100, ge=1, le=1000, description="Max satellites loaded from Oracle")
+    speed_multiplier: float = Field(default=1.0, ge=0.01, le=5000.0, description="Simulation speed factor relative to real-time")
+    is_realtime: bool = Field(default=True, description="When true, 1 real second = 1 second of orbital progress")
+    refresh_interval_sec: int = Field(default=10, ge=1, le=120, description="SGP4 propagation polling interval in seconds")
+
+
+class SettingsUpdateModel(BaseModel):
+    satellite_limit: int | None = Field(default=None, ge=1, le=1000)
+    speed_multiplier: float | None = Field(default=None, ge=0.01, le=5000.0)
+    is_realtime: bool | None = None
+    refresh_interval_sec: int | None = Field(default=None, ge=1, le=120)
+

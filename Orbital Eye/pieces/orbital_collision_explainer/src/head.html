@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orbital Conjunction & Avoidance Optimization — Faculty Explainer</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #070913; overflow: hidden; font-family: Cambria, "Cambria Math", serif; }
+  body { display: flex; align-items: center; justify-content: center; }
+  canvas { width: min(100vw, calc(100vh * 16 / 9)); height: auto; aspect-ratio: 16 / 9; display: block; cursor: pointer; box-shadow: 0 0 50px rgba(0, 240, 255, 0.12); }
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script>
+"use strict";
+// =====================================================================
+//  ORBITAL CONJUNCTION & AVOIDANCE OPTIMIZATION — FACULTY EXPLAINER
+//  Format: 16:9 Landscape (1920x1080), 48.0s @ 120 BPM, 30fps.
+//  Style: Manim Math (Grant Sanderson 3Blue1Brown style).
+//  Act 1 (0-16s): 2009 Hypervelocity Collision Geometry (Mach 34, 102.7 deg)
+//  Act 2 (16-32s): Oracle 21c Database Spatial Ingestion & SQL Conjunction Filter
+//  Act 3 (32-48s): Pyomo L1-Norm Delta-V Optimization & Verified Safe Clearance
+// =====================================================================
+const FPS = 30, W = 1920, H = 1080;
+const BPM = 120, BEAT = 60 / BPM, E8 = BEAT / 2, E16 = BEAT / 4;
+const DURATION = 48.0;
+const NFRAMES = Math.round(DURATION * FPS);
+const LOOP_T = NFRAMES / FPS;
+const SAFE = { top: 80, bottom: 80, right: 80, left: 80 };
+const HAND = 'Cambria, "Cambria Math", "Latin Modern Roman", "CMU Serif", "Times New Roman", Georgia, serif';
+const CX = 960;
+
+const ERA_LIST = [
+  [0, 16, () => sceneAct1()],
+  [16, 32, () => sceneAct2()],
+  [32, 48, () => sceneAct3()]
+];
+
+const SHOTS = [
+  ['collision_geometry', 0, 0.0, 16.0, 'Act 1: The 2009 Iridium 33 x Cosmos 2251 Hypervelocity Intersect'],
+  ['database_detection', 1, 16.0, 32.0, 'Act 2: Oracle 21c Database Spatial Conjunction Analysis'],
+  ['optimal_avoidance',   2, 32.0, 48.0, 'Act 3: Optimal Along-Track Delta-V Burn & Safe Orbital Clearance'],
+];
+
+const TIMELINE = {
+  width: W, height: H, fps: FPS, bpm: BPM, duration: DURATION, frames: NFRAMES, loop: LOOP_T, safe: SAFE,
+  format: 'morph-chain',
+  shots: SHOTS.map(([key, era, t0, t1, title], i) => ({ id: i + 1, key, era, t0, t1, title })),
+  cuts: [16.0, 32.0],
+  morphs: [],
+  cues: {
+    orbit_write: 1.0,
+    velocity_vectors: 5.0,
+    impact_flash: 12.0,
+    debris_fan: 13.0,
+    db_schema: 17.0,
+    sql_query: 22.0,
+    high_risk_flag: 27.0,
+    burn_formula: 33.0,
+    thruster_fire: 37.0,
+    safe_clearance: 42.0,
+    mission_verified: 45.0
+  },
+  acts: [
+    { name: 'Act 1: Collision Geometry', role: 'problem',  t0: 0.0, t1: 16.0 },
+    { name: 'Act 2: DBMS Intelligence', role: 'solution', t0: 16.0, t1: 32.0 },
+    { name: 'Act 3: Avoidance Maneuver', role: 'proof',    t0: 32.0, t1: 48.0 },
+  ],
+  board: [
+    { t: 6.0, title: 'Hypervelocity Vectors (11.65 km/s)', sound: 'subtle radar pulse', next: 'TCA impact flash' },
+    { t: 24.0, title: 'Oracle 21c SQL Conjunction Query', sound: 'data processing ticks', next: 'L1 optimization burn' },
+    { t: 43.0, title: 'Clearance: +124.85 km (Cleared)', sound: 'clean harmonic resolution', next: 'loop' },
+  ],
+  narration: [],
+};
+window.TIMELINE = TIMELINE;

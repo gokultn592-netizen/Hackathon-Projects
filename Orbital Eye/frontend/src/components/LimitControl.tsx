@@ -8,7 +8,7 @@ interface LimitControlProps {
   max?: number;
 }
 
-export default function LimitControl({ value, onChange, min = 1, max = 200 }: LimitControlProps) {
+export default function LimitControl({ value, onChange, min = 1, max = 500 }: LimitControlProps) {
   const [localValue, setLocalValue] = useState(value);
 
   // Sync external changes
@@ -39,7 +39,7 @@ export default function LimitControl({ value, onChange, min = 1, max = 200 }: Li
     setLocalValue(Math.max(min, Math.min(max, parsed)));
   }, [min, max]);
 
-  const presets = [25, 50, 100, 200];
+  const presets = [50, 100, 250, 500];
 
   return (
     <div className="w-full space-y-2">

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Astrophysical Supernova & Stellar Core Collapse — Real-time Animate</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #05060d; overflow: hidden; font-family: Cambria, "Cambria Math", serif; }
+  body { display: flex; align-items: center; justify-content: center; }
+  canvas { width: min(100vw, calc(100vh * 16 / 9)); height: auto; aspect-ratio: 16 / 9; display: block; cursor: pointer; box-shadow: 0 0 60px rgba(56, 189, 248, 0.15); }
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script>
+"use strict";
+// =====================================================================
+//  ASTROPHYSICAL SUPERNOVA & STELLAR CORE COLLAPSE — ANIMATE EXPLAINER
+//  Format: 16:9 Landscape (1920x1080), 48.0s @ 120 BPM, 30fps.
+//  Style: Manim Math (Grant Sanderson 3Blue1Brown style).
+//  Act 1 (0-16s): Silicon Burning & Chandrasekhar Limit Collapse (1.44 M_sun)
+//  Act 2 (16-32s): Core Rebound, Neutrino Breakout & Relativistic Bipolar Jets
+//  Act 3 (32-48s): Crab Nebula Remnant, R-Process Nucleosynthesis & Millisecond Pulsar
+// =====================================================================
+const FPS = 30, W = 1920, H = 1080;
+const BPM = 120, BEAT = 60 / BPM, E8 = BEAT / 2, E16 = BEAT / 4;
+const DURATION = 48.0;
+const NFRAMES = Math.round(DURATION * FPS);
+const LOOP_T = NFRAMES / FPS;
+const SAFE = { top: 80, bottom: 80, right: 80, left: 80 };
+const HAND = 'Cambria, "Cambria Math", "Latin Modern Roman", "CMU Serif", "Times New Roman", Georgia, serif';
+const CX = 960;
+
+const ERA_LIST = [
+  [0, 16, () => sceneAct1()],
+  [16, 32, () => sceneAct2()],
+  [32, 48, () => sceneAct3()]
+];
+
+const SHOTS = [
+  ['stellar_fusion',    0, 0.0, 16.0, 'Act 1: Massive Star Onion Shells & Chandrasekhar Core Collapse'],
+  ['shock_breakout',    1, 16.0, 32.0, 'Act 2: Nuclear Core Rebound, Neutrino Shockwave & Bipolar Jets'],
+  ['nebula_pulsar',     2, 32.0, 48.0, 'Act 3: Ionized Crab Nebula Remnant, R-Process & Millisecond Pulsar'],
+];
+
+const TIMELINE = {
+  width: W, height: H, fps: FPS, bpm: BPM, duration: DURATION, frames: NFRAMES, loop: LOOP_T, safe: SAFE,
+  format: 'morph-chain',
+  shots: SHOTS.map(([key, era, t0, t1, title], i) => ({ id: i + 1, key, era, t0, t1, title })),
+  cuts: [16.0, 32.0],
+  morphs: [],
+  cues: {
+    fusion_shell: 1.0,
+    iron_core: 6.0,
+    implosion_start: 12.0,
+    core_rebound: 16.5,
+    gamma_breakout: 21.0,
+    bipolar_jets: 26.0,
+    nebula_filaments: 33.0,
+    pulsar_beam: 39.0,
+    r_process_gold: 44.0
+  }
+};

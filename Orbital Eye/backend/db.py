@@ -43,6 +43,8 @@ def init_pool() -> oracledb.AsyncPool:
     min_pool = int(os.getenv("ORACLE_MIN_POOL", "2"))
     max_pool = int(os.getenv("ORACLE_MAX_POOL", "10"))
     increment = int(os.getenv("ORACLE_INCREMENT", "1"))
+    wait_timeout = int(os.getenv("ORACLE_WAIT_TIMEOUT_MS", "5000"))  # ms (5 sec)
+    timeout = int(os.getenv("ORACLE_TIMEOUT_SEC", "300"))           # sec (5 min)
 
     if not password:
         raise ValueError("ORACLE_PASSWORD or ORACLE_PASS environment variable is required")
@@ -55,8 +57,11 @@ def init_pool() -> oracledb.AsyncPool:
             min=min_pool,
             max=max_pool,
             increment=increment,
+            getmode=oracledb.POOL_GETMODE_TIMEDWAIT,
+            wait_timeout=wait_timeout,
+            timeout=timeout,
         )
-        logger.info(f"Oracle connection pool initialized: {dsn} (min={min_pool}, max={max_pool})")
+        logger.info(f"Oracle connection pool initialized: {dsn} (min={min_pool}, max={max_pool}, wait_timeout={wait_timeout}ms)")
         return _pool
     except oracledb.Error as e:
         logger.error(f"Failed to initialize Oracle connection pool: {e}")
@@ -134,16 +139,20 @@ async def execute_query(
 async def execute_dml(
     conn: oracledb.AsyncConnection,
     sql: str,
-    params: dict = None
+    params: dict = None,
+    commit: bool = True,
 ) -> int:
     """
     Execute INSERT/UPDATE/DELETE and return affected row count.
-    Uses bind variables for safety.
+    Uses bind variables for safety. Commits transaction by default.
     """
     try:
         async with conn.cursor() as cursor:
             await cursor.execute(sql, params or {})
-            return cursor.rowcount
+            count = cursor.rowcount
+            if commit:
+                await conn.commit()
+            return count
     except oracledb.Error as e:
         logger.error(f"DML execution error: {e} | SQL: {sql} | Params: {params}")
         raise
