@@ -25,7 +25,14 @@ import {
   ShieldCheck,
   Globe,
   Sun,
+  Keyboard,
+  HelpCircle,
+  Volume2,
+  VolumeX,
+  Eye,
+  EyeOff,
 } from './components/Icons';
+import { isAudioMuted, toggleAudioMute, playUiBlipSound, playThrusterBurnSound } from './utils/audio';
 import type { DevSettingsData } from './components/DevSettingsModal';
 import { PLANETARY_BODIES, CelestialBodyData } from './utils/solarSystem';
 import { PlanetaryTelemetryCard } from './components/PlanetaryTelemetryCard';
@@ -39,6 +46,9 @@ const DevSettingsModal = React.lazy(
 );
 const ServiceHealthCheckerModal = React.lazy(
   () => import('./components/ServiceHealthCheckerModal')
+);
+const KeyboardShortcutsModal = React.lazy(
+  () => import('./components/KeyboardShortcutsModal')
 );
 
 interface SatellitePreset {
@@ -421,12 +431,34 @@ function MissionControlDashboard() {
 
   // UI Panels
   const [catalogDrawerOpen, setCatalogDrawerOpen] = useState(false);
+  const [catalogRiskFilter, setCatalogRiskFilter] = useState<'ALL' | 'CRITICAL' | 'CAUTION' | 'NOMINAL'>('ALL');
   const [collisionModalOpen, setCollisionModalOpen] = useState(false);
   const [healthModalOpen, setHealthModalOpen] = useState(false);
+  const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isMuted, setIsMuted] = useState<boolean>(() => isAudioMuted());
+  const [presentationMode, setPresentationMode] = useState<boolean>(false);
+  const prevSpeedRef = React.useRef(1.0);
   const [telemetryCardVisible, setTelemetryCardVisible] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+
+  // Aggregated Conjunction Threat Matrix for Live Header Status
+  const conjunctionRiskSummary = useMemo(() => {
+    if (!data || data.length === 0) return { critical: 0, caution: 0, nominal: 0, total: 0 };
+    let crit = 0;
+    let caut = 0;
+    let nom = 0;
+    data.forEach((r) => {
+      const dist = r.missDistance;
+      const prob = Number(r.collisionProbPct) || (r.collisionProb * 100);
+      if (dist < 2.0 || prob > 25) crit++;
+      else if (dist < 10.0 || prob > 5) caut++;
+      else nom++;
+    });
+    return { critical: crit, caution: caut, nominal: nom, total: data.length };
+  }, [data]);
 
   // Selected Target Spacecraft — Null by default for free globe exploration
   const [selectedSat, setSelectedSat] = useState<SatelliteInfo | null>(null);
@@ -434,6 +466,31 @@ function MissionControlDashboard() {
   // Heliocentric Solar System Mode State
   const [viewMode, setViewMode] = useState<'EARTH' | 'SOLAR_SYSTEM'>('EARTH');
   const [selectedPlanet, setSelectedPlanet] = useState<CelestialBodyData | null>(null);
+
+  // Clean Presentation Flight Mode (Tab / F)
+  const handleTogglePresentationMode = () => {
+    setPresentationMode((prev) => {
+      const next = !prev;
+      playUiBlipSound();
+      showToast(
+        next
+          ? 'Presentation mode enabled (Tab / F to restore).'
+          : 'Presentation mode disabled. All flight controls restored.',
+        'info'
+      );
+      return next;
+    });
+  };
+
+  // Global Audio Controller (Mute / Unmute)
+  const handleToggleMute = () => {
+    const next = toggleAudioMute();
+    setIsMuted(next);
+    showToast(next ? 'Mission audio muted (M).' : 'Mission audio active (M).', next ? 'warning' : 'success');
+    if (!next) {
+      playUiBlipSound();
+    }
+  };
 
   // Unfocus / Deselect Handler
   const handleUnfocusSat = () => {
@@ -444,22 +501,162 @@ function MissionControlDashboard() {
     setCameraTrigger({ type: 'reset', timestamp: Date.now() });
   };
 
-  // Escape key to unfocus
+  // Spacebar toggle pause / resume time propagation
+  const handleTogglePause = () => {
+    setIsPaused((prev) => {
+      const next = !prev;
+      if (next) {
+        prevSpeedRef.current = speedMultiplier > 0 ? speedMultiplier : 1.0;
+        setSpeedMultiplier(0);
+        setIsRealtime(false);
+        showToast('Orbital propagation paused (Space).', 'info');
+      } else {
+        const restored = prevSpeedRef.current || 1.0;
+        setSpeedMultiplier(restored);
+        setIsRealtime(restored <= 1.0);
+        showToast(`Orbital propagation resumed at ${restored}x (Space).`, 'info');
+      }
+      return next;
+    });
+  };
+
+  // Mission Control Keyboard Command System (Flight Deck Hotkeys)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Do not intercept keystrokes if the user is typing in an input or textarea
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || target?.isContentEditable) {
+        return;
+      }
+
+      // Escape: Dismiss topmost open panel/modal, exit presentation mode, or unfocus satellite
       if (e.key === 'Escape') {
+        if (presentationMode) {
+          setPresentationMode(false);
+          return;
+        }
+        if (shortcutsModalOpen) {
+          setShortcutsModalOpen(false);
+          return;
+        }
+        if (catalogDrawerOpen) {
+          setCatalogDrawerOpen(false);
+          return;
+        }
+        if (devSettingsOpen) {
+          setDevSettingsOpen(false);
+          return;
+        }
+        if (healthModalOpen) {
+          setHealthModalOpen(false);
+          return;
+        }
+        if (collisionModalOpen) {
+          setCollisionModalOpen(false);
+          return;
+        }
         handleUnfocusSat();
+        return;
+      }
+
+      // Tab or F: Toggle Presentation / Clean Flight Mode
+      if (e.key === 'Tab' || e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        handleTogglePresentationMode();
+        return;
+      }
+
+      // Space: Toggle Pause / Resume orbital propagation
+      if (e.code === 'Space' || e.key === ' ') {
+        e.preventDefault();
+        handleTogglePause();
+        return;
+      }
+
+      // R: Reset Camera view to orbital overview
+      if (e.key === 'r' || e.key === 'R') {
+        setCameraTrigger({ type: 'reset', timestamp: Date.now() });
+        showToast('Camera reset to orbital overview (R).', 'info');
+        return;
+      }
+
+      // O: Toggle orbit trail lines
+      if (e.key === 'o' || e.key === 'O') {
+        setShowOrbits((prev) => {
+          const next = !prev;
+          showToast(`Orbital trails ${next ? 'enabled' : 'hidden'} (O).`, 'info');
+          return next;
+        });
+        return;
+      }
+
+      // C: Toggle Conjunction Catalog drawer
+      if (e.key === 'c' || e.key === 'C') {
+        setCatalogDrawerOpen((prev) => !prev);
+        return;
+      }
+
+      // H: Open Health & Authenticity Checker
+      if (e.key === 'h' || e.key === 'H') {
+        setHealthModalOpen((prev) => !prev);
+        return;
+      }
+
+      // D: Open Developer Telemetry Settings
+      if (e.key === 'd' || e.key === 'D') {
+        setDevSettingsOpen((prev) => !prev);
+        return;
+      }
+
+      // 1: Realtime LEO Tracking dataset
+      if (e.key === '1') {
+        handleDatasetChange('REALTIME');
+        showToast('Switched to Realtime LEO tracking (1).', 'info');
+        return;
+      }
+
+      // 2: 2009 Collision Reconstruction dataset
+      if (e.key === '2') {
+        handleDatasetChange('ACCIDENT');
+        showToast('Switched to 2009 Collision Reconstruction (2).', 'info');
+        return;
+      }
+
+      // M: Toggle Mission Audio Mute
+      if (e.key === 'm' || e.key === 'M') {
+        handleToggleMute();
+        return;
+      }
+
+      // ? or K: Toggle Keyboard Shortcuts HUD
+      if (e.key === '?' || e.key === 'k' || e.key === 'K') {
+        e.preventDefault();
+        setShortcutsModalOpen((prev) => !prev);
+        return;
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [
+    shortcutsModalOpen,
+    catalogDrawerOpen,
+    devSettingsOpen,
+    healthModalOpen,
+    collisionModalOpen,
+    speedMultiplier,
+    isPaused,
+    isMuted,
+    presentationMode,
+  ]);
 
   // Toggle Avoidance Maneuver with real-time per-satellite telemetry focus
   const handleToggleAvoidance = () => {
     setAvoidanceActive((prev) => {
       const next = !prev;
       if (next) {
+        playThrusterBurnSound();
         // Automatically focus on IRIDIUM 33 to showcase its real-time avoidance telemetry!
         setSelectedSat({
           name: 'IRIDIUM 33',
@@ -505,6 +702,7 @@ function MissionControlDashboard() {
 
   // Switch Dataset Handler
   const handleDatasetChange = (newDataset: string) => {
+    playUiBlipSound();
     setUrlState({ dataset: newDataset });
     if (newDataset === 'ACCIDENT') {
       setSelectedSat({
@@ -532,6 +730,7 @@ function MissionControlDashboard() {
 
   // Satellite Selection from preset card click
   const handleSelectPreset = (preset: SatellitePreset) => {
+    playUiBlipSound();
     setSelectedPresetId(preset.id);
     setSelectedSat({
       name: preset.name,
@@ -556,6 +755,7 @@ function MissionControlDashboard() {
       handleUnfocusSat();
       return;
     }
+    playUiBlipSound();
     setSelectedSat(sat);
     setTelemetryCardVisible(true);
   };
@@ -665,15 +865,32 @@ function MissionControlDashboard() {
           speedMultiplier={speedMultiplier}
           isRealtime={isRealtime}
           onAccidentTelemetryUpdate={setLiveAccidentTelemetry}
-          isModalOpen={collisionModalOpen || devSettingsOpen || healthModalOpen || Boolean(selectedEncounter)}
+          isModalOpen={collisionModalOpen || devSettingsOpen || healthModalOpen || shortcutsModalOpen || Boolean(selectedEncounter)}
           viewMode={viewMode}
           selectedPlanetId={selectedPlanet?.id}
           onSelectPlanet={setSelectedPlanet}
         />
       </div>
 
+      {/* ====== CLEAN FLIGHT PRESENTATION MODE FLOATING PILL ====== */}
+      {presentationMode && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 animate-fadeIn">
+          <button
+            type="button"
+            onClick={handleTogglePresentationMode}
+            className="px-4 py-1.5 rounded-full bg-black/75 backdrop-blur-xl border border-teal-500/40 text-xs font-mono text-zinc-200 hover:text-white hover:border-teal-400 flex items-center gap-2 transition-all shadow-[0_0_25px_rgba(20,184,166,0.35)] cursor-pointer"
+            title="Exit Presentation Mode (Tab / Esc)"
+          >
+            <Eye className="w-3.5 h-3.5 text-teal-400" />
+            <span className="font-bold tracking-wider">CLEAN FLIGHT VIEW</span>
+            <span className="text-zinc-500">•</span>
+            <span className="text-zinc-400">PRESS [TAB] OR CLICK TO RESTORE HUD</span>
+          </button>
+        </div>
+      )}
+
       {/* ====== ACCIDENT FORENSIC BANNER (When Accident Mode is Active) ====== */}
-      {dataset === 'ACCIDENT' && (
+      {dataset === 'ACCIDENT' && !presentationMode && (
         <div className="absolute top-0 left-0 right-0 z-40 w-full pointer-events-auto shadow-2xl">
           <AccidentReportBanner
             avoidanceActive={avoidanceActive}
@@ -687,7 +904,7 @@ function MissionControlDashboard() {
       )}
 
       {/* ====== LEFT SIDEBAR: "IN ORBIT" TRACKING PANEL ====== */}
-      {!sidebarCollapsed ? (
+      {!sidebarCollapsed && !presentationMode ? (
         <aside
           id="main-content"
           aria-label="Orbit Tracking"
@@ -1166,7 +1383,9 @@ function MissionControlDashboard() {
       )}
 
       {/* ====== TOP RIGHT CONTROLS: LIVE BADGE & TOOLS ====== */}
-      <div className={`absolute right-4 ${dataset === 'ACCIDENT' ? 'top-14' : 'top-4'} z-30 flex items-center gap-2 select-none font-mono transition-all duration-200`}>
+      <div className={`absolute right-4 ${dataset === 'ACCIDENT' ? 'top-14' : 'top-4'} z-30 flex items-center gap-2 select-none font-mono transition-all duration-300 ${
+        presentationMode ? 'opacity-0 pointer-events-none -translate-y-4' : 'opacity-100 pointer-events-auto translate-y-0'
+      }`}>
         {/* Dual-Mode Context Switcher: Earth vs Solar System */}
         <div className="flex items-center p-0.5 rounded-full bg-black/60 border border-white/10 backdrop-blur-xl shadow-lg mr-1">
           <button
@@ -1207,11 +1426,55 @@ function MissionControlDashboard() {
         <button
           type="button"
           onClick={() => setHealthModalOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-bold rounded-full border bg-emerald-950/70 border-emerald-500/50 text-emerald-300 hover:border-emerald-400 hover:text-white transition-all shadow-lg"
+          className="flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-bold rounded-full border bg-emerald-950/70 border-emerald-500/50 text-emerald-300 hover:border-emerald-400 hover:text-white transition-all shadow-lg cursor-pointer"
           title="Service Health & Real-Data Authenticity Checker (Backend, Oracle 21c XE, SGP4)"
         >
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
           <span>3/3 SERVICES OK</span>
+        </button>
+
+        {/* Real-Time Conjunction Threat Level Pill */}
+        <button
+          type="button"
+          onClick={() => {
+            const filterToApply = conjunctionRiskSummary.critical > 0 ? 'CRITICAL' : conjunctionRiskSummary.caution > 0 ? 'CAUTION' : 'ALL';
+            setCatalogRiskFilter(filterToApply);
+            setCatalogDrawerOpen(true);
+            playUiBlipSound();
+          }}
+          className={`flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-bold rounded-full border transition-all shadow-lg cursor-pointer select-none ${
+            conjunctionRiskSummary.critical > 0
+              ? 'bg-red-950/80 border-red-500/60 text-red-300 hover:border-red-400 hover:bg-red-900/60 shadow-[0_0_15px_rgba(239,68,68,0.25)]'
+              : conjunctionRiskSummary.caution > 0
+              ? 'bg-amber-950/70 border-amber-500/50 text-amber-300 hover:border-amber-400 hover:bg-amber-900/60 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
+              : 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300 hover:border-emerald-400'
+          }`}
+          title="Live Conjunction Threat Level (Oracle 21c SGP4). Click to open and inspect in catalog."
+        >
+          <span
+            className={`w-2 h-2 rounded-full ${
+              conjunctionRiskSummary.critical > 0
+                ? 'bg-red-400 animate-pulse'
+                : conjunctionRiskSummary.caution > 0
+                ? 'bg-amber-400 animate-pulse'
+                : 'bg-emerald-400'
+            }`}
+          />
+          {conjunctionRiskSummary.critical > 0 ? (
+            <span>
+              {conjunctionRiskSummary.critical === 1
+                ? '1 CRITICAL CONJUNCTION'
+                : `${conjunctionRiskSummary.critical} CRITICAL CONJUNCTIONS`}
+            </span>
+          ) : conjunctionRiskSummary.caution > 0 ? (
+            <span>
+              {conjunctionRiskSummary.caution === 1
+                ? '1 CAUTION PASS'
+                : `${conjunctionRiskSummary.caution} CAUTION PASSES`}
+            </span>
+          ) : (
+            <span>NOMINAL CLEARANCE</span>
+          )}
         </button>
 
         {/* Integrated LIVE Telemetry & Speed Warp Toggle */}
@@ -1302,45 +1565,87 @@ function MissionControlDashboard() {
         >
           <Maximize className="w-3.5 h-3.5" />
         </button>
+
+        {/* Global Audio Controller (Mute / Unmute) */}
+        <button
+          type="button"
+          onClick={handleToggleMute}
+          className={`p-2 rounded-full backdrop-blur-md border transition-all shadow-lg ${
+            isMuted
+              ? 'bg-red-950/40 border-red-500/40 text-red-400 hover:text-red-200'
+              : 'bg-black/60 border-teal-500/40 text-teal-300 hover:text-white'
+          }`}
+          title={isMuted ? 'Unmute Mission Audio (M)' : 'Mute Mission Audio (M)'}
+        >
+          {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+        </button>
+
+        {/* Presentation / Clean Flight Mode Toggle (Tab / F) */}
+        <button
+          type="button"
+          onClick={handleTogglePresentationMode}
+          className="p-2 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-all shadow-lg cursor-pointer"
+          title="Presentation Mode (Tab or F) - Clean 3D orbital view"
+        >
+          <Eye className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Keyboard Shortcuts HUD Button (? / K) */}
+        <button
+          type="button"
+          onClick={() => setShortcutsModalOpen(true)}
+          className="p-2 rounded-full bg-black/60 backdrop-blur-md border border-teal-500/40 text-teal-300 hover:text-white hover:border-teal-400 transition-all shadow-lg cursor-pointer"
+          title="Mission Control Keyboard Shortcuts (? or K)"
+        >
+          <Keyboard className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       {/* ====== BOTTOM CENTER CONTROL HINT ====== */}
-      {dataset !== 'ACCIDENT' && (
+      {dataset !== 'ACCIDENT' && !presentationMode && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none text-xs text-zinc-400/80 font-sans tracking-wide">
           Drag to rotate • Scroll to zoom • Click satellite for telemetry
         </div>
       )}
 
-      {/* ====== ORACLE DB CATALOG DRAWER ====== */}
-      {catalogDrawerOpen && (
-        <EncounterTable
-          id="catalog-panel"
-          data={data}
-          isLoading={isLoading}
-          error={error}
-          onClose={() => setCatalogDrawerOpen(false)}
-          onSelectEncounter={(enc) => {
-            setSelectedSat({
-              name: enc.satAName || enc.satA || 'TARGET SATELLITE',
-              noradId: enc.satANorad || 25500,
-              altitudeKm: enc.satAAlt || 550,
-              velocityKms: enc.relVelocity || 7.6,
-              inclinationDeg: 53.0,
-              status: enc.missDistance < 1 ? 'CRITICAL' : enc.missDistance < 5 ? 'CAUTION' : 'NOMINAL',
-              operator: enc.operator || 'LEO Operator',
-              category: 'CONJUNCTION ENCOUNTER',
-              missDistanceKm: enc.missDistance,
-              relVelocityKms: enc.relVelocity,
-              latDeg: 45.0,
-              lonDeg: -95.0,
-              description: `Conjunction encounter detected by Oracle 21c between ${enc.satAName} and ${enc.satBName} with miss distance of ${enc.missDistance.toFixed(2)} km.`,
-            });
-            setTelemetryCardVisible(true);
-            setCameraTrigger({ type: 'focus', timestamp: Date.now() });
-            setCatalogDrawerOpen(false);
-          }}
-        />
-      )}
+      {/* ====== ORACLE DB CATALOG DRAWER WITH FROSTED BACKDROP & SLIDE TRANSITION ====== */}
+      <div
+        className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-xs transition-opacity duration-300 ${
+          catalogDrawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={() => setCatalogDrawerOpen(false)}
+        aria-hidden="true"
+      />
+
+      <EncounterTable
+        id="catalog-panel"
+        isOpen={catalogDrawerOpen}
+        initialRiskFilter={catalogRiskFilter}
+        data={data}
+        isLoading={isLoading}
+        error={error}
+        onClose={() => setCatalogDrawerOpen(false)}
+        onSelectEncounter={(enc) => {
+          setSelectedSat({
+            name: enc.satAName || enc.satA || 'TARGET SATELLITE',
+            noradId: enc.satANorad || 25500,
+            altitudeKm: enc.satAAlt || 550,
+            velocityKms: enc.relVelocity || 7.6,
+            inclinationDeg: 53.0,
+            status: enc.missDistance < 1 ? 'CRITICAL' : enc.missDistance < 5 ? 'CAUTION' : 'NOMINAL',
+            operator: enc.operator || 'LEO Operator',
+            category: 'CONJUNCTION ENCOUNTER',
+            missDistanceKm: enc.missDistance,
+            relVelocityKms: enc.relVelocity,
+            latDeg: 45.0,
+            lonDeg: -95.0,
+            description: `Conjunction encounter detected by Oracle 21c between ${enc.satAName} and ${enc.satBName} with miss distance of ${enc.missDistance.toFixed(2)} km.`,
+          });
+          setTelemetryCardVisible(true);
+          setCameraTrigger({ type: 'focus', timestamp: Date.now() });
+          setCatalogDrawerOpen(false);
+        }}
+      />
 
       {/* ====== 2009 COLLISION FORENSIC MODAL ====== */}
       <React.Suspense fallback={null}>
@@ -1376,6 +1681,16 @@ function MissionControlDashboard() {
           <ServiceHealthCheckerModal
             isOpen={healthModalOpen}
             onClose={() => setHealthModalOpen(false)}
+          />
+        )}
+      </React.Suspense>
+
+      {/* ====== MISSION CONTROL KEYBOARD SHORTCUTS MODAL ====== */}
+      <React.Suspense fallback={null}>
+        {shortcutsModalOpen && (
+          <KeyboardShortcutsModal
+            isOpen={shortcutsModalOpen}
+            onClose={() => setShortcutsModalOpen(false)}
           />
         )}
       </React.Suspense>

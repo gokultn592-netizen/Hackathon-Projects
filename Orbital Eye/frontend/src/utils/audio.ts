@@ -1,14 +1,40 @@
 /**
- * Procedural Hypervelocity Satellite Collision Audio Synthesizer
- * Uses Web Audio API to create a realistic deep-space kinetic explosion:
- * 1. Low-frequency sub-bass shockwave (140 Hz -> 26 Hz exponential drop)
- * 2. High-energy hypersonic debris noise burst with resonant low-pass sweep
- * 3. Metallic fragment crackle / supersonic pressure pop
- * 
- * Works completely offline, 0 external assets, 0 latency.
+ * Procedural Mission Control Audio Synthesizer
+ * Uses Web Audio API for zero-latency, 100% offline procedural acoustics:
+ * 1. Global Mute / Unmute state controller with localStorage persistence
+ * 2. Hypervelocity collision shockwave & fragmentation detonation
+ * 3. Tactile UI micro-chirps (spacecraft lock-on / body selection)
+ * 4. Realistic cold-gas / hydrazine thruster burn acoustic signature
  */
 
+const AUDIO_MUTED_STORAGE_KEY = 'orbitaleye_audio_muted';
+
 let audioCtxInstance: AudioContext | null = null;
+
+export function isAudioMuted(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return localStorage.getItem(AUDIO_MUTED_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function setAudioMuted(muted: boolean): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(AUDIO_MUTED_STORAGE_KEY, muted ? 'true' : 'false');
+  } catch {
+    // Local storage unavailable
+  }
+}
+
+export function toggleAudioMute(): boolean {
+  const current = isAudioMuted();
+  const next = !current;
+  setAudioMuted(next);
+  return next;
+}
 
 function getAudioContext(): AudioContext | null {
   try {
@@ -42,7 +68,82 @@ if (typeof window !== 'undefined') {
   window.addEventListener('touchstart', unlockAudio, { passive: true });
 }
 
+/**
+ * Procedural UI Micro-Chirp
+ * Generates an authentic, subtle 880Hz -> 1320Hz tactile frequency blip
+ * for satellite lock-on, celestial selection, and dataset toggles.
+ */
+export function playUiBlipSound() {
+  if (isAudioMuted()) return;
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, now);
+    osc.frequency.exponentialRampToValueAtTime(1320, now + 0.035);
+
+    gain.gain.setValueAtTime(0.08, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.045);
+  } catch {
+    // Silently handle if audio unavailable
+  }
+}
+
+/**
+ * Procedural Thruster Burn Acoustic Signature
+ * Generates an authentic resonant low-frequency gas expulsion hum
+ * during collision avoidance maneuver along-track burns.
+ */
+export function playThrusterBurnSound() {
+  if (isAudioMuted()) return;
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(65, now);
+    osc.frequency.linearRampToValueAtTime(95, now + 0.2);
+    osc.frequency.linearRampToValueAtTime(50, now + 0.5);
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(280, now);
+
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.12, now + 0.08);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.52);
+  } catch {
+    // Silently handle
+  }
+}
+
+/**
+ * Procedural Hypervelocity Satellite Collision Audio Synthesizer
+ * 1. Low-frequency sub-bass shockwave (140 Hz -> 26 Hz exponential drop)
+ * 2. High-energy hypersonic debris noise burst with resonant low-pass sweep
+ * 3. Metallic fragment crackle / supersonic pressure pop
+ */
 export function playImpactExplosionSound() {
+  if (isAudioMuted()) return;
   try {
     const ctx = getAudioContext();
     if (!ctx) return;
@@ -69,7 +170,6 @@ export function playImpactExplosionSound() {
     const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const data = noiseBuffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
-      // Exponentially decaying white noise for hypervelocity shockwave
       data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (ctx.sampleRate * 0.45));
     }
 

@@ -10,6 +10,8 @@ interface EncounterTableProps {
   onSelectEncounter?: (enc: AdaptedEncounter) => void;
   onClose?: () => void;
   id?: string;
+  isOpen?: boolean;
+  initialRiskFilter?: 'ALL' | 'CRITICAL' | 'CAUTION' | 'NOMINAL';
 }
 
 export default function EncounterTable({
@@ -20,10 +22,19 @@ export default function EncounterTable({
   onSelectEncounter,
   onClose,
   id,
+  isOpen = true,
+  initialRiskFilter = 'ALL',
 }: EncounterTableProps) {
   const isDataLoading = isLoading || loading;
   const [searchQuery, setSearchQuery] = useState('');
-  const [riskFilter, setRiskFilter] = useState<'ALL' | 'CRITICAL' | 'CAUTION' | 'NOMINAL'>('ALL');
+  const [riskFilter, setRiskFilter] = useState<'ALL' | 'CRITICAL' | 'CAUTION' | 'NOMINAL'>(initialRiskFilter);
+
+  // Synchronize when parent sets initialRiskFilter
+  React.useEffect(() => {
+    if (initialRiskFilter) {
+      setRiskFilter(initialRiskFilter);
+    }
+  }, [initialRiskFilter]);
 
   // Count encounters by risk level based on miss distance and collision probability
   // CRITICAL: miss distance < 2km OR collision probability > 25%
@@ -82,11 +93,13 @@ export default function EncounterTable({
   return (
     <aside
       aria-label="Conjunction Catalog Panel"
-      className="fixed right-0 top-12 bottom-[52px] w-[480px] max-w-full z-40 bg-[#05080f] border-l border-cyan-500/30 flex flex-col font-mono shadow-[-12px_0_30px_rgba(0,0,0,0.8)]"
+      className={`fixed right-0 top-0 bottom-0 w-[480px] max-w-full z-45 bg-[#05080f]/95 backdrop-blur-2xl border-l border-cyan-500/30 flex flex-col font-mono shadow-[-16px_0_40px_rgba(0,0,0,0.85)] transform transition-transform duration-300 ease-out ${
+        isOpen ? 'translate-x-0' : 'translate-x-full pointer-events-none'
+      }`}
       id={id}
     >
       {/* Panel Header */}
-      <div className="h-12 px-4 flex items-center justify-between border-b border-cyan-500/20 bg-[#02050b] shrink-0">
+      <div className="h-14 px-4 flex items-center justify-between border-b border-cyan-500/20 bg-[#02050b]/90 shrink-0">
         <div className="flex items-center gap-2">
           <Database className="w-4 h-4 text-cyan-400" />
           <span className="text-xs font-bold text-white tracking-wider uppercase">
