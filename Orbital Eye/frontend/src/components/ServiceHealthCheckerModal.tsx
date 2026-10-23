@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetch } from '../utils/api';
 import {
   X,
   Database,
@@ -108,13 +109,11 @@ export default function ServiceHealthCheckerModal({
     setLoading(true);
     setError(null);
     try {
-      // Direct call or relative proxy path
-      let res = await fetch('/api/system/health-checker').catch(() => null);
+      // apiFetch tries the same-origin Vite proxy first and only falls back
+      // to the absolute dev-server origin when running under the dev server.
+      const res = await apiFetch('/api/system/health-checker');
       if (!res || !res.ok) {
-        res = await fetch('http://localhost:8000/api/system/health-checker');
-      }
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        throw new Error(res ? `HTTP ${res.status}: ${res.statusText}` : 'Backend unreachable');
       }
       const json: ServiceHealthData = await res.json();
       setData(json);
@@ -341,10 +340,7 @@ export default function ServiceHealthCheckerModal({
                     e.stopPropagation();
                     const action = isDbConnected ? 'cut' : 'restore';
                     try {
-                      let res = await fetch(`/api/system/fault-injection?service=database&action=${action}`, { method: 'POST' }).catch(() => null);
-                      if (!res || !res.ok) {
-                        await fetch(`http://localhost:8000/api/system/fault-injection?service=database&action=${action}`, { method: 'POST' });
-                      }
+                      await apiFetch(`/api/system/fault-injection?service=database&action=${action}`, { method: 'POST' });
                       await fetchHealth();
                     } catch (err) {
                       console.error('Failed to trigger fault injection:', err);

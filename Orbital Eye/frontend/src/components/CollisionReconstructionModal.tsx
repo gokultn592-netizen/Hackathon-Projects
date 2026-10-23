@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Play, Pause, RotateCcw, Volume2, VolumeX, Eye, Maximize2 } from './Icons';
+import { Play, Pause, RotateCcw, Volume2, VolumeX, Eye } from './Icons';
 
 interface CollisionReconstructionModalProps {
   isOpen: boolean;
@@ -801,7 +801,7 @@ export default function CollisionReconstructionModal({
 
             {/* 100% Human-Readable Astrodynamics Equations HUD */}
             {showEquations && (
-              <div className="absolute top-3 left-3 z-30 w-84 max-w-[calc(100%-1.5rem)] bg-[#030714]/92 backdrop-blur-md border border-cyan-500/40 p-3 shadow-[0_0_25px_rgba(6,182,212,0.2)] rounded font-mono text-slate-200 select-none">
+              <div className="absolute top-3 left-3 z-30 w-[336px] max-w-[calc(100%_-_1.5rem)] bg-[#030714]/92 backdrop-blur-md border border-cyan-500/40 p-3 shadow-[0_0_25px_rgba(6,182,212,0.2)] rounded font-mono text-slate-200 select-none">
                 <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-cyan-500/30">
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
@@ -1022,7 +1022,7 @@ export default function CollisionReconstructionModal({
         </div>
 
         {/* Bottom Interactive Timeline Scrubber & Playback Controls */}
-        <div className="h-18 bg-[#040816] border-t border-cyan-500/30 px-4 py-2 flex flex-col justify-between shrink-0">
+        <div className="h-[72px] bg-[#040816] border-t border-cyan-500/30 px-4 py-2 flex flex-col justify-between shrink-0">
           {/* Timeline Scrubber Slider */}
           <div className="flex items-center gap-3">
             <span className="text-xs font-mono font-bold text-cyan-300 w-24 shrink-0">

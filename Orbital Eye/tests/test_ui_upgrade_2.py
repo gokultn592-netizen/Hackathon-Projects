@@ -61,6 +61,7 @@ def test_app_tsx_audio_integration():
     assert "<VolumeX" in content
     assert "<Volume2" in content
 
+@pytest.mark.slow
 def test_frontend_production_build():
     """Verify that TypeScript type-check and Vite bundling succeed without errors."""
     res = subprocess.run(

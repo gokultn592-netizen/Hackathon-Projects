@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { apiFetch } from '../utils/api';
 
 export interface SatellitePosition {
   norad_id: number;
@@ -31,21 +32,13 @@ export function useSatellitePositions(
     const fetchPositions = async () => {
       try {
         const query = `dataset=${encodeURIComponent(dataset)}&limit=${limit}`;
-        // First try relative proxy path (/api), fallback to explicit localhost:8000
-        let res = await fetch(`/api/satellites/positions?${query}`, {
+        // apiFetch tries the same-origin Vite proxy first and only falls back
+        // to the absolute dev-server origin when running under the dev server.
+        const res = await apiFetch(`/api/satellites/positions?${query}`, {
           signal: controller.signal,
-        }).catch((err) => {
-          if (err.name === 'AbortError') throw err;
-          return null;
         });
 
-        if (!res || !res.ok) {
-          res = await fetch(`http://localhost:8000/api/satellites/positions?${query}`, {
-            signal: controller.signal,
-          });
-        }
-
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res || !res.ok) throw new Error(res ? `HTTP ${res.status}` : 'Backend unreachable');
         const data: SatellitePosition[] = await res.json();
         setPositions(data);
         setError(null);

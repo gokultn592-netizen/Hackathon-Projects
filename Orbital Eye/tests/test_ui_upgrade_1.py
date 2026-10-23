@@ -60,6 +60,7 @@ def test_app_tsx_keyboard_integration():
     assert "e.key === '2'" in content
     assert "e.key === '?' || e.key === 'k' || e.key === 'K'" in content
 
+@pytest.mark.slow
 def test_frontend_production_build():
     """Verify that TypeScript type-check and Vite bundling succeed without errors."""
     res = subprocess.run(

@@ -61,6 +61,7 @@ def test_frontend_health_and_disconnect_resilience():
     assert "data?.services?.database" in modal_code, "Modal must use safe optional chaining"
 
 
+@pytest.mark.db
 def test_backend_live_health_and_fault_injection():
     """
     Test live backend health checker and intentional service cut / restoration.
@@ -131,6 +132,7 @@ def test_backend_live_health_and_fault_injection():
     asyncio.run(run_scenario())
 
 
+@pytest.mark.slow
 def test_frontend_production_build_clean():
     """Verify frontend builds cleanly with no TypeScript or packaging errors."""
     res = subprocess.run(

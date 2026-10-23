@@ -68,7 +68,6 @@ async def websocket_bridge_endpoint(websocket: WebSocket):
     await websocket.accept()
     _active_clients.add(websocket)
     logger.info("OrbitalEye MCP Bridge client connected. Total clients: %d", len(_active_clients))
-
     # Send initial welcome and acknowledge connection
     try:
         await websocket.send_text(json.dumps({

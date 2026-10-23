@@ -1,4 +1,5 @@
 .env
+.env.local
 __pycache__/
 *.pyc
 *.pyo
@@ -6,7 +7,12 @@ __pycache__/
 .pytest_cache/
 .coverage
 *.log
+*.pid
+backend.pid
+backend_server.log
 output/*.sql
-.env.local
+node_modules/
+dist/
 .hyperframes/
-*.hf-transaction*
+query
+*.jpg

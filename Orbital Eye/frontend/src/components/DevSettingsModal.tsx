@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Sliders, Clock, Database, X, ShieldCheck } from './Icons';
+import { apiFetch } from '../utils/api';
 
 export interface DevSettingsData {
   satellite_limit: number;
@@ -34,9 +35,9 @@ export default function DevSettingsModal({
   // Fetch from /api/settings on mount
   useEffect(() => {
     if (!isOpen) return;
-    fetch('http://localhost:8000/api/settings')
+    apiFetch('/api/settings')
       .then((res) => {
-        if (!res.ok) throw new Error('API offline');
+        if (!res || !res.ok) throw new Error('API offline');
         return res.json();
       })
       .then((data: DevSettingsData) => {
@@ -62,12 +63,12 @@ export default function DevSettingsModal({
 
     setSaving(true);
     try {
-      const res = await fetch('http://localhost:8000/api/settings', {
+      const res = await apiFetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(partial),
       });
-      if (res.ok) {
+      if (res && res.ok) {
         setApiSynced(true);
       }
     } catch {

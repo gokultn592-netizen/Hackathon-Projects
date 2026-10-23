@@ -36,10 +36,15 @@ This executes in dependency order:
 - `04_create_encounter_pairs.sql`
 - `05_create_encounter_events.sql`
 - `06_create_debris.sql`
+- `07_performance_indexes.sql`
 
 Then loads:
 - `output/seed_realtime.sql`
 - `output/seed_accident.sql`
+
+> **Windows:** use `database\deploy.bat` (the `.sh` script requires a bash + SQL\*Plus environment).
+> Both scripts resolve their paths relative to the repository root, so they can be
+> invoked from any working directory.
 
 Verification queries show row counts for all 6 tables. If any table has 0 rows, deployment exits with non-zero status.
 
@@ -149,7 +154,7 @@ Observe the `/api/encounters` endpoint with:
 ## Step 10: Verify Error Handling
 
 ### Network error simulation:
-Temporarily stop the FastAPI server and observe the React component shows the Error Boundary message: "Something went wrong displaying encounter data."
+Temporarily stop the FastAPI server and observe the React component shows the Error Boundary message: "Encounter display failed".
 
 ### Invalid query params:
 ```bash
@@ -167,10 +172,10 @@ Expect HTTP 422 validation error (limit > 200 rejected by Pydantic `conint`).
 - [ ] `/api/db-test` returns `{"container":"XEPDB1","user":"ORBITAL_EYE"}`
 - [ ] `/api/encounters?dataset=REALTIME&limit=50` returns JSON array with `pair_id`, `sat_a_name`, `sat_b_name`, etc.
 - [ ] `/api/encounters?dataset=ACCIDENT` returns different dataset results
-- [ ] React component `EncounterList.jsx` renders live data from `/api/encounters`
+- [ ] React component `EncounterTable.tsx` renders live data from `/api/encounters`
 - [ ] Dataset toggle switches between `REALTIME` and `ACCIDENT`
 - [ ] Limit input works (1-200) with debounced refresh
-- [ ] `ErrorBoundary.jsx` displays user-friendly message on failure
+- [ ] `ErrorBoundary.tsx` displays user-friendly message on failure
 - [ ] `/docs` shows OpenAPI schema with `EncounterPairResponse` fields
 - [ ] No console errors in browser when endpoint is accessible
-- [ ] Adapter function (`encounterAdapter.js`) maps backend fields without modifying backend
+- [ ] Adapter function (`encounterAdapter.ts`) maps backend fields without modifying backend

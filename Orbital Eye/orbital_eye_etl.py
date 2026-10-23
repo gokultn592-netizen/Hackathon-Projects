@@ -319,6 +319,7 @@ def generate_realtime_sql(
     lines.append("")
 
     lines.append("SET SERVEROUTPUT ON;")
+    lines.append("SET SQLBLANKLINES ON;")
     lines.append("BEGIN")
     lines.append("  -- Real-time LEO satellite seed insert block")
     lines.append("  -- Error handling wrapper")
@@ -432,6 +433,7 @@ def generate_accident_sql(output_path: str) -> int:
     lines.append("-- Note: Space-Track.org registration is pending for historical TLE validation.")
     lines.append("")
     lines.append("SET SERVEROUTPUT ON;")
+    lines.append("SET SQLBLANKLINES ON;")
     lines.append("BEGIN")
     lines.append("  -- 2009 Iridium 33 / Cosmos 2251 collision simulation insert block")
     lines.append("  BEGIN")

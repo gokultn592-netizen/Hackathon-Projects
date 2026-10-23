@@ -9,6 +9,17 @@ import {
   generateOrbitPathPoints,
   AU_SCALE,
 } from '../utils/solarSystem';
+import {
+  CONSTELLATION_CATEGORY_CODES,
+  CONSTELLATION_SATELLITE_COUNT,
+  CONSTELLATION_SPECS,
+  RING_SEGMENTS,
+  ConstellationPlaneSpec,
+  ConstellationRingSpec,
+  buildConstellationRings,
+  buildRingGeometry,
+  generateConstellationSatellites,
+} from '../utils/constellation';
 
 export interface SatelliteInfo {
   name: string;
@@ -49,6 +60,7 @@ interface Globe3DProps {
   avoidanceActive?: boolean;
   selectedSatName?: string | null;
   selectedSatNoradId?: number | null;
+  selectedConstellationCategory?: string | null;
   onSelectSat?: (sat: SatelliteInfo) => void;
   onUnfocus?: () => void;
   showOrbits?: boolean;
@@ -56,6 +68,7 @@ interface Globe3DProps {
   speedMultiplier?: number;
   isRealtime?: boolean;
   onAccidentTelemetryUpdate?: (telemetry: LiveAccidentTelemetry) => void;
+  onFpsUpdate?: (fps: number) => void;
   isModalOpen?: boolean;
   viewMode?: 'EARTH' | 'SOLAR_SYSTEM';
   selectedPlanetId?: string | null;
@@ -86,8 +99,15 @@ export interface ConstellationParticleData {
   theta: number;
   speed: number;
   info: SatelliteInfo;
+  /** Orbital plane this satellite rides in. Satellites of a plane share an
+   *  inclination and RAAN, which is what forms the visible orbital ring. */
+  planeIndex: number;
 }
 
+/**
+ * The constellation plane and ring geometry lives in `utils/constellation.ts`
+ * so it can be unit tested without a WebGL context.
+ */
 function getFocusRadiusForBody(body: CelestialBodyData): number {
   if (body.hasRings && body.ringOuterUnits) {
     return body.ringOuterUnits * 2.2;
@@ -236,6 +256,7 @@ export default function Globe3D({
   avoidanceActive = false,
   selectedSatName = null,
   selectedSatNoradId = null,
+  selectedConstellationCategory = null,
   onSelectSat,
   onUnfocus,
   showOrbits = true,
@@ -243,6 +264,7 @@ export default function Globe3D({
   speedMultiplier = 1.0,
   isRealtime = true,
   onAccidentTelemetryUpdate,
+  onFpsUpdate,
   isModalOpen = false,
   viewMode = 'EARTH',
   selectedPlanetId = null,
@@ -259,6 +281,11 @@ export default function Globe3D({
   useEffect(() => {
     onAccidentTelemetryUpdateRef.current = onAccidentTelemetryUpdate;
   }, [onAccidentTelemetryUpdate]);
+
+  const onFpsUpdateRef = useRef(onFpsUpdate);
+  useEffect(() => {
+    onFpsUpdateRef.current = onFpsUpdate;
+  }, [onFpsUpdate]);
 
   const lastTelemUpdateRef = useRef<number>(0);
 
@@ -331,6 +358,17 @@ export default function Globe3D({
   const starsRef = useRef<THREE.Points | null>(null);
   const constellationPointsRef = useRef<THREE.Points | null>(null);
   const constellationDataRef = useRef<ConstellationParticleData[]>([]);
+  const constellationRingsRef = useRef<THREE.LineSegments | null>(null);
+  const selectedConstellationCategoryRef = useRef(selectedConstellationCategory);
+  useEffect(() => {
+    selectedConstellationCategoryRef.current = selectedConstellationCategory;
+    const material = constellationPointsRef.current?.material as THREE.ShaderMaterial | undefined;
+    if (material?.uniforms.selectedCategory) {
+      material.uniforms.selectedCategory.value = selectedConstellationCategory
+        ? CONSTELLATION_CATEGORY_CODES[selectedConstellationCategory] || 0
+        : 0;
+    }
+  }, [selectedConstellationCategory]);
   const selectedReticleRef = useRef<THREE.Group | null>(null);
   const selectedOrbitLineRef = useRef<THREE.Line | null>(null);
   const selectedTargetRef = useRef<{
@@ -588,160 +626,84 @@ export default function Globe3D({
 
       // ---- GLOBAL SATELLITE CONSTELLATION CLOUD (KEPLERIAN ORBITAL GLIDE) ----
       // 750 high-fidelity satellites: Starlink, OneWeb, Iridium NEXT, GPS, Planet
-      const constCount = 750;
+      //
+      // Satellites are organised into real orbital planes: every plane shares
+      // one inclination and RAAN, and its members are evenly spaced along the
+      // orbit. That is what produces the familiar "many parallel rings" look
+      // of a mega-constellation instead of a random scatter of dots.
+      // The geometry itself lives in `utils/constellation.ts`.
+      const constCount = CONSTELLATION_SATELLITE_COUNT;
       const constGeo = new THREE.BufferGeometry();
       const constPositions = new Float32Array(constCount * 3);
       const constColors = new Float32Array(constCount * 3);
-
-      // Earth's axial tilt quaternion in scene (23.44° around Z)
-      const axialTiltQ = new THREE.Quaternion().setFromAxisAngle(
-        new THREE.Vector3(0, 0, 1),
-        (23.44 * Math.PI) / 180
-      );
+      const constCategoryCodes = new Float32Array(constCount);
 
       const constData: ConstellationParticleData[] = [];
 
-      for (let c = 0; c < constCount; c++) {
-        let satName: string;
-        let noradId: number;
-        let altKm: number;
-        let velKms: number;
-        let incDeg: number;
-        let operator: string;
-        let category: string;
-        let description: string;
-        let colorR = 0.25, colorG = 0.82, colorB = 0.98;
+      const constellationSpecs: ConstellationPlaneSpec[] = CONSTELLATION_SPECS;
+      const generatedSatellites = generateConstellationSatellites(
+        constellationSpecs,
+        constCount
+      );
 
-        if (c < 400) {
-          // Starlink mega-constellation
-          satName = `STARLINK-${3000 + c}`;
-          noradId = 51000 + c;
-          altKm = 540 + (c % 12) * 2;
-          velKms = 7.61;
-          incDeg = 53.2;
-          operator = 'SpaceX Starlink';
-          category = 'STARLINK';
-          description = 'Low-latency global broadband internet satellite in low Earth orbit with optical space lasers.';
-          const mod = c % 4;
-          if (mod === 0) { colorR = 0.20; colorG = 0.82; colorB = 1.0; } // Cyan
-          else if (mod === 1) { colorR = 0.98; colorG = 0.72; colorB = 0.22; } // Amber Gold
-          else if (mod === 2) { colorR = 0.22; colorG = 0.92; colorB = 0.58; } // Emerald
-          else { colorR = 0.32; colorG = 0.68; colorB = 1.0; } // Electric Sky Blue
-        } else if (c < 500) {
-          // OneWeb polar constellation
-          const idx = c - 400;
-          satName = `ONEWEB-${101 + idx}`;
-          noradId = 45000 + idx;
-          altKm = 1200;
-          velKms = 7.31;
-          incDeg = 87.4;
-          operator = 'Eutelsat OneWeb';
-          category = 'ONEWEB';
-          description = 'Polar low Earth orbit broadband communication satellite providing low-latency enterprise coverage.';
-          colorR = 0.35; colorG = 0.75; colorB = 1.0;
-        } else if (c < 590) {
-          // Iridium NEXT cross-linked constellation
-          const idx = c - 500;
-          satName = `IRIDIUM-NEXT-${101 + idx}`;
-          noradId = 41900 + idx;
-          altKm = 780;
-          velKms = 7.48;
-          incDeg = 86.4;
-          operator = 'Iridium Communications';
-          category = 'IRIDIUM';
-          description = 'Cross-linked global communications satellite delivering mission-critical L-band voice and data.';
-          colorR = 0.75; colorG = 0.48; colorB = 1.0; // Amethyst lavender
-        } else if (c < 670) {
-          // GPS / Navigation MEO constellation
-          const idx = c - 590;
-          satName = `NAVSTAR-GPS-${62 + idx}`;
-          noradId = 32000 + idx;
-          altKm = 20200;
-          velKms = 3.87;
-          incDeg = 55.0;
-          operator = 'US Space Force';
-          category = 'NAVIGATION';
-          description = 'Medium Earth Orbit global positioning satellite transmitting atomic-clock synchronized navigation signals.';
-          colorR = 0.98; colorG = 0.75; colorB = 0.20; // Warm golden amber
-        } else {
-          // Earth Observation (Planet Flock & Spire Lemur)
-          const idx = c - 670;
-          satName = idx % 2 === 0 ? `PLANET-FLOCK-${2100 + idx}` : `LEMUR-2-${150 + idx}`;
-          noradId = 43000 + idx;
-          altKm = 485 + (idx % 10) * 5;
-          velKms = 7.64;
-          incDeg = 97.5; // Sun-synchronous
-          operator = idx % 2 === 0 ? 'Planet Labs' : 'Spire Global';
-          category = idx % 2 === 0 ? 'EARTH OBSERVATION' : 'MARITIME & WEATHER';
-          description = idx % 2 === 0
-            ? '3U CubeSat optical imaging satellite capturing daily planet-wide high-resolution multispectral imagery.'
-            : 'CubeSat monitoring global maritime AIS ship positions and radio occultation weather profiles.';
-          colorR = 0.25; colorG = 0.92; colorB = 0.65; // Emerald green
-        }
-
-        // Exact Keplerian Orbital Basis
-        const r = 1.0 + (altKm / 6371.0) * 0.7;
-        const incRad = (incDeg * Math.PI) / 180;
-        const raanRad = ((c * 137.5077) % 360) * (Math.PI / 180);
-        const theta0 = ((c * 53.1) % 360) * (Math.PI / 180);
-
-        const cosI = Math.cos(incRad);
-        const sinI = Math.sin(incRad);
-        const cosRaan = Math.cos(raanRad);
-        const sinRaan = Math.sin(raanRad);
-
-        const n0 = new THREE.Vector3(sinI * sinRaan, cosI, -sinI * cosRaan).normalize();
-        const u0 = new THREE.Vector3(cosRaan, 0, sinRaan).normalize();
-        const w0 = new THREE.Vector3().crossVectors(n0, u0).normalize();
-
-        const uScene = u0.clone().applyQuaternion(axialTiltQ);
-        const wScene = w0.clone().applyQuaternion(axialTiltQ);
+      for (let c = 0; c < generatedSatellites.length; c++) {
+        const sat = generatedSatellites[c];
 
         const initialPos = new THREE.Vector3()
-          .addScaledVector(uScene, r * Math.cos(theta0))
-          .addScaledVector(wScene, r * Math.sin(theta0));
+          .addScaledVector(sat.u, sat.radius * Math.cos(sat.theta))
+          .addScaledVector(sat.w, sat.radius * Math.sin(sat.theta));
 
         constPositions[c * 3] = initialPos.x;
         constPositions[c * 3 + 1] = initialPos.y;
         constPositions[c * 3 + 2] = initialPos.z;
 
-        constColors[c * 3] = colorR;
-        constColors[c * 3 + 1] = colorG;
-        constColors[c * 3 + 2] = colorB;
-
-        // Realistic angular rate (subtle, graceful drift)
-        const speed = 0.003 + (velKms / 7.61) * 0.0035;
+        constColors[c * 3] = sat.color[0];
+        constColors[c * 3 + 1] = sat.color[1];
+        constColors[c * 3 + 2] = sat.color[2];
+        constCategoryCodes[c] = CONSTELLATION_CATEGORY_CODES[sat.category] || 0;
 
         constData.push({
-          u: uScene,
-          w: wScene,
-          radius: r,
-          theta: theta0,
-          speed,
+          u: sat.u,
+          w: sat.w,
+          radius: sat.radius,
+          theta: sat.theta,
+          speed: sat.speed,
+          planeIndex: sat.planeIndex,
           info: {
-            name: satName,
-            noradId,
-            altitudeKm: altKm,
-            velocityKms: velKms,
-            inclinationDeg: incDeg,
+            name: sat.name,
+            noradId: sat.noradId,
+            altitudeKm: sat.altitudeKm,
+            velocityKms: sat.velocityKms,
+            inclinationDeg: sat.inclinationDeg,
             status: 'NOMINAL',
-            operator,
-            category,
-            description,
+            operator: sat.operator,
+            category: sat.category,
+            description: sat.description,
           },
         });
       }
 
       constGeo.setAttribute('position', new THREE.BufferAttribute(constPositions, 3));
       constGeo.setAttribute('color', new THREE.BufferAttribute(constColors, 3));
+      constGeo.setAttribute('categoryCode', new THREE.BufferAttribute(constCategoryCodes, 1));
       constellationDataRef.current = constData;
 
       const constMat = new THREE.ShaderMaterial({
+        uniforms: {
+          selectedCategory: {
+            value: selectedConstellationCategory
+              ? CONSTELLATION_CATEGORY_CODES[selectedConstellationCategory] || 0
+              : 0,
+          },
+        },
         vertexShader: `
           attribute vec3 color;
+          attribute float categoryCode;
           varying vec3 vColor;
+          varying float vCategoryCode;
           void main() {
             vColor = color;
+            vCategoryCode = categoryCode;
             vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
             gl_PointSize = (11.0 / -mvPosition.z);
             gl_Position = projectionMatrix * mvPosition;
@@ -749,11 +711,16 @@ export default function Globe3D({
         `,
         fragmentShader: `
           varying vec3 vColor;
+          varying float vCategoryCode;
+          uniform float selectedCategory;
           void main() {
             float dist = length(gl_PointCoord - vec2(0.5));
             if (dist > 0.5) discard;
             float alpha = smoothstep(0.5, 0.08, dist);
-            gl_FragColor = vec4(vColor, alpha * 0.85);
+            float selected = 1.0 - step(0.5, abs(vCategoryCode - selectedCategory));
+            float brightness = selectedCategory > 0.5 ? mix(0.45, 1.25, selected) : 1.0;
+            float visibility = selectedCategory > 0.5 ? mix(0.15, 1.0, selected) : 1.0;
+            gl_FragColor = vec4(vColor * brightness, alpha * 0.85 * visibility);
           }
         `,
         transparent: true,
@@ -763,6 +730,68 @@ export default function Globe3D({
       const constPoints = new THREE.Points(constGeo, constMat);
       scene.add(constPoints);
       constellationPointsRef.current = constPoints;
+
+      // ---- CONSTELLATION ORBITAL TRACKS ----
+      // One ring per orbital plane. The satellites of a plane ride along this
+      // circle, so the ring is the truthful representation of the
+      // constellation's shape. Connecting satellites with straight lines
+      // instead produced chords that cut through the globe like spikes.
+      const ringSpecs: ConstellationRingSpec[] = buildConstellationRings(
+        generatedSatellites
+      );
+
+      // Each ring is approximated by a closed polyline of RING_SEGMENTS points.
+      const ringGeo = new THREE.BufferGeometry();
+      const {
+        positions: ringPositions,
+        colors: ringColors,
+        categoryCodes: ringCategoryCodes,
+        vertexCount: ringVertexCount,
+      } = buildRingGeometry(ringSpecs, RING_SEGMENTS);
+
+      ringGeo.setAttribute('position', new THREE.BufferAttribute(ringPositions, 3));
+      ringGeo.setAttribute('color', new THREE.BufferAttribute(ringColors, 3));
+      ringGeo.setAttribute('categoryCode', new THREE.BufferAttribute(ringCategoryCodes, 1));
+      ringGeo.setDrawRange(0, ringVertexCount);
+      const constellationRings = new THREE.LineSegments(
+        ringGeo,
+        new THREE.ShaderMaterial({
+          uniforms: {
+            selectedCategory: {
+              value: selectedConstellationCategory
+                ? CONSTELLATION_CATEGORY_CODES[selectedConstellationCategory] || 0
+                : 0,
+            },
+          },
+          vertexShader: `
+            attribute vec3 color;
+            attribute float categoryCode;
+            varying vec3 vColor;
+            varying float vCategoryCode;
+            void main() {
+              vColor = color;
+              vCategoryCode = categoryCode;
+              gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+          `,
+          fragmentShader: `
+            varying vec3 vColor;
+            varying float vCategoryCode;
+            uniform float selectedCategory;
+            void main() {
+              // Dim the rings of constellations that are not selected.
+              float selected = 1.0 - step(0.5, abs(vCategoryCode - selectedCategory));
+              float alpha = selectedCategory > 0.5 ? mix(0.05, 0.42, selected) : 0.16;
+              gl_FragColor = vec4(vColor, alpha);
+            }
+          `,
+          transparent: true,
+          depthWrite: false,
+        })
+      );
+      constellationRings.frustumCulled = false;
+      scene.add(constellationRings);
+      constellationRingsRef.current = constellationRings;
 
       // ---- CELESTIAL LIGHTING ----
       const ambientLight = new THREE.AmbientLight(0xffffff, 1.15);
@@ -1415,6 +1444,7 @@ export default function Globe3D({
       } | null => {
         const selName = selectedSatNameRef.current || selectedSatName;
         const selNorad = selectedSatNoradIdRef.current || selectedSatNoradId;
+        if (selectedConstellationCategoryRef.current) return null;
         if (!selName && !selNorad && !selectedTargetRef.current) return null;
 
         // 1. Direct user click on 3D live orbit
@@ -1592,13 +1622,23 @@ export default function Globe3D({
               }
             }
           } else {
-            const target = findActiveTarget();
-            if (target) {
-              const dir = target.pos.clone().normalize();
-              spherical.radius = target.radius > 2.0 ? 3.5 : 1.85;
-              spherical.theta = Math.atan2(dir.x, dir.z);
-              spherical.phi = Math.acos(Math.max(-0.95, Math.min(0.95, dir.y)));
+            if (selectedConstellationCategoryRef.current) {
+              // Frame the whole orbital shell so the constellation's rings are
+              // visible, rather than zooming onto a single satellite.
+              spherical.radius = 4.6;
+              spherical.theta = 0.85;
+              spherical.phi = 0.72;
+              lookAtTarget.set(0, 0, 0);
               updateCameraFromSpherical();
+            } else {
+              const target = findActiveTarget();
+              if (target) {
+                const dir = target.pos.clone().normalize();
+                spherical.radius = target.radius > 2.0 ? 3.5 : 1.85;
+                spherical.theta = Math.atan2(dir.x, dir.z);
+                spherical.phi = Math.acos(Math.max(-0.95, Math.min(0.95, dir.y)));
+                updateCameraFromSpherical();
+              }
             }
           }
         },
@@ -1618,6 +1658,11 @@ export default function Globe3D({
       let lastTime = performance.now();
       let simElapsedTime = 0;
 
+      // Rolling FPS meter, reported to the MCP bridge so the AI tooling can
+      // read the real render performance of the live dashboard.
+      let fpsFrameCount = 0;
+      let fpsWindowStart = performance.now();
+
       const animate = (currentTime: number) => {
         animationFrameIdRef.current = requestAnimationFrame(animate);
 
@@ -1630,6 +1675,18 @@ export default function Globe3D({
         const dtSec = Math.min(0.1, (currentTime - lastTime) / 1000);
         lastTime = currentTime;
         simElapsedTime += dtSec;
+
+        // ---- FPS SAMPLING (1 second window) ----
+        fpsFrameCount++;
+        const fpsWindowMs = currentTime - fpsWindowStart;
+        if (fpsWindowMs >= 1000) {
+          const measuredFps = Math.round((fpsFrameCount * 1000) / fpsWindowMs);
+          fpsFrameCount = 0;
+          fpsWindowStart = currentTime;
+          if (onFpsUpdateRef.current) {
+            onFpsUpdateRef.current(measuredFps);
+          }
+        }
 
         const mult = isRealtimeRef.current ? 1.0 : Math.max(0.1, speedMultiplierRef.current || 1.0);
 
@@ -1663,6 +1720,7 @@ export default function Globe3D({
           if (cloudsMeshRef.current) cloudsMeshRef.current.visible = false;
           if (atmosphereMeshRef.current) atmosphereMeshRef.current.visible = false;
           if (constellationPointsRef.current) constellationPointsRef.current.visible = false;
+          if (constellationRingsRef.current) constellationRingsRef.current.visible = false;
           orbitsRef.current.forEach((o) => {
             o.mesh.visible = false;
             o.trailLine.visible = false;
@@ -1782,6 +1840,7 @@ export default function Globe3D({
           if (cloudsMeshRef.current) cloudsMeshRef.current.visible = true;
           if (atmosphereMeshRef.current) atmosphereMeshRef.current.visible = true;
           if (constellationPointsRef.current) constellationPointsRef.current.visible = (datasetRef.current !== 'ACCIDENT');
+          if (constellationRingsRef.current) constellationRingsRef.current.visible = (datasetRef.current !== 'ACCIDENT');
         }
 
         // Earth & atmospheric clouds rotation (proportional to time acceleration)
@@ -1815,6 +1874,24 @@ export default function Globe3D({
             posAttr.setXYZ(c, px, py, pz);
           }
           posAttr.needsUpdate = true;
+        }
+
+        // ---- CONSTELLATION ORBITAL TRACKS ----
+        // The rings are static geometry (a plane's circle never changes), so
+        // they only need their highlight uniform refreshed when the user
+        // selects a different constellation.
+        const constellationRings = constellationRingsRef.current;
+        if (constellationRings && !isAccident && !isSolarSystem) {
+          const material = constellationRings.material as THREE.ShaderMaterial;
+          if (material.uniforms?.selectedCategory) {
+            const category = selectedConstellationCategoryRef.current;
+            material.uniforms.selectedCategory.value = category
+              ? CONSTELLATION_CATEGORY_CODES[category] || 0
+              : 0;
+          }
+          constellationRings.visible = true;
+        } else if (constellationRings) {
+          constellationRings.visible = false;
         }
 
         const mats = sharedMaterialsRef.current;
@@ -2338,6 +2415,9 @@ export default function Globe3D({
       if (constellationPointsRef.current) {
         constellationPointsRef.current.visible = false;
       }
+      if (constellationRingsRef.current) {
+        constellationRingsRef.current.visible = false;
+      }
 
       // Exact unit direction vector pointing to Siberia in camera-facing world space
       const colDir = new THREE.Vector3(0, 0.8335, 0.5526).normalize();
@@ -2473,6 +2553,9 @@ export default function Globe3D({
       }
       if (constellationPointsRef.current) {
         constellationPointsRef.current.visible = true;
+      }
+      if (constellationRingsRef.current) {
+        constellationRingsRef.current.visible = true;
       }
       // ===================== REALTIME SGP4 TELEMETRY =====================
       const trailPointsCount = 24;

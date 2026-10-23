@@ -93,7 +93,7 @@ export default function EncounterTable({
   return (
     <aside
       aria-label="Conjunction Catalog Panel"
-      className={`fixed right-0 top-0 bottom-0 w-[480px] max-w-full z-45 bg-[#05080f]/95 backdrop-blur-2xl border-l border-cyan-500/30 flex flex-col font-mono shadow-[-16px_0_40px_rgba(0,0,0,0.85)] transform transition-transform duration-300 ease-out ${
+      className={`fixed right-0 top-0 bottom-0 w-[480px] max-w-full z-50 bg-[#05080f]/95 backdrop-blur-2xl border-l border-cyan-500/30 flex flex-col font-mono shadow-[-16px_0_40px_rgba(0,0,0,0.85)] transform transition-transform duration-300 ease-out ${
         isOpen ? 'translate-x-0' : 'translate-x-full pointer-events-none'
       }`}
       id={id}

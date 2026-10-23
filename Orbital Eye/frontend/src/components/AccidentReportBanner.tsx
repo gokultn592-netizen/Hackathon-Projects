@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertTriangle, ShieldCheck, ChevronDown, ChevronUp, Terminal, Play } from './Icons';
+import { AlertTriangle, ShieldCheck, ChevronDown, ChevronUp, Play } from './Icons';
 import { LiveAccidentTelemetry } from './Globe3D';
 
 interface AccidentReportBannerProps {
@@ -21,24 +21,46 @@ export default function AccidentReportBanner({
 }: AccidentReportBannerProps) {
   const [detailsOpen, setDetailsOpen] = useState(false);
 
-  // Dynamic status text matching real incident phase
-  const getStatusText = () => {
+  // Dynamic status text matching real incident phase.
+  // Split into a compact `primary` label (always visible, never truncated)
+  // and a `detail` fragment that is dropped below the xl breakpoint. Keeping
+  // the whole sentence in one `truncate` span cut off "MISS DIST" on laptop
+  // viewports between 1152px and 1366px.
+  const getStatusText = (): { primary: string; detail: string } => {
     if (avoidanceActive) {
       if (liveTelemetry?.phase === 'BURNING') {
-        return `THRUSTERS FIRING (+${liveTelemetry.iridiumDeltaV.toFixed(1)} m/s ΔV) — ORBIT RAISING (${liveTelemetry.iridiumAltitudeKm.toFixed(1)} KM)`;
+        return {
+          primary: 'THRUSTERS FIRING',
+          detail: `+${liveTelemetry.iridiumDeltaV.toFixed(1)} m/s ΔV — ORBIT RAISING ${liveTelemetry.iridiumAltitudeKm.toFixed(1)} KM`,
+        };
       }
-      return `AVOIDANCE COMPLETE — MISS DISTANCE +${liveTelemetry ? liveTelemetry.missDistanceKm.toFixed(2) : '24.85'} KM`;
+      return {
+        primary: 'AVOIDANCE COMPLETE',
+        detail: `MISS DISTANCE +${liveTelemetry ? liveTelemetry.missDistanceKm.toFixed(2) : '24.85'} KM`,
+      };
     }
     if (liveTelemetry?.phase === 'APPROACH') {
-      return `CONJUNCTION APPROACH — T-${liveTelemetry.timeToTcaSec.toFixed(1)}s (MISS DIST ${liveTelemetry.missDistanceKm.toFixed(1)} KM)`;
+      return {
+        primary: 'CONJUNCTION APPROACH',
+        detail: `T-${liveTelemetry.timeToTcaSec.toFixed(1)}s · MISS DIST ${liveTelemetry.missDistanceKm.toFixed(1)} KM`,
+      };
     }
     if (liveTelemetry?.phase === 'IMPACT') {
-      return `HYPERVELOCITY COLLISION DETECTED — 11.65 KM/S (LETHAL IMPACT)`;
+      return {
+        primary: 'HYPERVELOCITY COLLISION',
+        detail: '11.65 KM/S — LETHAL IMPACT',
+      };
     }
     if (liveTelemetry?.phase === 'DEBRIS') {
-      return `DEBRIS FIELD ACTIVE — 2,296 PCS CATALOGED OVER SIBERIA`;
+      return {
+        primary: 'DEBRIS FIELD ACTIVE',
+        detail: '2,296 PCS CATALOGED OVER SIBERIA',
+      };
     }
-    return 'COLLISION IMMINENT — T-120:00 (IRIDIUM 33 × COSMOS 2251)';
+    return {
+      primary: 'COLLISION IMMINENT',
+      detail: 'T-120:00 · IRIDIUM 33 × COSMOS 2251',
+    };
   };
 
   const getStatusColor = () => {
@@ -73,8 +95,12 @@ export default function AccidentReportBanner({
             />
           </div>
 
-          <span className={`text-[11px] font-bold tracking-wider uppercase truncate ${getStatusColor()}`}>
-            {getStatusText()}
+          <span className={`text-[11px] font-bold tracking-wider uppercase shrink-0 ${getStatusColor()}`}>
+            {getStatusText().primary}
+          </span>
+
+          <span className="hidden lg:inline text-[10px] text-slate-500 border-l border-slate-700/60 pl-2.5 truncate">
+            {getStatusText().detail}
           </span>
 
           <span className="hidden xl:inline-block text-[10px] text-slate-500 border-l border-slate-700/60 pl-2.5 shrink-0">

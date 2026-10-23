@@ -98,10 +98,16 @@ async def perform_full_system_health_check() -> Dict[str, Any]:
             "GET /api/system/fault-injection",
             "POST /api/system/fault-injection",
             "GET /api/settings",
+            "POST /api/settings",
             "PUT /api/settings",
             "GET /api/satellites/positions",
             "GET /api/encounters",
-            "GET /api/db-test"
+            "GET /api/db-test",
+            "GET /api/bridge/state",
+            "GET /api/bridge/errors",
+            "POST /api/bridge/clear-errors",
+            "POST /api/bridge/command",
+            "WS  /ws/bridge",
         ],
     }
 
@@ -241,24 +247,30 @@ async def perform_full_system_health_check() -> Dict[str, Any]:
 
     if sample_for_physics:
         sat_name, line1, line2 = sample_for_physics
-        pos_res = _tle_to_position(line1, line2, now_utc)
-        if pos_res is not None:
-            x_km, y_km, z_km, vel_kms = pos_res
-            lat_deg, lon_deg, alt_km = _eci_to_geo(x_km, y_km, z_km, now_utc)
-            # Physical sanity check: LEO velocity between 7.0 and 8.2 km/s, altitude between 150 and 2000 km
-            is_valid_leo = (7.0 <= vel_kms <= 8.5) and (150.0 <= alt_km <= 2500.0)
-            physics_status["status"] = "ACTIVE_CALCULATING"
-            physics_status["physics_pass"] = is_valid_leo
-            physics_status["test_satellite"] = {
-                "name": sat_name,
-                "velocity_kms": round(vel_kms, 3),
-                "altitude_km": round(alt_km, 2),
-                "latitude_deg": round(lat_deg, 4),
-                "longitude_deg": round(lon_deg, 4),
-                "is_leo_conforming": is_valid_leo
-            }
+        if _fault_simulations.get("physics", False):
+            # Physics engine intentionally severed for fault-tolerance verification.
+            physics_status["status"] = "SEVERED"
+            physics_status["physics_pass"] = False
+            physics_status["error"] = "SIMULATED_FAULT: SGP4 propagation intentionally severed for fault tolerance verification"
         else:
-            physics_status["status"] = "CALCULATION_WARNING"
+            pos_res = _tle_to_position(line1, line2, now_utc)
+            if pos_res is not None:
+                x_km, y_km, z_km, vel_kms = pos_res
+                lat_deg, lon_deg, alt_km = _eci_to_geo(x_km, y_km, z_km, now_utc)
+                # Physical sanity check: LEO velocity between 7.0 and 8.5 km/s, altitude between 150 and 2500 km
+                is_valid_leo = (7.0 <= vel_kms <= 8.5) and (150.0 <= alt_km <= 2500.0)
+                physics_status["status"] = "ACTIVE_CALCULATING"
+                physics_status["physics_pass"] = is_valid_leo
+                physics_status["test_satellite"] = {
+                    "name": sat_name,
+                    "velocity_kms": round(vel_kms, 3),
+                    "altitude_km": round(alt_km, 2),
+                    "latitude_deg": round(lat_deg, 4),
+                    "longitude_deg": round(lon_deg, 4),
+                    "is_leo_conforming": is_valid_leo
+                }
+            else:
+                physics_status["status"] = "CALCULATION_WARNING"
     else:
         physics_status["status"] = "ACTIVE_CALCULATING"
         physics_status["physics_pass"] = True
@@ -279,7 +291,11 @@ async def perform_full_system_health_check() -> Dict[str, Any]:
     # 5. DATA AUTHENTICITY CERTIFICATE & CRYPTOGRAPHIC HASH
     # ---------------------------------------------------------
     total_elapsed_ms = round((time.perf_counter() - probe_start) * 1000, 2)
-    overall_ok = (backend_status["status"] == "ONLINE") and (db_status["status"] == "CONNECTED")
+    overall_ok = (
+        (backend_status["status"] == "ONLINE")
+        and (db_status["status"] == "CONNECTED")
+        and (physics_status["status"] != "SEVERED")
+    )
 
     # Generate deterministic authenticity token combining database state
     raw_hash_input = (
@@ -289,24 +305,34 @@ async def perform_full_system_health_check() -> Dict[str, Any]:
     )
     auth_token = hashlib.sha256(raw_hash_input.encode("utf-8")).hexdigest()[:32].upper()
 
+    # Select the most accurate degradation reason for the audit trail.
+    if overall_ok:
+        anti_mock_audit = "PASSED (0 static fallback coordinates; 100% live database rows + SGP4 propagation)"
+        assurance_statement = (
+            "OrbitalEye DBMS Edition guarantees that every satellite position, velocity vector, "
+            "and collision encounter displayed is derived directly from live Oracle SQL tables and "
+            "evaluated with real-time SGP4 physics. No synthetic mock datasets are active."
+        )
+    elif db_status["status"] != "CONNECTED":
+        anti_mock_audit = "DEGRADED (Database severed: 0 rows accessible; live queries halted)"
+        assurance_statement = (
+            "WARNING: Oracle Database connection is currently severed. Live telemetry is degraded."
+        )
+    else:
+        anti_mock_audit = "DEGRADED (SGP4 physics engine severed: ephemeris propagation halted)"
+        assurance_statement = (
+            "WARNING: The SGP4 physics engine is currently severed. Database rows remain "
+            "accessible but live orbital propagation is halted."
+        )
+
     authenticity_certificate = {
         "guaranteed_real_data": overall_ok,
         "mock_data_detected": False,
         "data_provenance": "Oracle Database 21c XE (ORBITAL_EYE@XEPDB1) persistent tables; SGP4 ephemeris propagation from official Space-Track/CelesTrak TLE records.",
         "cryptographic_verification_token": auth_token,
         "verification_timestamp_utc": now_utc.isoformat(),
-        "anti_mock_audit": (
-            "PASSED (0 static fallback coordinates; 100% live database rows + SGP4 propagation)"
-            if overall_ok else
-            "DEGRADED (Database severed: 0 rows accessible; live queries halted)"
-        ),
-        "assurance_statement": (
-            "OrbitalEye DBMS Edition guarantees that every satellite position, velocity vector, "
-            "and collision encounter displayed is derived directly from live Oracle SQL tables and "
-            "evaluated with real-time SGP4 physics. No synthetic mock datasets are active."
-            if overall_ok else
-            "WARNING: Oracle Database connection is currently severed. Live telemetry is degraded."
-        )
+        "anti_mock_audit": anti_mock_audit,
+        "assurance_statement": assurance_statement,
     }
 
     return {

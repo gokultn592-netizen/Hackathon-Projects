@@ -23,43 +23,43 @@
 ---
 
 ## 3. React Frontend Components (New in Phase 3)
-- [ ] `DatasetToggle.tsx` — segmented control: REALTIME (cyan) / ACCIDENT (amber); keyboard arrow navigation; `aria-checked`
-- [ ] `LimitControl.tsx` — range slider + numeric input synchronized; clamps [1, 200]; 300ms debounce; amber warning >100
-- [ ] `EncounterTable.tsx` — virtualized (`@tanstack/react-virtual`); skeleton loader; empty state; retry button; color coding (`<5km` red, `5-20km` amber, `>20km` green); copy-to-clipboard; responsive
-- [ ] `ExportButton.tsx` — generates `orbital-eye-encounters-[timestamp].csv`; disabled when empty; success toast
+- [ ] `DatasetToggle.tsx` — segmented control: REALTIME (cyan) / ACCIDENT (amber) — **present but not yet mounted in `App.tsx`** (dataset switch is currently a toolbar button + hotkeys `1`/`2`)
+- [ ] `LimitControl.tsx` — range slider + numeric input synchronized; clamps `[min, max]` (default 1–500); 250 ms debounce — **present but not yet mounted in `App.tsx`**
+- [ ] `EncounterTable.tsx` — search bar; risk-filter tabs (ALL/CRITICAL/CAUTION/NOMINAL) with counts; color coding (`<2 km` red, `2–10 km` amber, `>=10 km` cyan); slide transition; **not virtualized** (plain `divide-y` list)
+- [ ] `ExportButton.tsx` — generates `orbital-eye-encounters-[timestamp].csv`; disabled when empty — **present but not yet mounted in `App.tsx`**
+- [ ] `EncounterDetailModal.tsx` — conjunction telemetry bottom sheet with B-plane geometry canvas — **mounted** and opened by clicking a catalog row
 
 ---
 
 ## 4. Resilience Features
 - [ ] `ErrorBoundary.tsx` (updated) — class-based; catches render errors; shows user-friendly message; "Reload Data" resets internal state; logs stack to console; styled dark theme
-- [ ] `ToastProvider.tsx` — global context; `useToast()` hook; bottom-right stacked; auto-dismiss 5s; `aria-live="polite"`; supports info/success/error types
-- [ ] `useUrlSync.ts` — reads `dataset` + `limit` from URL; updates without reload; supports browser back/forward; graceful defaults (`REALTIME`, 50)
+- [ ] `ToastProvider.tsx` — global context; `useToast()` hook; bottom-right stacked; auto-dismiss 5s; `aria-live="polite"`; supports info/success/error/warning types
+- [ ] `useUrlSync.ts` — reads `dataset` + `limit` from URL; updates without reload; supports browser back/forward; graceful defaults (`REALTIME`, limit clamped to `[10, 1000]`)
 
 ---
 
 ## 5. Integration (App.tsx)
-- [ ] `ErrorBoundary` wraps encounter display section
+- [ ] `ErrorBoundary` wraps the entire app at the root
 - [ ] `ToastProvider` at root level (provides context to all children)
 - [ ] `useUrlSync` manages dataset/limit state for entire dashboard
-- [ ] `DatasetToggle`, `LimitControl`, `EncounterTable`, `ExportButton` composed in responsive layout
+- [ ] `EncounterTable` and `EncounterDetailModal` composed in the responsive layout
 - [ ] Mobile/tablet/desktop responsive design verified
 
 ---
 
 ## 6. Feature Verification (No Manual Intervention Required)
 - [ ] REALTIME ↔ ACCIDENT toggle switches datasets and updates URL params
-- [ ] Limit slider and input stay synchronized; debounced; value clamped [1, 200]
-- [ ] Color coding applies: `<5km` red, `5-20km` amber, `>20km` green
-- [ ] CSV export generates valid file that opens in Excel / Sheets
+- [ ] Limit input is debounced and clamped to `[10, 1000]`
+- [ ] Color coding applies: `<2 km` red, `2–10 km` amber, `>=10 km` cyan
 - [ ] Artificial error (stop backend temporarily) → `ErrorBoundary` shows message; "Reload Data" resets
 - [ ] Changing filters updates URL query params; back/forward navigation restores previous state
 - [ ] No console errors or warnings during normal operation
-- [ ] Zero backend / database / ETL / deploy modifications made in this phase
+- [ ] `npm run build` passes — this now runs `tsc --noEmit` before `vite build`, so type errors fail the build
 
 ---
 
 ## Post-Demo Sign-Off
 - [ ] All 6 sections above verified automatically or by inspection
 - [ ] No mock/hardcoded data present in any frontend file
-- [ ] All new files (`App.tsx`, `ErrorBoundary.tsx`, `ToastProvider.tsx`, `useUrlSync.ts`, 4 presentation components) compile without TypeScript errors
+- [ ] All frontend files compile without TypeScript errors (`npm run typecheck`)
 - [ ] Dashboard loads at configured React URL with live data visible

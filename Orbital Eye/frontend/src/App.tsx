@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { ToastProvider, useToast } from './providers/ToastProvider';
 import ErrorBoundary from './components/ErrorBoundary';
 import EncounterTable from './components/EncounterTable';
+import EncounterDetailModal from './components/EncounterDetailModal';
 import Globe3D, { SatelliteInfo, LiveAccidentTelemetry } from './components/Globe3D';
 import AccidentReportBanner from './components/AccidentReportBanner';
 import { useUrlSync } from './hooks/useUrlSync';
@@ -33,21 +34,30 @@ import {
   EyeOff,
 } from './components/Icons';
 import { isAudioMuted, toggleAudioMute, playUiBlipSound, playThrusterBurnSound } from './utils/audio';
+import { apiFetch } from './utils/api';
 import type { DevSettingsData } from './components/DevSettingsModal';
 import { PLANETARY_BODIES, CelestialBodyData } from './utils/solarSystem';
 import { PlanetaryTelemetryCard } from './components/PlanetaryTelemetryCard';
+import SpaceCam from './components/SpaceCam';
+import GlobalStatusBar from './components/GlobalStatusBar';
+import SatelliteCard from './components/SatelliteCard';
+import MathDerivationModal from './components/MathDerivationModal';
+import LazyBoundary from './components/LazyBoundary';
+import { lazyWithRetry } from './utils/lazyWithRetry';
 
-// Lazy-loaded modals to minimize initial bundle size and optimize first contentful paint
-const CollisionReconstructionModal = React.lazy(
+// Lazy-loaded modals to minimize initial bundle size and optimize first contentful paint.
+// lazyWithRetry re-imports a chunk once after a transient failure (network blip,
+// dev-server restart) instead of permanently poisoning the lazy component.
+const CollisionReconstructionModal = lazyWithRetry(
   () => import('./components/CollisionReconstructionModal')
 );
-const DevSettingsModal = React.lazy(
+const DevSettingsModal = lazyWithRetry(
   () => import('./components/DevSettingsModal')
 );
-const ServiceHealthCheckerModal = React.lazy(
+const ServiceHealthCheckerModal = lazyWithRetry(
   () => import('./components/ServiceHealthCheckerModal')
 );
-const KeyboardShortcutsModal = React.lazy(
+const KeyboardShortcutsModal = lazyWithRetry(
   () => import('./components/KeyboardShortcutsModal')
 );
 
@@ -309,8 +319,8 @@ function MissionControlDashboard() {
 
   // Sync with /api/settings endpoint on startup
   useEffect(() => {
-    fetch('http://localhost:8000/api/settings')
-      .then((res) => (res.ok ? res.json() : Promise.reject()))
+    apiFetch('/api/settings')
+      .then((res) => (res && res.ok ? res.json() : Promise.reject()))
       .then((s: DevSettingsData) => {
         if (s.speed_multiplier) setSpeedMultiplier(s.speed_multiplier);
         if (s.is_realtime !== undefined) setIsRealtime(s.is_realtime);
@@ -345,7 +355,7 @@ function MissionControlDashboard() {
     setIsRealtime(nextRealtime);
 
     try {
-      await fetch('http://localhost:8000/api/settings', {
+      await apiFetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -431,7 +441,8 @@ function MissionControlDashboard() {
 
   // UI Panels
   const [catalogDrawerOpen, setCatalogDrawerOpen] = useState(false);
-  const [catalogRiskFilter, setCatalogRiskFilter] = useState<'ALL' | 'CRITICAL' | 'CAUTION' | 'NOMINAL'>('ALL');
+  const [catalogRiskFilter] = useState<'ALL' | 'CRITICAL' | 'CAUTION' | 'NOMINAL'>('ALL');
+  const [selectedEncounter, setSelectedEncounter] = useState<AdaptedEncounter | null>(null);
   const [collisionModalOpen, setCollisionModalOpen] = useState(false);
   const [healthModalOpen, setHealthModalOpen] = useState(false);
   const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
@@ -460,10 +471,9 @@ function MissionControlDashboard() {
     let isMounted = true;
     const probeHealth = async () => {
       try {
-        let res = await fetch('/api/system/health-checker').catch(() => null);
-        if (!res || !res.ok) {
-          res = await fetch('http://localhost:8000/api/system/health-checker').catch(() => null);
-        }
+        // apiFetch tries the same-origin proxy first and only falls back to the
+        // absolute dev-server origin when running under the Vite dev server.
+        const res = await apiFetch('/api/system/health-checker');
         if (!res || !res.ok) {
           if (isMounted) {
             setSystemHealth({
@@ -515,42 +525,34 @@ function MissionControlDashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
 
-  // Aggregated Conjunction Threat Matrix for Live Header Status
-  const conjunctionRiskSummary = useMemo(() => {
-    if (!data || data.length === 0) return { critical: 0, caution: 0, nominal: 0, total: 0 };
-    let crit = 0;
-    let caut = 0;
-    let nom = 0;
-    data.forEach((r) => {
-      const dist = r.missDistance;
-      const prob = Number(r.collisionProbPct) || (r.collisionProb * 100);
-      if (dist < 2.0 || prob > 25) crit++;
-      else if (dist < 10.0 || prob > 5) caut++;
-      else nom++;
-    });
-    return { critical: crit, caution: caut, nominal: nom, total: data.length };
-  }, [data]);
-
   // Selected Target Spacecraft — Null by default for free globe exploration
   const [selectedSat, setSelectedSat] = useState<SatelliteInfo | null>(null);
+
+  const criticalCount = useMemo(() => {
+    return (data || []).filter((e) => (e.collisionProb || 0) > 0.0001 || (e.missDistance || 999) < 10.0).length;
+  }, [data]);
+
+  // Real-Time Mathematical Derivation Solver Modal
+  const [mathModalOpen, setMathModalOpen] = useState(false);
 
   // Heliocentric Solar System Mode State
   const [viewMode, setViewMode] = useState<'EARTH' | 'SOLAR_SYSTEM'>('EARTH');
   const [selectedPlanet, setSelectedPlanet] = useState<CelestialBodyData | null>(null);
 
   // Clean Presentation Flight Mode (Tab / F)
+  // NOTE: side effects must not live inside a useState updater — React 18
+  // StrictMode double-invokes updaters in development, which fired every
+  // toast twice. Compute the next value first, then act.
   const handleTogglePresentationMode = () => {
-    setPresentationMode((prev) => {
-      const next = !prev;
-      playUiBlipSound();
-      showToast(
-        next
-          ? 'Presentation mode enabled (Tab / F to restore).'
-          : 'Presentation mode disabled. All flight controls restored.',
-        'info'
-      );
-      return next;
-    });
+    const next = !presentationMode;
+    setPresentationMode(next);
+    playUiBlipSound();
+    showToast(
+      next
+        ? 'Presentation mode enabled (Tab / F to restore).'
+        : 'Presentation mode disabled. All flight controls restored.',
+      'info'
+    );
   };
 
   // Global Audio Controller (Mute / Unmute)
@@ -573,22 +575,22 @@ function MissionControlDashboard() {
   };
 
   // Spacebar toggle pause / resume time propagation
+  // Side effects kept out of the updater for the same StrictMode reason as
+  // handleTogglePresentationMode.
   const handleTogglePause = () => {
-    setIsPaused((prev) => {
-      const next = !prev;
-      if (next) {
-        prevSpeedRef.current = speedMultiplier > 0 ? speedMultiplier : 1.0;
-        setSpeedMultiplier(0);
-        setIsRealtime(false);
-        showToast('Orbital propagation paused (Space).', 'info');
-      } else {
-        const restored = prevSpeedRef.current || 1.0;
-        setSpeedMultiplier(restored);
-        setIsRealtime(restored <= 1.0);
-        showToast(`Orbital propagation resumed at ${restored}x (Space).`, 'info');
-      }
-      return next;
-    });
+    const next = !isPaused;
+    setIsPaused(next);
+    if (next) {
+      prevSpeedRef.current = speedMultiplier > 0 ? speedMultiplier : 1.0;
+      setSpeedMultiplier(0);
+      setIsRealtime(false);
+      showToast('Orbital propagation paused (Space).', 'info');
+    } else {
+      const restored = prevSpeedRef.current || 1.0;
+      setSpeedMultiplier(restored);
+      setIsRealtime(restored <= 1.0);
+      showToast(`Orbital propagation resumed at ${restored}x (Space).`, 'info');
+    }
   };
 
   // Mission Control Keyboard Command System (Flight Deck Hotkeys)
@@ -654,11 +656,9 @@ function MissionControlDashboard() {
 
       // O: Toggle orbit trail lines
       if (e.key === 'o' || e.key === 'O') {
-        setShowOrbits((prev) => {
-          const next = !prev;
-          showToast(`Orbital trails ${next ? 'enabled' : 'hidden'} (O).`, 'info');
-          return next;
-        });
+        const next = !showOrbits;
+        setShowOrbits(next);
+        showToast(`Orbital trails ${next ? 'enabled' : 'hidden'} (O).`, 'info');
         return;
       }
 
@@ -723,59 +723,34 @@ function MissionControlDashboard() {
   ]);
 
   // Toggle Avoidance Maneuver with real-time per-satellite telemetry focus
+  // Side effects kept out of the useState updater so React 18 StrictMode
+  // cannot fire the maneuver twice.
   const handleToggleAvoidance = () => {
-    setAvoidanceActive((prev) => {
-      const next = !prev;
-      if (next) {
-        playThrusterBurnSound();
-        // Automatically focus on IRIDIUM 33 to showcase its real-time avoidance telemetry!
-        setSelectedSat({
-          name: 'IRIDIUM 33',
-          noradId: 24946,
-          altitudeKm: 814.1,
-          velocityKms: 7.45,
-          inclinationDeg: 86.4,
-          status: 'NOMINAL',
-          operator: 'Iridium Communications (USA)',
-          category: 'COLLISION OBJECT',
-          missDistanceKm: 24.85,
-          relVelocityKms: 11.65,
-          latDeg: 72.5,
-          lonDeg: 97.4,
-          description: 'Maneuver Executed: +12.50 m/s along-track posigrade burn at T-60s. Orbit raised by +24.85 km, establishing safe separation over Siberia.',
-        });
-        setSelectedPresetId('iridium-33');
-        setTelemetryCardVisible(true);
-        setCameraTrigger({ type: 'focus', timestamp: Date.now() });
-        showToast('Avoidance maneuver engaged: Iridium 33 orbit raised to 814.1 km (+12.50 m/s ΔV, +24.85 km clearance).', 'success');
-      } else {
-        setSelectedSat({
-          name: 'IRIDIUM 33',
-          noradId: 24946,
-          altitudeKm: 789.2,
-          velocityKms: 7.46,
-          inclinationDeg: 86.4,
-          status: 'CRITICAL',
-          operator: 'Iridium Communications (USA)',
-          category: 'COLLISION OBJECT',
-          missDistanceKm: 0.012,
-          relVelocityKms: 11.7,
-          latDeg: 72.5,
-          lonDeg: 97.4,
-          description: 'Commercial communications satellite that collided hypervelocitously with Cosmos 2251 over Siberia in 2009.',
-        });
-        setSelectedPresetId('iridium-33');
-        showToast('Simulation reset: Returned to 2009 unmitigated collision trajectory.', 'warning');
-      }
-      return next;
-    });
-  };
-
-  // Switch Dataset Handler
-  const handleDatasetChange = (newDataset: string) => {
-    playUiBlipSound();
-    setUrlState({ dataset: newDataset });
-    if (newDataset === 'ACCIDENT') {
+    const next = !avoidanceActive;
+    setAvoidanceActive(next);
+    if (next) {
+      playThrusterBurnSound();
+      // Automatically focus on IRIDIUM 33 to showcase its real-time avoidance telemetry!
+      setSelectedSat({
+        name: 'IRIDIUM 33',
+        noradId: 24946,
+        altitudeKm: 814.1,
+        velocityKms: 7.45,
+        inclinationDeg: 86.4,
+        status: 'NOMINAL',
+        operator: 'Iridium Communications (USA)',
+        category: 'COLLISION OBJECT',
+        missDistanceKm: 24.85,
+        relVelocityKms: 11.65,
+        latDeg: 72.5,
+        lonDeg: 97.4,
+        description: 'Maneuver Executed: +12.50 m/s along-track posigrade burn at T-60s. Orbit raised by +24.85 km, establishing safe separation over Siberia.',
+      });
+      setSelectedPresetId('iridium-33');
+      setTelemetryCardVisible(true);
+      setCameraTrigger({ type: 'focus', timestamp: Date.now() });
+      showToast('Avoidance maneuver engaged: Iridium 33 orbit raised to 814.1 km (+12.50 m/s ΔV, +24.85 km clearance).', 'success');
+    } else {
       setSelectedSat({
         name: 'IRIDIUM 33',
         noradId: 24946,
@@ -791,13 +766,58 @@ function MissionControlDashboard() {
         lonDeg: 97.4,
         description: 'Commercial communications satellite that collided hypervelocitously with Cosmos 2251 over Siberia in 2009.',
       });
-      setTelemetryCardVisible(true);
-      setCameraTrigger({ type: 'focus', timestamp: Date.now() });
+      setSelectedPresetId('iridium-33');
+      showToast('Simulation reset: Returned to 2009 unmitigated collision trajectory.', 'warning');
+    }
+  };
+
+  // Focus the 2009 collision pair (IRIDIUM 33 / COSMOS 2251) on the globe.
+  // Shared by the explicit dataset switch and by the URL deep-link path so
+  // that loading ?dataset=ACCIDENT produces the same scene as pressing the
+  // "COLLISION MODE" button.
+  const focusAccidentPair = useCallback(() => {
+    setSelectedSat({
+      name: 'IRIDIUM 33',
+      noradId: 24946,
+      altitudeKm: 789.2,
+      velocityKms: 7.46,
+      inclinationDeg: 86.4,
+      status: 'CRITICAL',
+      operator: 'Iridium Communications (USA)',
+      category: 'COLLISION OBJECT',
+      missDistanceKm: 0.012,
+      relVelocityKms: 11.7,
+      latDeg: 72.5,
+      lonDeg: 97.4,
+      description: 'Commercial communications satellite that collided hypervelocitously with Cosmos 2251 over Siberia in 2009.',
+    });
+    setTelemetryCardVisible(true);
+    setCameraTrigger({ type: 'focus', timestamp: Date.now() });
+  }, []);
+
+  // Switch Dataset Handler
+  const handleDatasetChange = (newDataset: string) => {
+    playUiBlipSound();
+    setUrlState({ dataset: newDataset });
+    if (newDataset === 'ACCIDENT') {
+      focusAccidentPair();
     } else {
       setAvoidanceActive(false);
       handleUnfocusSat();
     }
   };
+
+  // Deep-link bootstrap: when the app boots straight into ACCIDENT mode
+  // (e.g. ?dataset=ACCIDENT or a shared demo link), the initial render must
+  // select the collision pair exactly like the manual toggle does.
+  const bootstrappedDataset = useRef(false);
+  useEffect(() => {
+    if (bootstrappedDataset.current) return;
+    bootstrappedDataset.current = true;
+    if (dataset === 'ACCIDENT') {
+      focusAccidentPair();
+    }
+  }, [dataset, focusAccidentPair]);
 
   // Satellite Selection from preset card click
   const handleSelectPreset = (preset: SatellitePreset) => {
@@ -827,6 +847,7 @@ function MissionControlDashboard() {
       return;
     }
     playUiBlipSound();
+    setSelectedPresetId(null);
     setSelectedSat(sat);
     setTelemetryCardVisible(true);
   };
@@ -850,27 +871,32 @@ function MissionControlDashboard() {
     // 2. Try matching satellitePositions from SGP4 propagation
     const pos = satellitePositions?.find(
       (s) =>
-        String(s.noradId) === idStr ||
+        String(s.norad_id) === idStr ||
         s.name.toLowerCase().includes(idStr)
     );
     if (pos) {
+      setSelectedPresetId(null);
       setSelectedSat({
         name: pos.name,
-        noradId: pos.noradId,
-        altitudeKm: pos.altitudeKm,
-        velocityKms: 7.5,
-        inclinationDeg: pos.inclinationDeg || 51.6,
+        noradId: pos.norad_id,
+        altitudeKm: pos.alt_km,
+        velocityKms: pos.velocity_kms || 7.5,
+        inclinationDeg: pos.inclination_deg || 51.6,
         status: 'NOMINAL',
         operator: 'Active Spacecraft',
         category: 'SATELLITE',
-        latDeg: pos.latDeg,
-        lonDeg: pos.lonDeg,
-        description: `Satellite ${pos.name} (NORAD ${pos.noradId}) in orbit at ${pos.altitudeKm.toFixed(1)} km.`,
+        latDeg: pos.lat_deg,
+        lonDeg: pos.lon_deg,
+        description: `Satellite ${pos.name} (NORAD ${pos.norad_id}) in orbit at ${pos.alt_km.toFixed(1)} km.`,
       });
       setTelemetryCardVisible(true);
       setCameraTrigger({ type: 'focus', timestamp: Date.now() });
     }
   };
+
+  // Live render FPS, surfaced to the MCP bridge so the AI tooling can read
+  // the real performance of the running dashboard.
+  const [liveFps, setLiveFps] = useState(0);
 
   // Connect live AI MCP Telemetry & Control Bridge
   useMcpBridge({
@@ -880,6 +906,7 @@ function MissionControlDashboard() {
     selectedSat,
     telemetryCardVisible,
     speedMultiplier,
+    fps: liveFps,
     onSelectSatellite: handleSelectSatelliteByIdentifier,
     onDeselectSatellite: handleUnfocusSat,
     onSetLimit: (newLimit) => setUrlState({ limit: Math.max(10, newLimit) }),
@@ -929,6 +956,9 @@ function MissionControlDashboard() {
           avoidanceActive={avoidanceActive}
           selectedSatName={selectedSat?.name}
           selectedSatNoradId={selectedSat?.noradId}
+          selectedConstellationCategory={
+            PRESET_CONSTELLATIONS.find((preset) => preset.id === selectedPresetId)?.category || null
+          }
           onSelectSat={handleSelectSatFromGlobe}
           onUnfocus={handleUnfocusSat}
           showOrbits={showOrbits}
@@ -936,6 +966,7 @@ function MissionControlDashboard() {
           speedMultiplier={speedMultiplier}
           isRealtime={isRealtime}
           onAccidentTelemetryUpdate={setLiveAccidentTelemetry}
+          onFpsUpdate={setLiveFps}
           isModalOpen={collisionModalOpen || devSettingsOpen || healthModalOpen || shortcutsModalOpen || Boolean(selectedEncounter)}
           viewMode={viewMode}
           selectedPlanetId={selectedPlanet?.id}
@@ -1194,7 +1225,7 @@ function MissionControlDashboard() {
         <button
           type="button"
           onClick={() => setSidebarCollapsed(false)}
-          className={`absolute left-4 ${dataset === 'ACCIDENT' ? 'top-14' : 'top-4'} z-30 p-2.5 rounded-xl bg-[#070b13]/85 backdrop-blur-xl border border-white/10 text-zinc-300 hover:text-white shadow-xl transition-all`}
+          className={`absolute left-4 ${dataset === 'ACCIDENT' ? 'top-14' : 'top-4'} z-40 p-2.5 rounded-xl bg-[#070b13]/85 backdrop-blur-xl border border-white/10 text-zinc-300 hover:text-white shadow-xl transition-all`}
           title="Open tracking panel"
         >
           <Layers className="w-4 h-4" />
@@ -1216,7 +1247,8 @@ function MissionControlDashboard() {
 
       {/* ====== FLOATING SATELLITE TELEMETRY CARD (Overlaid on Earth) ====== */}
       {viewMode === 'EARTH' && telemetryCardVisible && selectedSat && (
-        <div className={`absolute ${sidebarCollapsed ? 'left-4' : 'left-[330px]'} bottom-6 z-30 w-[285px] bg-[#0c121e]/90 border border-white/[0.12] rounded-2xl p-3.5 shadow-2xl backdrop-blur-2xl space-y-2.5 font-sans animate-in fade-in duration-200`}>
+        dataset === 'ACCIDENT' ? (
+          <div className={`absolute ${sidebarCollapsed ? 'left-4' : 'left-[330px]'} bottom-10 z-30 w-[285px] bg-[#0c121e]/90 border border-white/[0.12] rounded-2xl p-3.5 shadow-2xl backdrop-blur-2xl space-y-2.5 font-sans animate-in fade-in duration-200`}>
           {/* Header Row: Category Badge & Actions */}
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-[10px] font-mono font-bold tracking-wider text-zinc-400 uppercase">
@@ -1451,12 +1483,31 @@ function MissionControlDashboard() {
               'Global broadband internet mega-constellation providing high-speed, low-latency connectivity from low Earth orbit.'}
           </div>
         </div>
-      )}
+      ) : (
+        <SatelliteCard
+          sat={selectedSat}
+          onClose={handleUnfocusSat}
+          onOpenMathModal={() => setMathModalOpen(true)}
+        />
+      ))}
 
-      {/* ====== TOP RIGHT CONTROLS: LIVE BADGE & TOOLS ====== */}
-      <div className={`absolute right-4 ${dataset === 'ACCIDENT' ? 'top-14' : 'top-4'} z-30 flex items-center gap-2 select-none font-mono transition-all duration-300 ${
-        presentationMode ? 'opacity-0 pointer-events-none -translate-y-4' : 'opacity-100 pointer-events-auto translate-y-0'
-      }`}>
+      {/* ====== TOP RIGHT CONTROLS: LIVE BADGE & TOOLS ======
+          Responsive contract:
+            >=1536px (2xl): single right-anchored row (original layout).
+            <1536px: bounded by the sidebar (left-[330px]) and wraps, so it can
+            never paint over the "LIVE TRACKING" badge in the tracking panel. */}
+      <div
+        data-testid="top-toolbar"
+        className={`absolute right-4 ${dataset === 'ACCIDENT' ? 'top-14' : 'top-4'} z-30 flex flex-wrap items-center justify-end gap-2 select-none font-mono transition-all duration-300 ${
+          // When the sidebar is collapsed the "Open tracking panel" restore
+          // button occupies the top-left corner. The toolbar must start to the
+          // right of it, otherwise its (empty) full-width box swallows the
+          // click on that button.
+          sidebarCollapsed ? 'left-[70px]' : 'left-[330px]'
+        } 2xl:left-auto ${
+          presentationMode ? 'opacity-0 pointer-events-none -translate-y-4' : 'opacity-100 pointer-events-auto translate-y-0'
+        }`}
+      >
         {/* Dual-Mode Context Switcher: Earth vs Solar System */}
         <div className="flex items-center p-0.5 rounded-full bg-black/60 border border-white/10 backdrop-blur-xl shadow-lg mr-1">
           <button
@@ -1518,49 +1569,24 @@ function MissionControlDashboard() {
           </span>
         </button>
 
-        {/* Real-Time Conjunction Threat Level Pill */}
+        {/* Real-Time Mathematical Derivation Solver Pill */}
         <button
           type="button"
-          onClick={() => {
-            const filterToApply = conjunctionRiskSummary.critical > 0 ? 'CRITICAL' : conjunctionRiskSummary.caution > 0 ? 'CAUTION' : 'ALL';
-            setCatalogRiskFilter(filterToApply);
-            setCatalogDrawerOpen(true);
-            playUiBlipSound();
-          }}
-          className={`flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-bold rounded-full border transition-all shadow-lg cursor-pointer select-none ${
-            conjunctionRiskSummary.critical > 0
-              ? 'bg-red-950/80 border-red-500/60 text-red-300 hover:border-red-400 hover:bg-red-900/60 shadow-[0_0_15px_rgba(239,68,68,0.25)]'
-              : conjunctionRiskSummary.caution > 0
-              ? 'bg-amber-950/70 border-amber-500/50 text-amber-300 hover:border-amber-400 hover:bg-amber-900/60 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
-              : 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300 hover:border-emerald-400'
-          }`}
-          title="Live Conjunction Threat Level (Oracle 21c SGP4). Click to open and inspect in catalog."
+          onClick={() => setMathModalOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-bold rounded-full border border-cyan-500/50 bg-cyan-950/70 text-cyan-300 hover:border-cyan-400 hover:bg-cyan-900/80 hover:text-white transition-all shadow-[0_0_15px_rgba(6,182,212,0.3)] cursor-pointer"
+          title="Open Real-Time Astrodynamics & Conjunction Mathematics Solver"
         >
-          <span
-            className={`w-2 h-2 rounded-full ${
-              conjunctionRiskSummary.critical > 0
-                ? 'bg-red-400 animate-pulse'
-                : conjunctionRiskSummary.caution > 0
-                ? 'bg-amber-400 animate-pulse'
-                : 'bg-emerald-400'
-            }`}
-          />
-          {conjunctionRiskSummary.critical > 0 ? (
-            <span>
-              {conjunctionRiskSummary.critical === 1
-                ? '1 CRITICAL CONJUNCTION'
-                : `${conjunctionRiskSummary.critical} CRITICAL CONJUNCTIONS`}
-            </span>
-          ) : conjunctionRiskSummary.caution > 0 ? (
-            <span>
-              {conjunctionRiskSummary.caution === 1
-                ? '1 CAUTION PASS'
-                : `${conjunctionRiskSummary.caution} CAUTION PASSES`}
-            </span>
-          ) : (
-            <span>NOMINAL CLEARANCE</span>
-          )}
+          <span className="text-sm font-serif">∑</span>
+          <span>MATH DERIVATION</span>
         </button>
+
+        {/* Real-Time Conjunction Threat Level Pill — REMOVED.
+            The per-risk breakdown now lives in the Oracle DB Conjunction Catalog
+            drawer (ALL / CRITICAL / CAUTION / NOMINAL filter tabs), which is the
+            authoritative place to inspect it. Keeping a second copy in the
+            toolbar duplicated the same numbers and consumed ~200px of the
+            top bar, which is what pushed the controls over the left sidebar
+            on laptop viewports. */}
 
         {/* Integrated LIVE Telemetry & Speed Warp Toggle */}
         <button
@@ -1711,6 +1737,7 @@ function MissionControlDashboard() {
         error={error}
         onClose={() => setCatalogDrawerOpen(false)}
         onSelectEncounter={(enc) => {
+          setSelectedEncounter(enc);
           setSelectedSat({
             name: enc.satAName || enc.satA || 'TARGET SATELLITE',
             noradId: enc.satANorad || 25500,
@@ -1732,53 +1759,92 @@ function MissionControlDashboard() {
         }}
       />
 
+      {/* ====== ENCOUNTER DETAIL BOTTOM SHEET (OrbitEye live conjunction record) ====== */}
+      {selectedEncounter && (
+        <EncounterDetailModal
+          encounter={selectedEncounter}
+          onClose={() => setSelectedEncounter(null)}
+        />
+      )}
+
       {/* ====== 2009 COLLISION FORENSIC MODAL ====== */}
       <React.Suspense fallback={null}>
         {collisionModalOpen && (
-          <CollisionReconstructionModal
-            isOpen={collisionModalOpen}
-            onClose={() => setCollisionModalOpen(false)}
-          />
+          <LazyBoundary label="Collision Reconstruction">
+            <CollisionReconstructionModal
+              isOpen={collisionModalOpen}
+              onClose={() => setCollisionModalOpen(false)}
+            />
+          </LazyBoundary>
         )}
       </React.Suspense>
 
       {/* ====== DEVELOPER SETTINGS MODAL (/api/settings) ====== */}
       <React.Suspense fallback={null}>
         {devSettingsOpen && (
-          <DevSettingsModal
-            isOpen={devSettingsOpen}
-            onClose={() => setDevSettingsOpen(false)}
-            onOpenHealthChecker={() => setHealthModalOpen(true)}
-            onSettingsChange={(newSettings: DevSettingsData) => {
-              setSpeedMultiplier(newSettings.speed_multiplier);
-              setIsRealtime(newSettings.is_realtime);
-              if (newSettings.satellite_limit !== limit) {
-                setUrlState({ limit: newSettings.satellite_limit });
-              }
-            }}
-          />
+          <LazyBoundary label="Developer Settings">
+            <DevSettingsModal
+              isOpen={devSettingsOpen}
+              onClose={() => setDevSettingsOpen(false)}
+              onOpenHealthChecker={() => setHealthModalOpen(true)}
+              onSettingsChange={(newSettings: DevSettingsData) => {
+                setSpeedMultiplier(newSettings.speed_multiplier);
+                setIsRealtime(newSettings.is_realtime);
+                if (newSettings.satellite_limit !== limit) {
+                  setUrlState({ limit: newSettings.satellite_limit });
+                }
+              }}
+            />
+          </LazyBoundary>
         )}
       </React.Suspense>
 
       {/* ====== SERVICE HEALTH & REAL-DATA AUTHENTICITY CHECKER MODAL ====== */}
       <React.Suspense fallback={null}>
         {healthModalOpen && (
-          <ServiceHealthCheckerModal
-            isOpen={healthModalOpen}
-            onClose={() => setHealthModalOpen(false)}
-          />
+          <LazyBoundary label="Service Health Checker">
+            <ServiceHealthCheckerModal
+              isOpen={healthModalOpen}
+              onClose={() => setHealthModalOpen(false)}
+            />
+          </LazyBoundary>
         )}
       </React.Suspense>
 
       {/* ====== MISSION CONTROL KEYBOARD SHORTCUTS MODAL ====== */}
       <React.Suspense fallback={null}>
         {shortcutsModalOpen && (
-          <KeyboardShortcutsModal
-            isOpen={shortcutsModalOpen}
-            onClose={() => setShortcutsModalOpen(false)}
-          />
+          <LazyBoundary label="Keyboard Shortcuts">
+            <KeyboardShortcutsModal
+              isOpen={shortcutsModalOpen}
+              onClose={() => setShortcutsModalOpen(false)}
+            />
+          </LazyBoundary>
         )}
       </React.Suspense>
+
+      {/* ====== 24/7 LIVE ISS SPACE VIDEO DOWNLINK (LEO) ====== */}
+      {!presentationMode && viewMode === 'EARTH' && (
+        <div className="absolute bottom-10 right-4 z-30 pointer-events-auto">
+          <SpaceCam />
+        </div>
+      )}
+
+      {/* ====== TACTICAL GLOBAL STATUS BAR TICKER ====== */}
+      <GlobalStatusBar
+        totalSatellites={satellitePositions?.length || 348}
+        criticalEncounters={criticalCount}
+        isDbConnected={systemHealth.dbConnected}
+        fps={liveFps}
+        datasetTag={dataset}
+      />
+
+      {/* ====== REAL-TIME ASTRODYNAMICS & CONJUNCTION MATHEMATICS SOLVER MODAL ====== */}
+      <MathDerivationModal
+        isOpen={mathModalOpen}
+        onClose={() => setMathModalOpen(false)}
+        selectedSat={selectedSat}
+      />
     </div>
   );
 }

@@ -19,14 +19,23 @@ ORACLE_SERVICE="${ORACLE_SERVICE:?Environment variable ORACLE_SERVICE must be se
 CONN_STRING="${ORACLE_USER}/${ORACLE_PASS}@//${ORACLE_HOST}:${ORACLE_PORT}/${ORACLE_SERVICE}"
 
 # Directories
-DDL_DIR="database/ddl"
-SEED_DIR="output"
-LOG_FILE="database/deploy.log"
+# Resolved relative to this script's location so the deploy can be invoked from
+# anywhere (e.g. `bash database/deploy.sh` from the repo root, or `./deploy.sh`
+# from inside database/). Previously these were hardcoded to the repo root,
+# which broke any invocation from the database/ directory.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+DDL_DIR="${PROJECT_ROOT}/database/ddl"
+SEED_DIR="${PROJECT_ROOT}/output"
+LOG_FILE="${PROJECT_ROOT}/database/deploy.log"
+
+cd "${PROJECT_ROOT}"
 
 # ------------------------------------------------------------------
 # Audit / Spool setup
 # ------------------------------------------------------------------
-mkdir -p database
+mkdir -p "${PROJECT_ROOT}/database"
 exec >>"${LOG_FILE}" 2>&1
 
 echo "========================================"
@@ -82,6 +91,7 @@ DDL_FILES=(
     "04_create_encounter_pairs.sql"
     "05_create_encounter_events.sql"
     "06_create_debris.sql"
+    "07_performance_indexes.sql"
 )
 
 for ddl_file in "${DDL_FILES[@]}"; do
@@ -182,7 +192,7 @@ echo ""
 echo "========================================"
 echo "DEPLOYMENT SUMMARY"
 echo "========================================"
-echo "DDL executed: 01..06 (operators, satellites, tle_sets, encounter_pairs, encounter_events, debris)"
+echo "DDL executed: 01..07 (operators, satellites, tle_sets, encounter_pairs, encounter_events, debris, performance_indexes)"
 echo "DML executed: seed_realtime.sql, seed_accident.sql"
 echo "Audit log: ${LOG_FILE}"
 echo "Connection: ${ORACLE_USER}@${ORACLE_HOST}:${ORACLE_PORT}/${ORACLE_SERVICE}"

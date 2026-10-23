@@ -42,9 +42,15 @@ if "%ORACLE_SERVICE%"=="" (
 REM ------------------------------------------------------------------
 REM Config
 REM ------------------------------------------------------------------
-set DDL_DIR=database\ddl
-set SEED_DIR=output
-set LOG_FILE=database\deploy.log
+REM Paths are resolved relative to this script's location so the deploy can be
+REM invoked from anywhere (e.g. `database\deploy.bat` from the repo root, or
+REM `deploy.bat` from inside database\).
+set "PROJECT_ROOT=%~dp0.."
+set "DDL_DIR=%PROJECT_ROOT%\database\ddl"
+set "SEED_DIR=%PROJECT_ROOT%\output"
+set "LOG_FILE=%PROJECT_ROOT%\database\deploy.log"
+
+cd /d "%PROJECT_ROOT%"
 
 REM Connection string for SQL*Plus (thin mode / EZCONNECT syntax)
 set CONN_STRING=%ORACLE_USER%/%ORACLE_PASS%@//%ORACLE_HOST%:%ORACLE_PORT%/%ORACLE_SERVICE%
@@ -169,6 +175,21 @@ if exist "%DDL_DIR%\06_create_debris.sql" (
     exit /b 1
 )
 
+REM 07_performance_indexes.sql
+if exist "%DDL_DIR%\07_performance_indexes.sql" (
+    echo --- [STEP] Executing DDL: 07_performance_indexes.sql ---
+    sqlplus -S -L "%CONN_STRING%" @"%DDL_DIR%\07_performance_indexes.sql" >> "%LOG_FILE%" 2>&1
+    if errorlevel 1 (
+        echo [FAIL] DDL 07_performance_indexes.sql failed. Aborting deployment.
+        exit /b 1
+    ) else (
+        echo [PASS] 07_performance_indexes.sql completed.
+    )
+) else (
+    echo [FAIL] DDL file missing: 07_performance_indexes.sql
+    exit /b 1
+)
+
 echo.
 echo [PASS] All DDL scripts executed successfully.
 echo [PASS] All DDL executed. >> "%LOG_FILE%"
@@ -226,17 +247,18 @@ echo ========================================
 echo [STEP] Running verification query against all 6 tables ...
 
 REM Execute verification SQL via temporary file approach
-echo SET PAGESIZE 100 > database\_verify_tmp.sql
-echo SET LINESIZE 120 >> database\_verify_tmp.sql
-echo SELECT 'operators' AS table_name, COUNT(*) AS row_count FROM operators UNION ALL >> database\_verify_tmp.sql
-echo SELECT 'satellites', COUNT(*) FROM satellites UNION ALL >> database\_verify_tmp.sql
-echo SELECT 'tle_sets', COUNT(*) FROM tle_sets UNION ALL >> database\_verify_tmp.sql
-echo SELECT 'encounter_pairs', COUNT(*) FROM encounter_pairs UNION ALL >> database\_verify_tmp.sql
-echo SELECT 'encounter_events', COUNT(*) FROM encounter_events UNION ALL >> database\_verify_tmp.sql
-echo SELECT 'debris', COUNT(*) FROM debris; >> database\_verify_tmp.sql
-echo EXIT; >> database\_verify_tmp.sql
+set "VERIFY_TMP=%PROJECT_ROOT%\database\_verify_tmp.sql"
+echo SET PAGESIZE 100 > "%VERIFY_TMP%"
+echo SET LINESIZE 120 >> "%VERIFY_TMP%"
+echo SELECT 'operators' AS table_name, COUNT(*) AS row_count FROM operators UNION ALL >> "%VERIFY_TMP%"
+echo SELECT 'satellites', COUNT(*) FROM satellites UNION ALL >> "%VERIFY_TMP%"
+echo SELECT 'tle_sets', COUNT(*) FROM tle_sets UNION ALL >> "%VERIFY_TMP%"
+echo SELECT 'encounter_pairs', COUNT(*) FROM encounter_pairs UNION ALL >> "%VERIFY_TMP%"
+echo SELECT 'encounter_events', COUNT(*) FROM encounter_events UNION ALL >> "%VERIFY_TMP%"
+echo SELECT 'debris', COUNT(*) FROM debris; >> "%VERIFY_TMP%"
+echo EXIT; >> "%VERIFY_TMP%"
 
-sqlplus -S -L "%CONN_STRING%" @database\_verify_tmp.sql >> "%LOG_FILE%" 2>&1
+sqlplus -S -L "%CONN_STRING%" @"%VERIFY_TMP%" >> "%LOG_FILE%" 2>&1
 if errorlevel 1 (
     echo [FAIL] Verification query execution failed.
 ) else (
@@ -264,18 +286,18 @@ echo.
 echo ========================================
 echo DEPLOYMENT SUMMARY
 REM ========================================
-echo DDL executed: 01_create_operators ^> 06_create_debris
+echo DDL executed: 01_create_operators ^> 07_performance_indexes
 echo DML executed: seed_realtime.sql, seed_accident.sql
 echo Audit log: %LOG_FILE%
 echo Connection: %ORACLE_USER%/***@//%ORACLE_HOST%:%ORACLE_PORT%/%ORACLE_SERVICE%
 echo ========================================
 echo Deployment completed at %date% %time%
 
-decho [PASS] Deployment script completed. Review %LOG_FILE% for audit trail.
+echo [PASS] Deployment script completed. Review %LOG_FILE% for audit trail.
 
 REM Clean temporary verification file
-if exist database\_verify_tmp.sql (
-    del /Q database\_verify_tmp.sql
+if exist "%VERIFY_TMP%" (
+    del /Q "%VERIFY_TMP%"
 )
 
 REM Return 0 for successful deployment; caller must verify row counts manually from log.

@@ -1,0 +1,16 @@
+# Test dependencies for the OrbitalEye DBMS Edition test suite.
+#
+# Install the runtime dependencies first, then these:
+#   pip install -r requirements.txt -r requirements-test.txt
+#
+# Run the suite with:
+#   python -m pytest tests/ -v
+#
+# Markers (see pytest.ini):
+#   pytest -m "not db"      skip everything that needs a live Oracle database
+#   pytest -m "not slow"    skip the production build and the Vitest run
+#   pytest -m "not live"    skip the end-to-end tests against a running stack
+
+pytest>=8.0
+pytest-asyncio>=0.24
+httpx>=0.27

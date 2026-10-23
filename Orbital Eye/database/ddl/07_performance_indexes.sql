@@ -2,6 +2,8 @@
 -- Optimizes query performance for /api/encounters and /api/satellites/positions
 -- Eliminates table full scans and speeds up queries across 4,500+ encounter pairs.
 
+SET SQLBLANKLINES ON;
+
 -- 1. Covering composite index for encounter pairs ordered by miss distance
 -- Covers all columns selected by /api/encounters so Oracle never touches table blocks
 CREATE INDEX idx_ep_dataset_miss ON encounter_pairs(

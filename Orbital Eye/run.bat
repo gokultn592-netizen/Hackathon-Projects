@@ -1,5 +1,5 @@
 @echo off
-title OrbitalEye Mission Control -- Service Manager & Browser Launcher
+title OrbitalEye Mission Control -- Service Manager and Browser Launcher
 color 0B
 
 echo =========================================================================
@@ -7,35 +7,35 @@ echo               ORBITALEYE DBMS EDITION -- RESTART LAUNCHER
 echo =========================================================================
 echo.
 
-:: -----------------------------------------------------------
-:: STEP 1: STOP EXISTING SERVICES (Backend & Frontend)
-:: -----------------------------------------------------------
+rem -----------------------------------------------------------
+rem STEP 1: STOP EXISTING SERVICES (Backend and Frontend)
+rem -----------------------------------------------------------
 echo [1/5] Stopping any existing OrbitalEye services...
 
-:: Kill processes by port 8000 (FastAPI Backend)
+rem Kill processes by port 8000 (FastAPI Backend)
 for /f "tokens=5" %%p in ('netstat -aon ^| findstr ":8000.*LISTENING"') do (
-    echo       Stopping backend process (PID %%p on port 8000)...
+    echo       Stopping backend process PID %%p on port 8000...
     taskkill /PID %%p /F >nul 2>&1
 )
 
-:: Kill processes by port 3000 (React Vite Frontend)
+rem Kill processes by port 3000 (React Vite Frontend)
 for /f "tokens=5" %%p in ('netstat -aon ^| findstr ":3000.*LISTENING"') do (
-    echo       Stopping frontend process (PID %%p on port 3000)...
+    echo       Stopping frontend process PID %%p on port 3000...
     taskkill /PID %%p /F >nul 2>&1
 )
 
-:: Kill any lingering launcher windows by title
+rem Kill any lingering launcher windows by title
 taskkill /FI "WINDOWTITLE eq OrbitalEye Backend*" /F >nul 2>&1
 taskkill /FI "WINDOWTITLE eq OrbitalEye Frontend*" /F >nul 2>&1
 
-:: Brief pause to ensure TCP sockets are fully released
+rem Brief pause to ensure TCP sockets are fully released
 timeout /t 2 /nobreak >nul
 echo       [OK] All previous services stopped and ports cleared.
 echo.
 
-:: -----------------------------------------------------------
-:: STEP 2: CHECK ORACLE DATABASE SERVICE
-:: -----------------------------------------------------------
+rem -----------------------------------------------------------
+rem STEP 2: CHECK ORACLE DATABASE SERVICE
+rem -----------------------------------------------------------
 echo [2/5] Verifying Oracle Database XE service...
 sc query OracleServiceXE 2>nul | findstr /I "RUNNING" >nul
 if %errorlevel% equ 0 (
@@ -46,25 +46,29 @@ if %errorlevel% equ 0 (
 )
 echo.
 
-:: -----------------------------------------------------------
-:: STEP 3: START FASTAPI BACKEND
-:: -----------------------------------------------------------
+rem -----------------------------------------------------------
+rem STEP 3: START FASTAPI BACKEND
+rem -----------------------------------------------------------
 echo [3/5] Launching FastAPI Backend on http://localhost:8000...
-start "OrbitalEye Backend (FastAPI)" /min cmd /k "cd /d "%~dp0backend" && python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+pushd "%~dp0backend"
+start "OrbitalEye Backend (FastAPI)" /min cmd /k "python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+popd
 echo       [OK] Backend started in background.
 echo.
 
-:: -----------------------------------------------------------
-:: STEP 4: START REACT VITE FRONTEND
-:: -----------------------------------------------------------
+rem -----------------------------------------------------------
+rem STEP 4: START REACT VITE FRONTEND
+rem -----------------------------------------------------------
 echo [4/5] Launching React Vite Frontend on http://localhost:3000...
-start "OrbitalEye Frontend (Vite)" /min cmd /k "cd /d "%~dp0frontend" && npm run dev"
+pushd "%~dp0frontend"
+start "OrbitalEye Frontend (Vite)" /min cmd /k "npm run dev"
+popd
 echo       [OK] Frontend started in background.
 echo.
 
-:: -----------------------------------------------------------
-:: STEP 5: PROBE INITIALIZATION & REDIRECT TO BROWSER
-:: -----------------------------------------------------------
+rem -----------------------------------------------------------
+rem STEP 5: PROBE INITIALIZATION & REDIRECT TO BROWSER
+rem -----------------------------------------------------------
 echo [5/5] Probing required element initialization before browser launch...
 echo       Waiting for Backend (http://localhost:8000/api/health)...
 
@@ -115,15 +119,17 @@ if %errorlevel% neq 0 (
 echo -------------------------------------------------------------------------
 echo.
 echo =========================================================================
-echo   OrbitalEye Mission Control is fully initialized!
+echo   OrbitalEye Mission Control is fully initialized.
 echo   - Backend API Docs (Swagger): http://localhost:8000/docs
 echo   - Mission Control Dashboard:  http://localhost:3000
-echo   - Diagnostics & Authenticity: http://localhost:8000/api/system/health-checker
+echo   - Diagnostics and Authenticity: http://localhost:8000/api/system/health-checker
 echo =========================================================================
 echo.
 echo   Redirecting to default browser at http://localhost:3000...
 start http://localhost:3000
-echo   [OK] Browser redirected successfully!
+echo   [OK] Browser redirected successfully.
 echo.
-timeout /t 2 /nobreak >nul
-exit
+echo =========================================================================
+echo   Mission Control is running. Close this window anytime or press any key.
+echo =========================================================================
+pause >nul

@@ -16,6 +16,10 @@ export interface AdaptedEncounter {
   sat_b_id?: number;
   sat_a_norad?: number;
   sat_b_norad?: number;
+  satANorad?: number;
+  satBNorad?: number;
+  satAAlt?: number;
+  operator?: string;
   missDistance: number;
   miss_distance_km: number;
   relVelocity: number;
@@ -25,6 +29,7 @@ export interface AdaptedEncounter {
   collisionProbPct: string;
   tcaUtc: string;
   tca_time_utc: string;
+  tca?: string;
   tcaFormatted: string;
 }
 
@@ -68,6 +73,10 @@ export function adaptEncounter(raw: any): AdaptedEncounter {
     sat_b_id: raw.sat_b_norad ?? raw.sat_b_id,
     sat_a_norad: raw.sat_a_norad,
     sat_b_norad: raw.sat_b_norad,
+    satANorad: raw.sat_a_norad ?? raw.satAId,
+    satBNorad: raw.sat_b_norad ?? raw.satBId,
+    satAAlt: raw.sat_a_alt ?? raw.satAAlt,
+    operator: raw.operator ?? raw.sat_a_operator,
     missDistance,
     miss_distance_km: missDistance,
     relVelocity,
@@ -77,6 +86,7 @@ export function adaptEncounter(raw: any): AdaptedEncounter {
     collisionProbPct: (collisionProb * 100).toFixed(2),
     tcaUtc: raw.tca_utc || raw.tcaUtc || '',
     tca_time_utc: raw.tca_utc || raw.tca_time_utc || '',
+    tca: raw.tca_utc || raw.tcaUtc || '',
     tcaFormatted,
   };
 }

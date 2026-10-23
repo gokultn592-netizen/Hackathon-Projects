@@ -218,6 +218,14 @@ async def get_satellite_positions(dataset_tag: str = "REALTIME", limit: int = 10
                 WHERE ts2.satellite_id = ts.satellite_id
                 AND ts2.dataset_tag = ts.dataset_tag
             )
+            ORDER BY
+                CASE
+                    WHEN ep.miss_distance_km IS NOT NULL THEN 1
+                    WHEN s.norad_id IN (25544, 48274, 20580, 25994, 27424, 43013, 38771, 41335, 37849) THEN 2
+                    ELSE 3
+                END ASC,
+                NVL(ep.miss_distance_km, 9999) ASC,
+                s.norad_id ASC
             FETCH FIRST :limit ROWS ONLY
         """
 

@@ -8,6 +8,7 @@ interface McpBridgeProps {
   selectedSat: SatelliteInfo | null;
   telemetryCardVisible: boolean;
   speedMultiplier: number;
+  fps?: number;
   onSelectSatellite: (identifier: string | number) => void;
   onDeselectSatellite: () => void;
   onSetLimit: (limit: number) => void;
@@ -23,6 +24,7 @@ export function useMcpBridge({
   selectedSat,
   telemetryCardVisible,
   speedMultiplier,
+  fps = 0,
   onSelectSatellite,
   onDeselectSatellite,
   onSetLimit,
@@ -39,6 +41,7 @@ export function useMcpBridge({
     selectedSat,
     telemetryCardVisible,
     speedMultiplier,
+    fps,
   });
 
   stateRef.current = {
@@ -48,6 +51,7 @@ export function useMcpBridge({
     selectedSat,
     telemetryCardVisible,
     speedMultiplier,
+    fps,
   };
 
   const callbacksRef = useRef({
@@ -90,6 +94,7 @@ export function useMcpBridge({
                 : null,
               telemetry_card_visible: s.telemetryCardVisible,
               speed_multiplier: s.speedMultiplier,
+              fps: s.fps,
               url: window.location.href,
             },
           })
@@ -101,10 +106,12 @@ export function useMcpBridge({
   };
 
   useEffect(() => {
-    let ws: WebSocket | null = null;
     let timer: any = null;
     let heartbeat: any = null;
     let isUnmounted = false;
+    // The socket this effect instance owns. Kept local so the cleanup can
+    // close exactly the socket it created and never touch a newer one.
+    let socket: WebSocket | null = null;
 
     function connect() {
       if (isUnmounted) return;
@@ -116,13 +123,14 @@ export function useMcpBridge({
         const isDevPort = window.location.port === '3000' || window.location.port === '5173';
         const portPart = isDevPort ? ':8000' : (window.location.port ? `:${window.location.port}` : '');
         const wsUrl = `${protocol}//${host}${portPart}/ws/bridge`;
-        ws = new WebSocket(wsUrl);
+        const ws = new WebSocket(wsUrl);
+        socket = ws;
         wsRef.current = ws;
 
         ws.onopen = () => {
           if (isUnmounted) {
             try {
-              ws?.close();
+              ws.close();
             } catch {}
             return;
           }
@@ -165,8 +173,16 @@ export function useMcpBridge({
         };
 
         ws.onclose = () => {
-          wsRef.current = null;
-          if (!isUnmounted) {
+          // Only clear the shared ref if it still points at THIS socket.
+          // A stale socket closing after a newer one connected must not wipe
+          // the live reference or schedule a duplicate reconnect.
+          if (wsRef.current === ws) {
+            wsRef.current = null;
+          }
+          if (socket === ws) {
+            socket = null;
+          }
+          if (!isUnmounted && wsRef.current === null) {
             timer = setTimeout(connect, 3000);
           }
         };
@@ -229,23 +245,30 @@ export function useMcpBridge({
       clearInterval(heartbeat);
       window.removeEventListener('error', errorHandler);
       window.removeEventListener('unhandledrejection', rejectionHandler);
+
+      // Detach the handlers before closing so a late event from this socket
+      // cannot schedule a reconnect or clobber the socket created by a newer
+      // mount. React 18 StrictMode mounts the effect twice in development,
+      // which previously left two sockets registered with the bridge and made
+      // `connected_clients` report 2 for a single browser tab.
+      const ws = socket;
+      socket = null;
+      if (wsRef.current === ws) {
+        wsRef.current = null;
+      }
       if (ws) {
-        if (ws.readyState === WebSocket.OPEN) {
+        ws.onopen = null;
+        ws.onmessage = null;
+        ws.onerror = null;
+        ws.onclose = null;
+        try {
           ws.close();
-        } else if (ws.readyState === WebSocket.CONNECTING) {
-          // If connection is still handshaking, wait for open before closing
-          // to prevent browser error: "WebSocket is closed before the connection is established"
-          ws.onopen = () => {
-            try {
-              ws?.close();
-            } catch {}
-          };
-        }
+        } catch {}
       }
     };
   }, []);
 
   useEffect(() => {
     sendState();
-  }, [dataset, limit, satellitePositionsCount, selectedSat, telemetryCardVisible, speedMultiplier]);
+  }, [dataset, limit, satellitePositionsCount, selectedSat, telemetryCardVisible, speedMultiplier, fps]);
 }

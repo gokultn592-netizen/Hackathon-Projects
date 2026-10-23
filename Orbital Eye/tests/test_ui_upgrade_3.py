@@ -42,6 +42,7 @@ def test_app_tsx_drawer_backdrop_integration():
     # EncounterTable isOpen prop check
     assert "isOpen={catalogDrawerOpen}" in content
 
+@pytest.mark.slow
 def test_frontend_production_build():
     """Verify that TypeScript type-check and Vite bundling succeed without errors."""
     res = subprocess.run(
