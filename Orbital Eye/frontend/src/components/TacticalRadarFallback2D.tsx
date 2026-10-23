@@ -1,6 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { SatelliteInfo } from './Globe3D';
-import { AlertTriangle, ShieldCheck } from './Icons';
 
 interface SatellitePosition {
   norad_id?: number;
@@ -27,7 +26,6 @@ export default function TacticalRadarFallback2D({
 }: TacticalRadarFallback2DProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hoveredSat, setHoveredSat] = useState<SatellitePosition | null>(null);
-  const [showGpuHelp, setShowGpuHelp] = useState<boolean>(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -222,50 +220,6 @@ export default function TacticalRadarFallback2D({
         onClick={handleCanvasClick}
         className="w-full h-full block cursor-crosshair"
       />
-
-      {/* Top Aerospace C2 Warning Banner */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1.5 max-w-xl w-full px-4">
-        <div className="w-full p-2.5 rounded-xl bg-[#090e1a]/95 border border-amber-500/40 shadow-xl backdrop-blur-xl flex items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2 text-amber-300">
-            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-            <span className="font-bold tracking-wider">
-              2D TACTICAL RADAR ACTIVE // WEBGL DISABLED IN BROWSER
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setShowGpuHelp(!showGpuHelp)}
-            className="px-2.5 py-1 rounded-lg border border-amber-500/30 hover:border-amber-400 bg-amber-500/10 hover:bg-amber-500/20 text-[10px] font-bold text-amber-200 transition-colors cursor-pointer"
-          >
-            {showGpuHelp ? 'HIDE HELP ▲' : 'HOW TO ENABLE 3D ▼'}
-          </button>
-        </div>
-
-        {/* Expandable GPU Hardware Acceleration Help Card */}
-        {showGpuHelp && (
-          <div className="w-full p-4 rounded-xl bg-[#0a0f1d] border border-[#1e293b] shadow-2xl text-left text-xs space-y-2.5 animate-fadeIn">
-            <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider flex items-center justify-between">
-              <span>HOW TO RE-ENABLE 3D HARDWARE ACCELERATION:</span>
-              <span className="text-emerald-400 font-normal">Takes ~15 seconds</span>
-            </div>
-            <ol className="list-decimal list-inside space-y-1.5 text-zinc-300 text-[11px] leading-relaxed">
-              <li>
-                Open browser settings: <code className="text-white bg-black px-1.5 py-0.5 rounded border border-white/10">chrome://settings/system</code> or <code className="text-white bg-black px-1.5 py-0.5 rounded border border-white/10">edge://settings/system</code>
-              </li>
-              <li>
-                Toggle <strong className="text-emerald-300">&quot;Use graphics acceleration when available&quot;</strong> to ON.
-              </li>
-              <li>
-                Click <strong className="text-white">Relaunch</strong> on your browser.
-              </li>
-            </ol>
-            <p className="text-[10px] text-zinc-500 border-t border-white/5 pt-2">
-              All telemetry, satellite database queries, NASA B-plane radar, and conjunction solvers remain 100% active on this 2D radar view.
-            </p>
-          </div>
-        )}
-      </div>
 
       {/* Bottom Corner HUD Reticles */}
       <div className="absolute bottom-3 left-4 text-[10px] text-zinc-600 pointer-events-none">

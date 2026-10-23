@@ -249,17 +249,6 @@ export const FLAGSHIP_PRESETS: FlagshipPresetConfig[] = [
   },
 ];
 
-function isWebGLSupported(): boolean {
-  if (typeof window === 'undefined') return true;
-  try {
-    const canvas = document.createElement('canvas');
-    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-    return !!(gl && gl instanceof WebGLRenderingContext);
-  } catch {
-    return false;
-  }
-}
-
 export default function Globe3D({
   dataset = 'REALTIME',
   encounterCount = 50,
@@ -359,7 +348,8 @@ export default function Globe3D({
   } | null>(null);
 
   // WebGL context failure flag for graceful 2D tactical ground-track fallback
-  const [webGlDisabled, setWebGlDisabled] = useState<boolean>(() => !isWebGLSupported());
+  const [webGlDisabled, setWebGlDisabled] = useState<boolean>(false);
+  const cleanupFnsRef = useRef<Array<() => void>>([]);
 
   // Persistent Three.js scene refs
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -580,21 +570,21 @@ export default function Globe3D({
         renderer = new THREE.WebGLRenderer({
           antialias: true,
           alpha: false,
-          powerPreference: 'high-performance',
-          logarithmicDepthBuffer: true,
+          powerPreference: 'default',
+          failIfMajorPerformanceCaveat: false,
         });
-      } catch (errHigh) {
-        console.warn('[Globe3D] High-performance WebGL context failed, trying default fallback:', errHigh);
+      } catch (err1) {
+        console.warn('[Globe3D] Primary WebGL context failed, trying default fallback:', err1);
         try {
           renderer = new THREE.WebGLRenderer({
             antialias: false,
             alpha: false,
             powerPreference: 'default',
-            logarithmicDepthBuffer: false,
+            precision: 'mediump',
             failIfMajorPerformanceCaveat: false,
           });
-        } catch (errDef) {
-          console.warn('[Globe3D] WebGL context creation failed entirely in this browser environment:', errDef);
+        } catch (err2) {
+          console.error('[Globe3D] WebGL context creation failed entirely in this browser environment:', err2);
           setWebGlDisabled(true);
           return;
         }
@@ -604,6 +594,26 @@ export default function Globe3D({
         setWebGlDisabled(true);
         return;
       }
+
+      renderer.domElement.addEventListener(
+        'webglcontextlost',
+        (e) => {
+          e.preventDefault();
+          console.warn('[Globe3D] WebGL context lost.');
+          if (animationFrameIdRef.current) cancelAnimationFrame(animationFrameIdRef.current);
+        },
+        false
+      );
+
+      renderer.domElement.addEventListener(
+        'webglcontextrestored',
+        () => {
+          console.info('[Globe3D] WebGL context restored.');
+          sceneRef.current = null;
+          rendererRef.current = null;
+        },
+        false
+      );
 
       renderer.setSize(width, height);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -1471,6 +1481,14 @@ export default function Globe3D({
       container.addEventListener('click', onClick);
       container.addEventListener('wheel', onWheel, { passive: false });
 
+      cleanupFnsRef.current.push(() => {
+        container.removeEventListener('mousedown', onMouseDown);
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+        container.removeEventListener('click', onClick);
+        container.removeEventListener('wheel', onWheel);
+      });
+
       // Robust target matcher: connects sidebar presets, Oracle DB conjunctions, and constellation particles
       const findActiveTarget = (): {
         type: 'live' | 'constellation';
@@ -1693,6 +1711,9 @@ export default function Globe3D({
         renderer.setSize(width, height);
       };
       window.addEventListener('resize', onResize);
+      cleanupFnsRef.current.push(() => {
+        window.removeEventListener('resize', onResize);
+      });
 
       // ---- ANIMATION LOOP ----
       let lastTime = performance.now();
@@ -2365,6 +2386,31 @@ export default function Globe3D({
 
       animationFrameIdRef.current = requestAnimationFrame(animate);
     }
+
+    return () => {
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+      }
+      cleanupFnsRef.current.forEach((fn) => {
+        try {
+          fn();
+        } catch {}
+      });
+      cleanupFnsRef.current = [];
+      if (rendererRef.current) {
+        try {
+          rendererRef.current.dispose();
+          rendererRef.current.forceContextLoss();
+          if (rendererRef.current.domElement && rendererRef.current.domElement.parentNode) {
+            rendererRef.current.domElement.parentNode.removeChild(rendererRef.current.domElement);
+          }
+        } catch (e) {
+          console.warn('[Globe3D] Context release notice:', e);
+        }
+        rendererRef.current = null;
+      }
+      sceneRef.current = null;
+    };
   }, []);
 
   // =========================================================================
