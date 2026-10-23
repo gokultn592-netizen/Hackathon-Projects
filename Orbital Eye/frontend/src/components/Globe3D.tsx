@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { SatellitePosition } from '../hooks/useSatellitePositions';
 import { playImpactExplosionSound } from '../utils/audio';
+import TacticalRadarFallback2D from './TacticalRadarFallback2D';
 import {
   PLANETARY_BODIES,
   CelestialBodyData,
@@ -248,6 +249,17 @@ export const FLAGSHIP_PRESETS: FlagshipPresetConfig[] = [
   },
 ];
 
+function isWebGLSupported(): boolean {
+  if (typeof window === 'undefined') return true;
+  try {
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    return !!(gl && gl instanceof WebGLRenderingContext);
+  } catch {
+    return false;
+  }
+}
+
 export default function Globe3D({
   dataset = 'REALTIME',
   encounterCount = 50,
@@ -345,6 +357,9 @@ export default function Globe3D({
     reset: () => void;
     focusTarget: () => void;
   } | null>(null);
+
+  // WebGL context failure flag for graceful 2D tactical ground-track fallback
+  const [webGlDisabled, setWebGlDisabled] = useState<boolean>(() => !isWebGLSupported());
 
   // Persistent Three.js scene refs
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -541,6 +556,7 @@ export default function Globe3D({
 
   // Unified Scene Lifecycle
   useEffect(() => {
+    if (webGlDisabled) return;
     const container = mountRef.current;
     if (!container) return;
 
@@ -559,12 +575,36 @@ export default function Globe3D({
       camera.lookAt(0, 0, 0);
       cameraRef.current = camera;
 
-      const renderer = new THREE.WebGLRenderer({
-        antialias: true,
-        alpha: false,
-        powerPreference: 'high-performance',
-        logarithmicDepthBuffer: true,
-      });
+      let renderer: THREE.WebGLRenderer | null = null;
+      try {
+        renderer = new THREE.WebGLRenderer({
+          antialias: true,
+          alpha: false,
+          powerPreference: 'high-performance',
+          logarithmicDepthBuffer: true,
+        });
+      } catch (errHigh) {
+        console.warn('[Globe3D] High-performance WebGL context failed, trying default fallback:', errHigh);
+        try {
+          renderer = new THREE.WebGLRenderer({
+            antialias: false,
+            alpha: false,
+            powerPreference: 'default',
+            logarithmicDepthBuffer: false,
+            failIfMajorPerformanceCaveat: false,
+          });
+        } catch (errDef) {
+          console.warn('[Globe3D] WebGL context creation failed entirely in this browser environment:', errDef);
+          setWebGlDisabled(true);
+          return;
+        }
+      }
+
+      if (!renderer) {
+        setWebGlDisabled(true);
+        return;
+      }
+
       renderer.setSize(width, height);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -2750,6 +2790,17 @@ export default function Globe3D({
       }
     }
   }, [dataset, encounters, satellitePositions, encounterCount]);
+
+  if (webGlDisabled) {
+    return (
+      <TacticalRadarFallback2D
+        satellitePositions={satellitePositions}
+        selectedSatName={selectedSatName}
+        onSelectSat={onSelectSat}
+        onUnfocus={onUnfocus}
+      />
+    );
+  }
 
   return (
     <div className="relative w-full h-full select-none overflow-hidden bg-black">

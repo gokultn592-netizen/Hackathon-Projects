@@ -42,6 +42,7 @@ import SpaceCam from './components/SpaceCam';
 import GlobalStatusBar from './components/GlobalStatusBar';
 import SatelliteCard from './components/SatelliteCard';
 import MathDerivationModal from './components/MathDerivationModal';
+import BPlaneEncounterVisualizer from './components/BPlaneEncounterVisualizer';
 import LazyBoundary from './components/LazyBoundary';
 import { lazyWithRetry } from './utils/lazyWithRetry';
 
@@ -535,6 +536,9 @@ function MissionControlDashboard() {
   // Real-Time Mathematical Derivation Solver Modal
   const [mathModalOpen, setMathModalOpen] = useState(false);
 
+  // NASA CARA 2D B-Plane & TCA Flight Scrubber Modal
+  const [bplaneModalOpen, setBplaneModalOpen] = useState(false);
+
   // Heliocentric Solar System Mode State
   const [viewMode, setViewMode] = useState<'EARTH' | 'SOLAR_SYSTEM'>('EARTH');
   const [selectedPlanet, setSelectedPlanet] = useState<CelestialBodyData | null>(null);
@@ -948,30 +952,32 @@ function MissionControlDashboard() {
 
       {/* ====== 3D WEBGL GLOBE VIEWPORT ====== */}
       <div className="absolute inset-0 w-full h-full z-0">
-        <Globe3D
-          dataset={dataset}
-          encounterCount={limit}
-          encounters={data}
-          satellitePositions={satellitePositions}
-          avoidanceActive={avoidanceActive}
-          selectedSatName={selectedSat?.name}
-          selectedSatNoradId={selectedSat?.noradId}
-          selectedConstellationCategory={
-            PRESET_CONSTELLATIONS.find((preset) => preset.id === selectedPresetId)?.category || null
-          }
-          onSelectSat={handleSelectSatFromGlobe}
-          onUnfocus={handleUnfocusSat}
-          showOrbits={showOrbits}
-          cameraTrigger={cameraTrigger}
-          speedMultiplier={speedMultiplier}
-          isRealtime={isRealtime}
-          onAccidentTelemetryUpdate={setLiveAccidentTelemetry}
-          onFpsUpdate={setLiveFps}
-          isModalOpen={collisionModalOpen || devSettingsOpen || healthModalOpen || shortcutsModalOpen || Boolean(selectedEncounter)}
-          viewMode={viewMode}
-          selectedPlanetId={selectedPlanet?.id}
-          onSelectPlanet={setSelectedPlanet}
-        />
+        <LazyBoundary label="3D Orbital Viewport">
+          <Globe3D
+            dataset={dataset}
+            encounterCount={limit}
+            encounters={data}
+            satellitePositions={satellitePositions}
+            avoidanceActive={avoidanceActive}
+            selectedSatName={selectedSat?.name}
+            selectedSatNoradId={selectedSat?.noradId}
+            selectedConstellationCategory={
+              PRESET_CONSTELLATIONS.find((preset) => preset.id === selectedPresetId)?.category || null
+            }
+            onSelectSat={handleSelectSatFromGlobe}
+            onUnfocus={handleUnfocusSat}
+            showOrbits={showOrbits}
+            cameraTrigger={cameraTrigger}
+            speedMultiplier={speedMultiplier}
+            isRealtime={isRealtime}
+            onAccidentTelemetryUpdate={setLiveAccidentTelemetry}
+            onFpsUpdate={setLiveFps}
+            isModalOpen={collisionModalOpen || devSettingsOpen || healthModalOpen || shortcutsModalOpen || Boolean(selectedEncounter)}
+            viewMode={viewMode}
+            selectedPlanetId={selectedPlanet?.id}
+            onSelectPlanet={setSelectedPlanet}
+          />
+        </LazyBoundary>
       </div>
 
       {/* ====== CLEAN FLIGHT PRESENTATION MODE FLOATING PILL ====== */}
@@ -1573,11 +1579,22 @@ function MissionControlDashboard() {
         <button
           type="button"
           onClick={() => setMathModalOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-bold rounded-full border border-cyan-500/50 bg-cyan-950/70 text-cyan-300 hover:border-cyan-400 hover:bg-cyan-900/80 hover:text-white transition-all shadow-[0_0_15px_rgba(6,182,212,0.3)] cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-bold rounded-lg border border-cyan-500/40 bg-[#0a1526] text-cyan-300 hover:border-cyan-400 hover:bg-cyan-900/60 hover:text-white transition-all cursor-pointer"
           title="Open Real-Time Astrodynamics & Conjunction Mathematics Solver"
         >
           <span className="text-sm font-serif">∑</span>
           <span>MATH DERIVATION</span>
+        </button>
+
+        {/* NASA CARA 2D B-Plane Radar & TCA Scrubber Button */}
+        <button
+          type="button"
+          onClick={() => setBplaneModalOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-bold rounded-lg border border-emerald-500/40 bg-[#071615] text-emerald-300 hover:border-emerald-400 hover:bg-emerald-950/80 hover:text-white transition-all cursor-pointer"
+          title="Open NASA CARA B-Plane Covariance Radar & TCA Encounter Flight Scrubber"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span>B-PLANE RADAR</span>
         </button>
 
         {/* Real-Time Conjunction Threat Level Pill — REMOVED.
@@ -1844,6 +1861,12 @@ function MissionControlDashboard() {
         isOpen={mathModalOpen}
         onClose={() => setMathModalOpen(false)}
         selectedSat={selectedSat}
+      />
+
+      {/* ====== NASA CARA B-PLANE COVARIANCE & TCA ENCOUNTER SCRUBBER MODAL ====== */}
+      <BPlaneEncounterVisualizer
+        isOpen={bplaneModalOpen}
+        onClose={() => setBplaneModalOpen(false)}
       />
     </div>
   );
