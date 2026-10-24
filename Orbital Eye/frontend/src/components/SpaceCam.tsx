@@ -46,15 +46,15 @@ export default function SpaceCam() {
     return () => window.removeEventListener('keydown', onKey);
   }, [expanded]);
 
-  // Ensure video always plays without controls
+  // Ensure video always plays without controls only when actually mounted
   useEffect(() => {
-    if (videoRef.current) {
+    if (!collapsed && videoRef.current) {
       videoRef.current.play().catch(() => {});
     }
-    if (expandedVideoRef.current) {
+    if (expanded && expandedVideoRef.current) {
       expandedVideoRef.current.play().catch(() => {});
     }
-  }, [activeFeed, expanded]);
+  }, [activeFeed, expanded, collapsed]);
 
   return (
     <>

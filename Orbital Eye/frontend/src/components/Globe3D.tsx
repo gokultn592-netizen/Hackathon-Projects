@@ -349,6 +349,7 @@ export default function Globe3D({
 
   // WebGL context failure flag for graceful 2D tactical ground-track fallback
   const [webGlDisabled, setWebGlDisabled] = useState<boolean>(false);
+  const [sceneReloadKey, setSceneReloadKey] = useState<number>(0);
   const cleanupFnsRef = useRef<Array<() => void>>([]);
 
   // Persistent Three.js scene refs
@@ -599,8 +600,9 @@ export default function Globe3D({
         'webglcontextlost',
         (e) => {
           e.preventDefault();
-          console.warn('[Globe3D] WebGL context lost.');
+          console.warn('[Globe3D] WebGL context lost — scheduling scene rebuild.');
           if (animationFrameIdRef.current) cancelAnimationFrame(animationFrameIdRef.current);
+          setTimeout(() => setSceneReloadKey((k) => k + 1), 250);
         },
         false
       );
@@ -608,15 +610,14 @@ export default function Globe3D({
       renderer.domElement.addEventListener(
         'webglcontextrestored',
         () => {
-          console.info('[Globe3D] WebGL context restored.');
-          sceneRef.current = null;
-          rendererRef.current = null;
+          console.info('[Globe3D] WebGL context restored — triggering remount.');
+          setSceneReloadKey((k) => k + 1);
         },
         false
       );
 
       renderer.setSize(width, height);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.0;
       container.innerHTML = '';
@@ -2471,7 +2472,7 @@ export default function Globe3D({
       }
       sceneRef.current = null;
     };
-  }, []);
+  }, [sceneReloadKey]);
 
   // =========================================================================
   // REBUILD ORBITS ON DATASET / SATELLITE UPDATE
