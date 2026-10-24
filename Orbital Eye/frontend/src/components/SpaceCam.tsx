@@ -33,7 +33,7 @@ const FEEDS: SpaceFeed[] = [
 export default function SpaceCam() {
   const [activeFeed, setActiveFeed] = useState<SpaceFeed>(FEEDS[0]);
   const [expanded, setExpanded] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
   const expandedVideoRef = useRef<HTMLVideoElement>(null);
 
