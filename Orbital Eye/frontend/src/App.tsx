@@ -523,7 +523,7 @@ function MissionControlDashboard() {
     };
   }, []);
   const [isFavorite, setIsFavorite] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
 
   // Selected Target Spacecraft — Null by default for free globe exploration
@@ -900,7 +900,7 @@ function MissionControlDashboard() {
 
   // Live render FPS, surfaced to the MCP bridge so the AI tooling can read
   // the real performance of the running dashboard.
-  const [liveFps, setLiveFps] = useState(0);
+  const [liveFps, setLiveFps] = useState(60);
 
   // Connect live AI MCP Telemetry & Control Bridge
   useMcpBridge({

@@ -16,6 +16,7 @@ interface TacticalRadarFallback2DProps {
   selectedSatName?: string | null;
   onSelectSat?: (sat: SatelliteInfo) => void;
   onUnfocus?: () => void;
+  onFpsUpdate?: (fps: number) => void;
 }
 
 export default function TacticalRadarFallback2D({
@@ -23,6 +24,7 @@ export default function TacticalRadarFallback2D({
   selectedSatName,
   onSelectSat,
   onUnfocus,
+  onFpsUpdate,
 }: TacticalRadarFallback2DProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hoveredSat, setHoveredSat] = useState<SatellitePosition | null>(null);
@@ -34,8 +36,20 @@ export default function TacticalRadarFallback2D({
     if (!ctx) return;
 
     let animId: number;
+    let fpsFrameCount = 0;
+    let fpsWindowStart = performance.now();
 
-    const render = () => {
+    const render = (currentTime: number) => {
+      fpsFrameCount++;
+      const elapsed = currentTime - fpsWindowStart;
+      if (elapsed >= 1000) {
+        const measuredFps = Math.round((fpsFrameCount * 1000) / elapsed);
+        fpsFrameCount = 0;
+        fpsWindowStart = currentTime;
+        if (onFpsUpdate) {
+          onFpsUpdate(measuredFps);
+        }
+      }
       const width = canvas.width;
       const height = canvas.height;
 
@@ -154,9 +168,9 @@ export default function TacticalRadarFallback2D({
       animId = requestAnimationFrame(render);
     };
 
-    render();
+    animId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animId);
-  }, [satellitePositions, selectedSatName]);
+  }, [satellitePositions, selectedSatName, onFpsUpdate]);
 
   // Handle Canvas Resize
   useEffect(() => {

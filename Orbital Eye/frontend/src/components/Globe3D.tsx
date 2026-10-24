@@ -2844,6 +2844,7 @@ export default function Globe3D({
         selectedSatName={selectedSatName}
         onSelectSat={onSelectSat}
         onUnfocus={onUnfocus}
+        onFpsUpdate={onFpsUpdate}
       />
     );
   }
