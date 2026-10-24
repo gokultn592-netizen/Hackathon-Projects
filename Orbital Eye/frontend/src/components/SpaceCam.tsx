@@ -1,23 +1,50 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Hls from 'hls.js';
-import { Maximize, X, ChevronDown, ChevronUp, Radio } from './Icons';
+import { Maximize, X, ChevronDown, ChevronUp, Radio, ExternalLink } from './Icons';
 
 interface SpaceFeed {
   id: string;
   label: string;
+  shortLabel: string;
   tag: string;
   detail: string;
   type: 'hls' | 'video' | 'embed';
   src: string;
+  externalUrl?: string;
   fallbackVideoSrc?: string;
   resolution: string;
 }
 
 const FEEDS: SpaceFeed[] = [
   {
+    id: 'nasa-hd',
+    label: 'NASA ISS HD',
+    shortLabel: 'NASA HD',
+    tag: 'ISS HD LIVE',
+    detail: 'NASA Official Live HD Views from the International Space Station · Harmony Port',
+    type: 'embed',
+    src: 'https://www.youtube-nocookie.com/embed/ROboUHfPUrU?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1',
+    externalUrl: 'https://www.youtube.com/watch?v=ROboUHfPUrU',
+    fallbackVideoSrc: '/videos/space_earth_view.mp4',
+    resolution: '1080P // NASA LIVE',
+  },
+  {
+    id: 'nasa-cam',
+    label: 'NASA ISS 2',
+    shortLabel: 'NASA 2',
+    tag: 'ISS CAM 2',
+    detail: 'NASA Official Live Video from the International Space Station · Exterior Array',
+    type: 'embed',
+    src: 'https://www.youtube-nocookie.com/embed/M3HKLzjvKPc?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1',
+    externalUrl: 'https://www.youtube.com/watch?v=M3HKLzjvKPc',
+    fallbackVideoSrc: '/videos/space_station_view.mp4',
+    resolution: '1080P // NASA CAM 2',
+  },
+  {
     id: 'sen-hls',
     label: 'SEN HLS LIVE',
+    shortLabel: 'SEN HLS',
     tag: 'HLS 24/7',
     detail: 'Sen Space 24/7 Earth & Space Live Broadcast · Columbus External Optical Array (AWS HLS)',
     type: 'hls',
@@ -26,18 +53,9 @@ const FEEDS: SpaceFeed[] = [
     resolution: '1080P // HLS LIVE',
   },
   {
-    id: 'nasa-live',
-    label: 'NASA LIVE',
-    tag: 'ISS REAL-TIME',
-    detail: 'NASA ISS Official Live Telemetry & Earth Views · Harmony Optical Downlink',
-    type: 'embed',
-    src: 'https://www.youtube-nocookie.com/embed/21X5lGlDOfg?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&disablekb=1',
-    fallbackVideoSrc: '/videos/space_station_view.mp4',
-    resolution: 'LIVE TELEMETRY',
-  },
-  {
     id: 'sen-4k',
     label: '4K EARTH',
+    shortLabel: '4K LOOP',
     tag: '4K UHD',
     detail: 'Sen 4K UHD Optical Array · Columbus External Payload (Local 4K Optical Cache)',
     type: 'video',
@@ -47,20 +65,12 @@ const FEEDS: SpaceFeed[] = [
   {
     id: 'iss-nadir',
     label: 'NADIR VIEW',
+    shortLabel: 'NADIR',
     tag: 'HDEV SENSOR',
     detail: 'ISS High Definition Earth-Viewing (HDEV) Sensor · Nadir Optical Port',
     type: 'video',
     src: '/videos/space_nadir_view.mp4',
     resolution: '1080P // NADIR',
-  },
-  {
-    id: 'iss-station',
-    label: 'STATION VIEW',
-    tag: 'DESTINY CAM',
-    detail: 'Destiny Laboratory Wide-Angle Cam · Solar Array Telemetry',
-    type: 'video',
-    src: '/videos/space_station_view.mp4',
-    resolution: '1080P // SOLAR ARRAY',
   },
 ];
 
@@ -222,9 +232,9 @@ export default function SpaceCam() {
                 <iframe
                   src={activeFeed.src}
                   title={activeFeed.label}
-                  className="w-full h-full border-0 pointer-events-none select-none scale-[1.02]"
-                  allow="autoplay; encrypted-media"
-                  sandbox="allow-scripts allow-same-origin allow-presentation"
+                  className="w-full h-full border-0 select-none"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
                 />
               ) : (
                 <video
@@ -244,15 +254,17 @@ export default function SpaceCam() {
               <div className="absolute bottom-2 left-2 text-[10px] font-mono text-cyan-400/40 pointer-events-none">└</div>
               <div className="absolute bottom-2 right-2 text-[10px] font-mono text-cyan-400/40 pointer-events-none">┘</div>
 
-              {/* Click to expand overlay */}
-              <div
-                className="absolute inset-0 cursor-pointer flex items-center justify-center opacity-0 group-hover/player:opacity-100 transition-opacity bg-black/25"
-                onClick={() => setExpanded(true)}
-                title="Click to expand"
-              >
-                <span className="px-2.5 py-1 rounded-full bg-black/85 backdrop-blur-md text-[10px] font-mono text-cyan-300 border border-cyan-500/40 shadow-lg">
-                  EXPAND SENSOR FEED ↗
-                </span>
+              {/* Expand button on top-right */}
+              <div className="absolute top-2 right-2 z-10 opacity-0 group-hover/player:opacity-100 transition-opacity">
+                <button
+                  type="button"
+                  onClick={() => setExpanded(true)}
+                  className="px-2 py-1 rounded bg-black/85 backdrop-blur-md text-[9px] font-mono text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/20 shadow-lg flex items-center gap-1 cursor-pointer transition-colors"
+                  title="Expand to Fullscreen"
+                >
+                  <Maximize className="w-2.5 h-2.5" />
+                  EXPAND
+                </button>
               </div>
             </div>
 
@@ -270,7 +282,7 @@ export default function SpaceCam() {
                   }`}
                   title={`${f.label} (${f.tag})`}
                 >
-                  {f.label.split(' ')[0]}
+                  {f.shortLabel}
                 </button>
               ))}
             </div>
@@ -280,9 +292,23 @@ export default function SpaceCam() {
               <div className="text-[10px] font-mono text-zinc-300 truncate" title={activeFeed.detail}>
                 {activeFeed.detail}
               </div>
-              <span className="text-[9px] font-mono text-cyan-400/80 whitespace-nowrap">
-                {activeFeed.resolution}
-              </span>
+              <div className="flex items-center gap-2 whitespace-nowrap">
+                {activeFeed.externalUrl && (
+                  <a
+                    href={activeFeed.externalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[9px] font-mono text-cyan-400 hover:text-cyan-200 flex items-center gap-0.5 underline"
+                    title="Open official NASA stream in new tab"
+                  >
+                    <span>OPEN</span>
+                    <ExternalLink className="w-2.5 h-2.5" />
+                  </a>
+                )}
+                <span className="text-[9px] font-mono text-cyan-400/80">
+                  {activeFeed.resolution}
+                </span>
+              </div>
             </div>
           </>
         )}
@@ -303,10 +329,25 @@ export default function SpaceCam() {
               </span>
               <span className="text-xs font-mono text-zinc-400 hidden sm:inline">· {activeFeed.detail}</span>
 
+              {activeFeed.externalUrl && (
+                <a
+                  href={activeFeed.externalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1 rounded-lg text-xs font-mono text-cyan-400 hover:text-cyan-200 border border-cyan-500/30 hover:bg-cyan-500/10 transition-colors flex items-center gap-1.5 ml-auto"
+                  title="Open live broadcast on YouTube"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  OFFICIAL BROADCAST ↗
+                </a>
+              )}
+
               <button
                 type="button"
                 onClick={() => setExpanded(false)}
-                className="ml-auto p-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                className={`p-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors cursor-pointer ${
+                  activeFeed.externalUrl ? '' : 'ml-auto'
+                }`}
                 title="Close (Esc)"
               >
                 <X className="w-5 h-5" />
@@ -319,9 +360,9 @@ export default function SpaceCam() {
                 <iframe
                   src={activeFeed.src}
                   title={activeFeed.label}
-                  className="w-full h-full border-0 select-none scale-[1.01]"
-                  allow="autoplay; encrypted-media"
-                  sandbox="allow-scripts allow-same-origin allow-presentation"
+                  className="w-full h-full border-0 select-none"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
                 />
               ) : (
                 <video
