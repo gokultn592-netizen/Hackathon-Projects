@@ -1596,6 +1596,39 @@ function MissionControlDashboard() {
           <Layers className="w-3.5 h-3.5" />
         </button>
 
+        {/* Camera Zoom In */}
+        <button
+          type="button"
+          onClick={() => setCameraTrigger({ type: 'zoomin', timestamp: Date.now() })}
+          className="p-2 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-all shadow-lg cursor-pointer"
+          title="Zoom In"
+        >
+          <ZoomIn className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Camera Zoom Out */}
+        <button
+          type="button"
+          onClick={() => setCameraTrigger({ type: 'zoomout', timestamp: Date.now() })}
+          className="p-2 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-all shadow-lg cursor-pointer"
+          title="Zoom Out"
+        >
+          <ZoomOut className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Reset Camera to Orbital Overview */}
+        <button
+          type="button"
+          onClick={() => {
+            setCameraTrigger({ type: 'reset', timestamp: Date.now() });
+            showToast('Camera reset to orbital overview.', 'info');
+          }}
+          className="p-2 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-all shadow-lg cursor-pointer"
+          title="Reset Camera to Orbital Overview"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+        </button>
+
         {/* Fullscreen Button */}
         <button
           type="button"
@@ -1615,7 +1648,7 @@ function MissionControlDashboard() {
               ? 'bg-red-950/40 border-red-500/40 text-red-400 hover:text-red-200'
               : 'bg-black/60 border-teal-500/40 text-teal-300 hover:text-white'
           }`}
-          title={isMuted ? 'Unmute Mission Audio (M)' : 'Mute Mission Audio (M)'}
+          title={isMuted ? 'Unmute Mission Audio' : 'Mute Mission Audio'}
         >
           {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
         </button>

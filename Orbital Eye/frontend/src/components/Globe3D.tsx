@@ -844,24 +844,13 @@ export default function Globe3D({
       constellationRingsRef.current = constellationRings;
 
       // ---- CELESTIAL LIGHTING ----
-      const ambientLight = new THREE.AmbientLight(0xffffff, 1.25);
+      const ambientLight = new THREE.AmbientLight(0xffffff, 1.15);
       scene.add(ambientLight);
 
-      // Direct Celestial Sunlight illuminating Earth
-      const directSunLight = new THREE.DirectionalLight(0xfffbeb, 2.8);
-      directSunLight.position.set(4.0, 3.0, 4.5);
-      scene.add(directSunLight);
-
-      // Deep Space Earth Rim Light (Atmospheric limb highlight)
-      const earthRimLight = new THREE.DirectionalLight(0x38bdf8, 1.6);
+      // Deep Space Earth Rim Light
+      const earthRimLight = new THREE.DirectionalLight(0x38bdf8, 1.8);
       earthRimLight.position.set(-6, 2, -4);
       scene.add(earthRimLight);
-
-      // Soft Camera Follow Light to ensure Earth is never pitch black from any angle
-      const cameraFollowLight = new THREE.DirectionalLight(0xa5f3fc, 0.85);
-      cameraFollowLight.position.set(0, 0, 1);
-      camera.add(cameraFollowLight);
-      scene.add(camera);
 
       // Explosion / Thruster Lights
       const collisionPointLight = new THREE.PointLight(0xff4422, 0, 4.0);
@@ -872,123 +861,23 @@ export default function Globe3D({
       scene.add(thrusterBurnLight);
       thrusterBurnLightRef.current = thrusterBurnLight;
 
-      // ---- INSTANT PROCEDURAL BLUE MARBLE FALLBACK TEXTURE ----
-      // Generates an immediate synchronous procedural Earth canvas so the globe is
-      // NEVER rendered as a black void, even on frame 1 or slow/failed networks.
-      const canvasFallback = document.createElement('canvas');
-      canvasFallback.width = 1024;
-      canvasFallback.height = 512;
-      const fCtx = canvasFallback.getContext('2d');
-      if (fCtx) {
-        // Oceanic deep blue gradient
-        const oceanGrad = fCtx.createLinearGradient(0, 0, 0, 512);
-        oceanGrad.addColorStop(0, '#0c1e3d');
-        oceanGrad.addColorStop(0.5, '#073663');
-        oceanGrad.addColorStop(1, '#0c1e3d');
-        fCtx.fillStyle = oceanGrad;
-        fCtx.fillRect(0, 0, 1024, 512);
-
-        // Subtle geopolitical coordinate grid
-        fCtx.strokeStyle = 'rgba(56, 189, 248, 0.12)';
-        fCtx.lineWidth = 1;
-        for (let x = 0; x <= 1024; x += 64) {
-          fCtx.beginPath();
-          fCtx.moveTo(x, 0);
-          fCtx.lineTo(x, 512);
-          fCtx.stroke();
-        }
-        for (let y = 0; y <= 512; y += 32) {
-          fCtx.beginPath();
-          fCtx.moveTo(0, y);
-          fCtx.lineTo(1024, y);
-          fCtx.stroke();
-        }
-
-        // Continents / Major Landmasses
-        fCtx.fillStyle = '#1e3a5f';
-        // Eurasia
-        fCtx.beginPath();
-        fCtx.ellipse(620, 180, 190, 95, -0.15, 0, Math.PI * 2);
-        fCtx.fill();
-        // Africa
-        fCtx.beginPath();
-        fCtx.ellipse(540, 300, 95, 115, 0.1, 0, Math.PI * 2);
-        fCtx.fill();
-        // North America
-        fCtx.beginPath();
-        fCtx.ellipse(240, 175, 130, 85, 0.25, 0, Math.PI * 2);
-        fCtx.fill();
-        // South America
-        fCtx.beginPath();
-        fCtx.ellipse(325, 335, 75, 110, 0.2, 0, Math.PI * 2);
-        fCtx.fill();
-        // Australia
-        fCtx.beginPath();
-        fCtx.ellipse(820, 350, 60, 45, -0.1, 0, Math.PI * 2);
-        fCtx.fill();
-        // Polar ice caps
-        fCtx.fillStyle = '#e2e8f0';
-        fCtx.fillRect(0, 0, 1024, 28);
-        fCtx.fillRect(0, 486, 1024, 26);
-      }
-      const proceduralEarthTex = new THREE.CanvasTexture(canvasFallback);
-      proceduralEarthTex.colorSpace = THREE.SRGBColorSpace;
-
       // ---- PHOTOREALISTIC NASA BLUE MARBLE EARTH ----
       const textureLoader = new THREE.TextureLoader();
+      const earthDayTexture = textureLoader.load('/textures/earth_day_4k.jpg');
+      earthDayTexture.colorSpace = THREE.SRGBColorSpace;
+      const earthNormalTexture = textureLoader.load('/textures/earth_normal_2k.jpg');
+      const earthSpecularTexture = textureLoader.load('/textures/earth_specular_2k.jpg');
+      const earthNightTexture = textureLoader.load('/textures/earth_lights_2k.png');
 
-      // Earth Material: Start with procedural fallback so Earth is instantly visible
-      const earthMat = new THREE.MeshStandardMaterial({
-        map: proceduralEarthTex,
-        roughness: 0.55,
-        metalness: 0.1,
+      const earthMat = new THREE.MeshPhongMaterial({
+        map: earthDayTexture,
+        normalMap: earthNormalTexture,
+        normalScale: new THREE.Vector2(0.85, 0.85),
+        specularMap: earthSpecularTexture,
+        specular: new THREE.Color(0x335577),
+        shininess: 25,
         color: 0xffffff,
       });
-
-      // Load 2K NASA Blue Marble (2048x1024) - reliably supported across all WebGL GPUs
-      const earthDayTexture = textureLoader.load(
-        '/textures/earth_day_2k.jpg',
-        (tex) => {
-          tex.colorSpace = THREE.SRGBColorSpace;
-          earthMat.map = tex;
-          earthMat.needsUpdate = true;
-        },
-        undefined,
-        (err) => {
-          console.warn('[Globe3D] Procedural fallback active for Earth day texture:', err);
-        }
-      );
-      earthDayTexture.colorSpace = THREE.SRGBColorSpace;
-
-      // Load 2K NASA Night Lights for glowing city lights across the unlit hemisphere
-      textureLoader.load(
-        '/textures/earth_lights_2k.png',
-        (nightTex) => {
-          nightTex.colorSpace = THREE.SRGBColorSpace;
-          earthMat.emissiveMap = nightTex;
-          earthMat.emissive = new THREE.Color(0xfff3d6);
-          earthMat.emissiveIntensity = 0.95;
-          earthMat.needsUpdate = true;
-        }
-      );
-
-      // Load Normal & Specular/Roughness Maps
-      textureLoader.load(
-        '/textures/earth_normal_2k.jpg',
-        (normalTex) => {
-          earthMat.normalMap = normalTex;
-          earthMat.normalScale = new THREE.Vector2(0.65, 0.65);
-          earthMat.needsUpdate = true;
-        }
-      );
-
-      textureLoader.load(
-        '/textures/earth_specular_2k.jpg',
-        (specTex) => {
-          earthMat.roughnessMap = specTex;
-          earthMat.needsUpdate = true;
-        }
-      );
 
       const earthGeo = new THREE.SphereGeometry(1.0, 64, 64);
       const earthMesh = new THREE.Mesh(earthGeo, earthMat);
@@ -1002,10 +891,10 @@ export default function Globe3D({
       // ---- 3D REALISTIC DYNAMIC CLOUD LAYER ----
       const earthCloudsTexture = textureLoader.load('/textures/earth_clouds_1k.png');
       const cloudsGeo = new THREE.SphereGeometry(1.006, 64, 64);
-      const cloudsMat = new THREE.MeshStandardMaterial({
+      const cloudsMat = new THREE.MeshPhongMaterial({
         map: earthCloudsTexture,
         transparent: true,
-        opacity: 0.45,
+        opacity: 0.42,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       });
@@ -1027,8 +916,7 @@ export default function Globe3D({
         fragmentShader: `
           varying vec3 vNormal;
           void main() {
-            float viewDot = dot(vNormal, vec3(0.0, 0.0, 1.0));
-            float intensity = pow(max(0.0, 0.70 - viewDot), 2.6);
+            float intensity = pow(0.65 - dot(vNormal, vec3(0, 0, 1.0)), 2.8);
             gl_FragColor = vec4(0.24, 0.65, 1.0, 1.0) * intensity;
           }
         `,
@@ -1040,6 +928,11 @@ export default function Globe3D({
       const atmosphereMesh = new THREE.Mesh(atmosphereGeo, atmosphereMat);
       scene.add(atmosphereMesh);
       atmosphereMeshRef.current = atmosphereMesh;
+
+      // Direct Celestial Sunlight illuminating North America
+      const directSunLight = new THREE.DirectionalLight(0xfffbeb, 3.2);
+      directSunLight.position.set(3.5, 3.0, 4.0);
+      scene.add(directSunLight);
 
       // ---- 3D SELECTION RETICLE (AEROSPACE TARGET LOCK) ----
       const reticleGroup = new THREE.Group();
@@ -1583,15 +1476,21 @@ export default function Globe3D({
       };
 
       container.addEventListener('mousedown', onMouseDown);
+      container.addEventListener('pointerdown', onMouseDown);
       window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('pointermove', onMouseMove);
       window.addEventListener('mouseup', onMouseUp);
+      window.addEventListener('pointerup', onMouseUp);
       container.addEventListener('click', onClick);
       container.addEventListener('wheel', onWheel, { passive: false });
 
       cleanupFnsRef.current.push(() => {
         container.removeEventListener('mousedown', onMouseDown);
+        container.removeEventListener('pointerdown', onMouseDown);
         window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('pointermove', onMouseMove);
         window.removeEventListener('mouseup', onMouseUp);
+        window.removeEventListener('pointerup', onMouseUp);
         container.removeEventListener('click', onClick);
         container.removeEventListener('wheel', onWheel);
       });
