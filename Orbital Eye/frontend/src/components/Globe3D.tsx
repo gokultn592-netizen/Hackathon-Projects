@@ -847,10 +847,15 @@ export default function Globe3D({
       const ambientLight = new THREE.AmbientLight(0xffffff, 1.15);
       scene.add(ambientLight);
 
-      // Deep Space Earth Rim Light
+      // Deep Space Earth Rim Light (back-side atmospheric blue rim)
       const earthRimLight = new THREE.DirectionalLight(0x38bdf8, 1.8);
       earthRimLight.position.set(-6, 2, -4);
       scene.add(earthRimLight);
+
+      // Camera-facing Key Light so the Earth-facing hemisphere is always brilliantly illuminated
+      const earthKeyLight = new THREE.DirectionalLight(0xffffff, 1.2);
+      earthKeyLight.position.set(5, 3, 5);
+      scene.add(earthKeyLight);
 
       // Explosion / Thruster Lights
       const collisionPointLight = new THREE.PointLight(0xff4422, 0, 4.0);
@@ -863,11 +868,55 @@ export default function Globe3D({
 
       // ---- PHOTOREALISTIC NASA BLUE MARBLE EARTH ----
       const textureLoader = new THREE.TextureLoader();
-      const earthDayTexture = textureLoader.load('/textures/earth_day_4k.jpg');
+
+      // Explicit error logger for DevTools diagnostics
+      const onTexError = (err: unknown) =>
+        console.error('[Globe3D] Earth texture failed to load:', err);
+
+      const earthDayTexture = textureLoader.load(
+        '/textures/earth_day_4k.jpg',
+        () => {
+          earthMat.needsUpdate = true;
+        },
+        undefined,
+        (err) => {
+          console.warn('[Globe3D] 4K Earth texture failed, falling back to 2K:', err);
+          textureLoader.load(
+            '/textures/earth_day_2k.jpg',
+            (tex2k) => {
+              tex2k.colorSpace = THREE.SRGBColorSpace;
+              earthMat.map = tex2k;
+              earthMat.needsUpdate = true;
+            },
+            undefined,
+            onTexError
+          );
+        }
+      );
       earthDayTexture.colorSpace = THREE.SRGBColorSpace;
-      const earthNormalTexture = textureLoader.load('/textures/earth_normal_2k.jpg');
-      const earthSpecularTexture = textureLoader.load('/textures/earth_specular_2k.jpg');
-      const earthNightTexture = textureLoader.load('/textures/earth_lights_2k.png');
+
+      const earthNormalTexture = textureLoader.load(
+        '/textures/earth_normal_2k.jpg',
+        () => {
+          earthMat.needsUpdate = true;
+        },
+        undefined,
+        onTexError
+      );
+      const earthSpecularTexture = textureLoader.load(
+        '/textures/earth_specular_2k.jpg',
+        () => {
+          earthMat.needsUpdate = true;
+        },
+        undefined,
+        onTexError
+      );
+      const earthNightTexture = textureLoader.load(
+        '/textures/earth_lights_2k.png',
+        undefined,
+        undefined,
+        onTexError
+      );
 
       const earthMat = new THREE.MeshPhongMaterial({
         map: earthDayTexture,
@@ -877,6 +926,10 @@ export default function Globe3D({
         specular: new THREE.Color(0x335577),
         shininess: 25,
         color: 0xffffff,
+        // SAFETY NET: Earth always maintains deep navy blue body luminescence
+        // preventing it from ever vanishing into deep space blackness
+        emissive: new THREE.Color(0x0a1a2a),
+        emissiveIntensity: 0.35,
       });
 
       const earthGeo = new THREE.SphereGeometry(1.0, 64, 64);
@@ -889,7 +942,14 @@ export default function Globe3D({
       earthMeshRef.current = earthMesh;
 
       // ---- 3D REALISTIC DYNAMIC CLOUD LAYER ----
-      const earthCloudsTexture = textureLoader.load('/textures/earth_clouds_1k.png');
+      const earthCloudsTexture = textureLoader.load(
+        '/textures/earth_clouds_1k.png',
+        () => {
+          cloudsMat.needsUpdate = true;
+        },
+        undefined,
+        onTexError
+      );
       const cloudsGeo = new THREE.SphereGeometry(1.006, 64, 64);
       const cloudsMat = new THREE.MeshPhongMaterial({
         map: earthCloudsTexture,
@@ -916,7 +976,7 @@ export default function Globe3D({
         fragmentShader: `
           varying vec3 vNormal;
           void main() {
-            float intensity = pow(0.65 - dot(vNormal, vec3(0, 0, 1.0)), 2.8);
+            float intensity = pow(max(0.0, 0.65 - dot(vNormal, vec3(0, 0, 1.0))), 2.8);
             gl_FragColor = vec4(0.24, 0.65, 1.0, 1.0) * intensity;
           }
         `,
