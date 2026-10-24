@@ -410,6 +410,9 @@ export default function Globe3D({
   } | null>(null);
 
   const animationFrameIdRef = useRef<number>(0);
+  // Flag set during intentional renderer.dispose() to suppress the
+  // webglcontextlost handler so we don't trigger an infinite remount loop.
+  const isIntentionalTeardownRef = useRef<boolean>(false);
   const orbitsRef = useRef<OrbitDefinition[]>([]);
 
   // Solar System & Heliocentric state refs
@@ -562,11 +565,15 @@ export default function Globe3D({
       cleanupFnsRef.current = [];
       if (rendererRef.current) {
         try {
+          // Suppress the webglcontextlost handler so it doesn't fire
+          // setSceneReloadKey and create an infinite remount loop.
+          isIntentionalTeardownRef.current = true;
           rendererRef.current.dispose();
           if (rendererRef.current.domElement?.parentNode) {
             rendererRef.current.domElement.parentNode.removeChild(rendererRef.current.domElement);
           }
         } catch {}
+        isIntentionalTeardownRef.current = false;
         rendererRef.current = null;
       }
       sceneRef.current = null;
@@ -621,6 +628,8 @@ export default function Globe3D({
         'webglcontextlost',
         (e) => {
           e.preventDefault();
+          // Only rebuild on REAL GPU context loss, not on our own dispose() call.
+          if (isIntentionalTeardownRef.current) return;
           console.warn('[Globe3D] WebGL context lost — scheduling scene rebuild.');
           if (animationFrameIdRef.current) cancelAnimationFrame(animationFrameIdRef.current);
           setTimeout(() => setSceneReloadKey((k) => k + 1), 250);
@@ -631,6 +640,8 @@ export default function Globe3D({
       renderer.domElement.addEventListener(
         'webglcontextrestored',
         () => {
+          // Only act on real context restoration (not intentional teardown).
+          if (isIntentionalTeardownRef.current) return;
           console.info('[Globe3D] WebGL context restored — triggering remount.');
           setSceneReloadKey((k) => k + 1);
         },
