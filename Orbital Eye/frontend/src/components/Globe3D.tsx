@@ -551,6 +551,27 @@ export default function Globe3D({
     const container = mountRef.current;
     if (!container) return;
 
+    // When sceneReloadKey changes (context loss recovery), tear down the stale
+    // scene before the init guard runs so it actually re-builds.
+    if (sceneRef.current || rendererRef.current) {
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+        animationFrameIdRef.current = 0;
+      }
+      cleanupFnsRef.current.forEach((fn) => { try { fn(); } catch {} });
+      cleanupFnsRef.current = [];
+      if (rendererRef.current) {
+        try {
+          rendererRef.current.dispose();
+          if (rendererRef.current.domElement?.parentNode) {
+            rendererRef.current.domElement.parentNode.removeChild(rendererRef.current.domElement);
+          }
+        } catch {}
+        rendererRef.current = null;
+      }
+      sceneRef.current = null;
+    }
+
     let width = container.clientWidth || window.innerWidth;
     let height = container.clientHeight || window.innerHeight;
 
