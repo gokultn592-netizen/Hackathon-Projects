@@ -76,7 +76,7 @@ interface Globe3DProps {
 }
 
 interface OrbitDefinition {
-  mesh: THREE.Mesh;
+  mesh: THREE.Mesh | THREE.Group;
   hitMesh: THREE.Mesh;
   trailLine: THREE.Line;
   radius: number;
@@ -699,6 +699,8 @@ export default function Globe3D({
           },
         },
         vertexShader: `
+          #include <common>
+          #include <logdepthbuf_pars_vertex>
           attribute vec3 color;
           attribute float categoryCode;
           varying vec3 vColor;
@@ -707,22 +709,26 @@ export default function Globe3D({
             vColor = color;
             vCategoryCode = categoryCode;
             vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-            gl_PointSize = (11.0 / -mvPosition.z);
+            gl_PointSize = clamp(26.0 / -mvPosition.z, 4.0, 10.0);
             gl_Position = projectionMatrix * mvPosition;
+            #include <logdepthbuf_vertex>
           }
         `,
         fragmentShader: `
+          #include <common>
+          #include <logdepthbuf_pars_fragment>
           varying vec3 vColor;
           varying float vCategoryCode;
           uniform float selectedCategory;
           void main() {
+            #include <logdepthbuf_fragment>
             float dist = length(gl_PointCoord - vec2(0.5));
             if (dist > 0.5) discard;
             float alpha = smoothstep(0.5, 0.08, dist);
             float selected = 1.0 - step(0.5, abs(vCategoryCode - selectedCategory));
             float brightness = selectedCategory > 0.5 ? mix(0.45, 1.25, selected) : 1.0;
             float visibility = selectedCategory > 0.5 ? mix(0.15, 1.0, selected) : 1.0;
-            gl_FragColor = vec4(vColor * brightness, alpha * 0.85 * visibility);
+            gl_FragColor = vec4(vColor * brightness, alpha * 0.9 * visibility);
           }
         `,
         transparent: true,
@@ -766,6 +772,8 @@ export default function Globe3D({
             },
           },
           vertexShader: `
+            #include <common>
+            #include <logdepthbuf_pars_vertex>
             attribute vec3 color;
             attribute float categoryCode;
             varying vec3 vColor;
@@ -774,13 +782,17 @@ export default function Globe3D({
               vColor = color;
               vCategoryCode = categoryCode;
               gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+              #include <logdepthbuf_vertex>
             }
           `,
           fragmentShader: `
+            #include <common>
+            #include <logdepthbuf_pars_fragment>
             varying vec3 vColor;
             varying float vCategoryCode;
             uniform float selectedCategory;
             void main() {
+              #include <logdepthbuf_fragment>
               // Dim the rings of constellations that are not selected.
               float selected = 1.0 - step(0.5, abs(vCategoryCode - selectedCategory));
               float alpha = selectedCategory > 0.5 ? mix(0.05, 0.42, selected) : 0.16;
@@ -984,6 +996,20 @@ export default function Globe3D({
       reticleGroup.add(createBracket(Math.PI / 2));
       reticleGroup.add(createBracket(Math.PI));
       reticleGroup.add(createBracket((3 * Math.PI) / 2));
+
+      // Central Lock-On Diamond Pip (guarantees targeted satellite is prominently locked)
+      const centerPipMat = new THREE.MeshBasicMaterial({
+        color: 0x5eead4,
+        transparent: true,
+        opacity: 0.95,
+        side: THREE.DoubleSide,
+      });
+      const centerPip = new THREE.Mesh(
+        new THREE.RingGeometry(0.005, 0.009, 4),
+        centerPipMat
+      );
+      centerPip.rotation.z = Math.PI / 4;
+      reticleGroup.add(centerPip);
 
       reticleGroup.visible = false;
       scene.add(reticleGroup);
@@ -1914,6 +1940,9 @@ export default function Globe3D({
           if (atmosphereMeshRef.current) atmosphereMeshRef.current.visible = true;
           if (constellationPointsRef.current) constellationPointsRef.current.visible = (datasetRef.current !== 'ACCIDENT');
           if (constellationRingsRef.current) constellationRingsRef.current.visible = (datasetRef.current !== 'ACCIDENT');
+          orbitsRef.current.forEach((o) => {
+            o.mesh.visible = true;
+          });
         }
 
         // Earth & atmospheric clouds rotation (proportional to time acceleration)
@@ -2474,7 +2503,11 @@ export default function Globe3D({
     orbitsRef.current.forEach((orbit) => {
       scene.remove(orbit.mesh);
       scene.remove(orbit.trailLine);
-      orbit.mesh.geometry.dispose();
+      orbit.mesh.traverse((child) => {
+        if ((child as THREE.Mesh).geometry) {
+          (child as THREE.Mesh).geometry.dispose();
+        }
+      });
       orbit.trailLine.geometry.dispose();
     });
     orbitsRef.current = [];
@@ -2691,24 +2724,87 @@ export default function Globe3D({
           .addScaledVector(u0, flagRadius * Math.cos(initialTheta))
           .addScaledVector(w0, flagRadius * Math.sin(initialTheta));
 
-        const flagMat = new THREE.MeshStandardMaterial({
+        // High-visibility 3D spacecraft group with solar arrays + glowing beacon
+        const satGroup = new THREE.Group();
+        satGroup.position.copy(initialPos);
+        satGroup.userData = { encounterIndex: -100 - fIdx, isFlagship: true };
+
+        if (fIdx < 2) {
+          // Space Stations (ISS, Tiangong): Central cylinder module + cross truss + twin solar arrays
+          const coreMat = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            emissive: flagship.colorHex,
+            emissiveIntensity: 0.6,
+            metalness: 0.8,
+            roughness: 0.2,
+          });
+          const core = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.038, 12), coreMat);
+          core.rotation.z = Math.PI / 2;
+          satGroup.add(core);
+
+          const truss = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, 0.062, 8), coreMat);
+          satGroup.add(truss);
+
+          const solarMat = new THREE.MeshStandardMaterial({
+            color: 0x0f172a,
+            emissive: flagship.colorHex,
+            emissiveIntensity: 0.9,
+            metalness: 0.5,
+            roughness: 0.3,
+          });
+          const panelGeo = new THREE.BoxGeometry(0.022, 0.001, 0.014);
+          const panelL = new THREE.Mesh(panelGeo, solarMat);
+          panelL.position.x = -0.025;
+          satGroup.add(panelL);
+
+          const panelR = new THREE.Mesh(panelGeo, solarMat);
+          panelR.position.x = 0.025;
+          satGroup.add(panelR);
+        } else {
+          // Flagship Satellites (AST, Planet, EchoStar, Spire): Cubesat/Bus body + solar wings
+          const bodyMat = new THREE.MeshStandardMaterial({
+            color: 0xf59e0b,
+            emissive: flagship.colorHex,
+            emissiveIntensity: 0.7,
+            metalness: 0.85,
+            roughness: 0.2,
+          });
+          const body = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 0.012), bodyMat);
+          satGroup.add(body);
+
+          const solarMat = new THREE.MeshStandardMaterial({
+            color: 0x0f172a,
+            emissive: flagship.colorHex,
+            emissiveIntensity: 0.85,
+            metalness: 0.5,
+          });
+          const wingGeo = new THREE.BoxGeometry(0.018, 0.001, 0.009);
+          const wingL = new THREE.Mesh(wingGeo, solarMat);
+          wingL.position.x = -0.015;
+          satGroup.add(wingL);
+
+          const wingR = new THREE.Mesh(wingGeo, solarMat);
+          wingR.position.x = 0.015;
+          satGroup.add(wingR);
+        }
+
+        // Luminous glowing beacon sprite: guarantees high-contrast visibility at ANY camera zoom level
+        const beaconMat = new THREE.SpriteMaterial({
+          map: getGlowDotTexture(),
           color: flagship.colorHex,
-          emissive: flagship.colorHex,
-          emissiveIntensity: 0.75,
-          roughness: 0.2,
-          metalness: 0.8,
+          transparent: true,
+          opacity: 0.95,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
         });
-        const flagMesh = new THREE.Mesh(
-          fIdx < 2 ? new THREE.OctahedronGeometry(0.012, 0) : new THREE.SphereGeometry(0.009, 12, 12),
-          flagMat
-        );
-        flagMesh.position.copy(initialPos);
-        flagMesh.userData = { encounterIndex: -100 - fIdx, isFlagship: true };
+        const beacon = new THREE.Sprite(beaconMat);
+        beacon.scale.set(0.042, 0.042, 1.0);
+        satGroup.add(beacon);
 
         const flagHitMesh = new THREE.Mesh(hitGeo, hitMat);
         flagHitMesh.userData = { encounterIndex: -100 - fIdx, isFlagship: true };
-        flagMesh.add(flagHitMesh);
-        scene.add(flagMesh);
+        satGroup.add(flagHitMesh);
+        scene.add(satGroup);
 
         const trailGeo = new THREE.BufferGeometry().setFromPoints(
           new Array(trailPointsCount).fill(0).map(() => new THREE.Vector3())
@@ -2724,7 +2820,7 @@ export default function Globe3D({
         const speed = 0.003 + (flagship.velocityKms / 7.66) * 0.0035;
 
         orbitsRef.current.push({
-          mesh: flagMesh,
+          mesh: satGroup,
           hitMesh: flagHitMesh,
           trailLine,
           radius: flagRadius,
@@ -2755,17 +2851,48 @@ export default function Globe3D({
         const pos = hasRealPositions ? satellitePositions[i] : null;
 
         const risk = (pos?.risk_category || enc.risk_category || enc.riskCategory || (i % 9 === 0 ? 'CRITICAL' : i % 3 === 0 ? 'CAUTION' : 'NOMINAL')) as 'NOMINAL' | 'CAUTION' | 'CRITICAL';
-        const mat = risk === 'CRITICAL' ? mats.criticalMat : risk === 'CAUTION' ? mats.cautionMat : mats.nominalMat;
+        const satColor = risk === 'CRITICAL' ? 0xf87171 : risk === 'CAUTION' ? 0xfbbf24 : 0x2dd4bf;
 
-        // Satellite jewel mesh
-        const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.007, 10, 10), mat.clone());
-        mesh.userData = { encounterIndex: i };
+        // Satellite Group with bus + solar wings + beacon
+        const satGroup = new THREE.Group();
+        satGroup.userData = { encounterIndex: i };
+
+        const bodyMat = new THREE.MeshStandardMaterial({
+          color: satColor,
+          emissive: satColor,
+          emissiveIntensity: 0.8,
+          metalness: 0.7,
+          roughness: 0.2,
+        });
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.010, 0.010, 0.010), bodyMat);
+        satGroup.add(body);
+
+        const wingGeo = new THREE.BoxGeometry(0.014, 0.001, 0.007);
+        const wingL = new THREE.Mesh(wingGeo, bodyMat);
+        wingL.position.x = -0.012;
+        satGroup.add(wingL);
+        const wingR = new THREE.Mesh(wingGeo, bodyMat);
+        wingR.position.x = 0.012;
+        satGroup.add(wingR);
+
+        // Glowing jewel beacon
+        const beaconMat = new THREE.SpriteMaterial({
+          map: getGlowDotTexture(),
+          color: satColor,
+          transparent: true,
+          opacity: 0.9,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        });
+        const beacon = new THREE.Sprite(beaconMat);
+        beacon.scale.set(0.032, 0.032, 1.0);
+        satGroup.add(beacon);
 
         // Precision hit target (0.035 radius)
         const hitMesh = new THREE.Mesh(hitGeo, hitMat);
         hitMesh.userData = { encounterIndex: i };
-        mesh.add(hitMesh);
-        scene.add(mesh);
+        satGroup.add(hitMesh);
+        scene.add(satGroup);
 
         const satName = enc.satAName || enc.satA || enc.sat_a_name || pos?.name || `LEO-OBJ-${25500 + i}`;
         const altKm = pos?.alt_km && pos.alt_km > 200 && pos.alt_km < 35000 ? pos.alt_km : 380 + (i % 22) * 36;
@@ -2803,7 +2930,7 @@ export default function Globe3D({
 
         const speed = 0.003 + (velKms / 7.66) * 0.0035;
 
-        mesh.position.copy(initialPos);
+        satGroup.position.copy(initialPos);
 
         // Orbital trail
         const trailGeo = new THREE.BufferGeometry().setFromPoints(
@@ -2818,7 +2945,7 @@ export default function Globe3D({
         scene.add(trailLine);
 
         orbitsRef.current.push({
-          mesh,
+          mesh: satGroup,
           hitMesh,
           trailLine,
           radius: r0,
