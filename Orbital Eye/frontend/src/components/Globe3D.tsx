@@ -844,10 +844,15 @@ export default function Globe3D({
       constellationRingsRef.current = constellationRings;
 
       // ---- CELESTIAL LIGHTING ----
-      const ambientLight = new THREE.AmbientLight(0xffffff, 1.15);
+      const ambientLight = new THREE.AmbientLight(0xffffff, 1.25);
       scene.add(ambientLight);
 
-      // Deep Space Earth Rim Light
+      // Direct Celestial Sunlight illuminating Earth
+      const directSunLight = new THREE.DirectionalLight(0xfffbeb, 3.2);
+      directSunLight.position.set(3.5, 3.0, 4.0);
+      scene.add(directSunLight);
+
+      // Deep Space Earth Rim Light (Atmospheric blue limb edge)
       const earthRimLight = new THREE.DirectionalLight(0x38bdf8, 1.8);
       earthRimLight.position.set(-6, 2, -4);
       scene.add(earthRimLight);
@@ -863,21 +868,47 @@ export default function Globe3D({
 
       // ---- PHOTOREALISTIC NASA BLUE MARBLE EARTH ----
       const textureLoader = new THREE.TextureLoader();
-      const earthDayTexture = textureLoader.load('/textures/earth_day_4k.jpg');
-      earthDayTexture.colorSpace = THREE.SRGBColorSpace;
-      const earthNormalTexture = textureLoader.load('/textures/earth_normal_2k.jpg');
-      const earthSpecularTexture = textureLoader.load('/textures/earth_specular_2k.jpg');
-      const earthNightTexture = textureLoader.load('/textures/earth_lights_2k.png');
 
+      // Earth Material: Clean MeshPhongMaterial powered by NASA Blue Marble satellite photography
       const earthMat = new THREE.MeshPhongMaterial({
-        map: earthDayTexture,
-        normalMap: earthNormalTexture,
-        normalScale: new THREE.Vector2(0.85, 0.85),
-        specularMap: earthSpecularTexture,
-        specular: new THREE.Color(0x335577),
-        shininess: 25,
+        shininess: 18,
+        specular: new THREE.Color(0x1a365d),
         color: 0xffffff,
       });
+
+      // Load 2K NASA Blue Marble (2048x1024) - high fidelity, guaranteed to fit every WebGL context
+      const earthDayTexture = textureLoader.load(
+        '/textures/earth_day_2k.jpg',
+        (tex) => {
+          tex.colorSpace = THREE.SRGBColorSpace;
+          earthMat.map = tex;
+          earthMat.needsUpdate = true;
+        },
+        undefined,
+        (err) => {
+          console.warn('[Globe3D] 2K day texture fallback to 4K:', err);
+          textureLoader.load('/textures/earth_day_4k.jpg', (tex4k) => {
+            tex4k.colorSpace = THREE.SRGBColorSpace;
+            earthMat.map = tex4k;
+            earthMat.needsUpdate = true;
+          });
+        }
+      );
+      earthDayTexture.colorSpace = THREE.SRGBColorSpace;
+      earthMat.map = earthDayTexture;
+
+      // Load 2K NASA Earth at Night city lights for the unlit hemisphere
+      const earthNightTexture = textureLoader.load(
+        '/textures/earth_lights_2k.png',
+        (nightTex) => {
+          nightTex.colorSpace = THREE.SRGBColorSpace;
+          earthMat.emissiveMap = nightTex;
+          earthMat.emissive = new THREE.Color(0xffeedd);
+          earthMat.emissiveIntensity = 0.75;
+          earthMat.needsUpdate = true;
+        }
+      );
+      earthNightTexture.colorSpace = THREE.SRGBColorSpace;
 
       const earthGeo = new THREE.SphereGeometry(1.0, 64, 64);
       const earthMesh = new THREE.Mesh(earthGeo, earthMat);
@@ -889,15 +920,24 @@ export default function Globe3D({
       earthMeshRef.current = earthMesh;
 
       // ---- 3D REALISTIC DYNAMIC CLOUD LAYER ----
-      const earthCloudsTexture = textureLoader.load('/textures/earth_clouds_1k.png');
       const cloudsGeo = new THREE.SphereGeometry(1.006, 64, 64);
       const cloudsMat = new THREE.MeshPhongMaterial({
-        map: earthCloudsTexture,
         transparent: true,
-        opacity: 0.42,
+        opacity: 0.38,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       });
+      const earthCloudsTexture = textureLoader.load(
+        '/textures/earth_clouds_1k.png',
+        (cloudTex) => {
+          cloudTex.colorSpace = THREE.SRGBColorSpace;
+          cloudsMat.map = cloudTex;
+          cloudsMat.needsUpdate = true;
+        }
+      );
+      earthCloudsTexture.colorSpace = THREE.SRGBColorSpace;
+      cloudsMat.map = earthCloudsTexture;
+
       const cloudsMesh = new THREE.Mesh(cloudsGeo, cloudsMat);
       cloudsMesh.rotation.copy(earthMesh.rotation);
       scene.add(cloudsMesh);
@@ -928,11 +968,6 @@ export default function Globe3D({
       const atmosphereMesh = new THREE.Mesh(atmosphereGeo, atmosphereMat);
       scene.add(atmosphereMesh);
       atmosphereMeshRef.current = atmosphereMesh;
-
-      // Direct Celestial Sunlight illuminating North America
-      const directSunLight = new THREE.DirectionalLight(0xfffbeb, 3.2);
-      directSunLight.position.set(3.5, 3.0, 4.0);
-      scene.add(directSunLight);
 
       // ---- 3D SELECTION RETICLE (AEROSPACE TARGET LOCK) ----
       const reticleGroup = new THREE.Group();
@@ -1476,21 +1511,15 @@ export default function Globe3D({
       };
 
       container.addEventListener('mousedown', onMouseDown);
-      container.addEventListener('pointerdown', onMouseDown);
       window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('pointermove', onMouseMove);
       window.addEventListener('mouseup', onMouseUp);
-      window.addEventListener('pointerup', onMouseUp);
       container.addEventListener('click', onClick);
       container.addEventListener('wheel', onWheel, { passive: false });
 
       cleanupFnsRef.current.push(() => {
         container.removeEventListener('mousedown', onMouseDown);
-        container.removeEventListener('pointerdown', onMouseDown);
         window.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('pointermove', onMouseMove);
         window.removeEventListener('mouseup', onMouseUp);
-        window.removeEventListener('pointerup', onMouseUp);
         container.removeEventListener('click', onClick);
         container.removeEventListener('wheel', onWheel);
       });
