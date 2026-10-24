@@ -26,7 +26,6 @@ import {
   ShieldCheck,
   Globe,
   Sun,
-  Keyboard,
   HelpCircle,
   Volume2,
   VolumeX,
@@ -57,9 +56,6 @@ const DevSettingsModal = lazyWithRetry(
 );
 const ServiceHealthCheckerModal = lazyWithRetry(
   () => import('./components/ServiceHealthCheckerModal')
-);
-const KeyboardShortcutsModal = lazyWithRetry(
-  () => import('./components/KeyboardShortcutsModal')
 );
 
 interface SatellitePreset {
@@ -446,7 +442,6 @@ function MissionControlDashboard() {
   const [selectedEncounter, setSelectedEncounter] = useState<AdaptedEncounter | null>(null);
   const [collisionModalOpen, setCollisionModalOpen] = useState(false);
   const [healthModalOpen, setHealthModalOpen] = useState(false);
-  const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isMuted, setIsMuted] = useState<boolean>(() => isAudioMuted());
   const [presentationMode, setPresentationMode] = useState<boolean>(false);
@@ -543,7 +538,7 @@ function MissionControlDashboard() {
   const [viewMode, setViewMode] = useState<'EARTH' | 'SOLAR_SYSTEM'>('EARTH');
   const [selectedPlanet, setSelectedPlanet] = useState<CelestialBodyData | null>(null);
 
-  // Clean Presentation Flight Mode (Tab / F)
+  // Clean Presentation Flight Mode
   // NOTE: side effects must not live inside a useState updater — React 18
   // StrictMode double-invokes updaters in development, which fired every
   // toast twice. Compute the next value first, then act.
@@ -553,7 +548,7 @@ function MissionControlDashboard() {
     playUiBlipSound();
     showToast(
       next
-        ? 'Presentation mode enabled (Tab / F to restore).'
+        ? 'Presentation mode enabled (Click or Esc to restore).'
         : 'Presentation mode disabled. All flight controls restored.',
       'info'
     );
@@ -563,7 +558,7 @@ function MissionControlDashboard() {
   const handleToggleMute = () => {
     const next = toggleAudioMute();
     setIsMuted(next);
-    showToast(next ? 'Mission audio muted (M).' : 'Mission audio active (M).', next ? 'warning' : 'success');
+    showToast(next ? 'Mission audio muted.' : 'Mission audio active.', next ? 'warning' : 'success');
     if (!next) {
       playUiBlipSound();
     }
@@ -578,7 +573,7 @@ function MissionControlDashboard() {
     setCameraTrigger({ type: 'reset', timestamp: Date.now() });
   };
 
-  // Spacebar toggle pause / resume time propagation
+  // Pause / resume time propagation
   // Side effects kept out of the updater for the same StrictMode reason as
   // handleTogglePresentationMode.
   const handleTogglePause = () => {
@@ -588,16 +583,16 @@ function MissionControlDashboard() {
       prevSpeedRef.current = speedMultiplier > 0 ? speedMultiplier : 1.0;
       setSpeedMultiplier(0);
       setIsRealtime(false);
-      showToast('Orbital propagation paused (Space).', 'info');
+      showToast('Orbital propagation paused.', 'info');
     } else {
       const restored = prevSpeedRef.current || 1.0;
       setSpeedMultiplier(restored);
       setIsRealtime(restored <= 1.0);
-      showToast(`Orbital propagation resumed at ${restored}x (Space).`, 'info');
+      showToast(`Orbital propagation resumed at ${restored}x.`, 'info');
     }
   };
 
-  // Mission Control Keyboard Command System (Flight Deck Hotkeys)
+  // Modal & overlay dismissal on Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Do not intercept keystrokes if the user is typing in an input or textarea
@@ -611,10 +606,6 @@ function MissionControlDashboard() {
       if (e.key === 'Escape') {
         if (presentationMode) {
           setPresentationMode(false);
-          return;
-        }
-        if (shortcutsModalOpen) {
-          setShortcutsModalOpen(false);
           return;
         }
         if (catalogDrawerOpen) {
@@ -634,95 +625,16 @@ function MissionControlDashboard() {
           return;
         }
         handleUnfocusSat();
-        return;
-      }
-
-      // Tab or F: Toggle Presentation / Clean Flight Mode
-      if (e.key === 'Tab' || e.key === 'f' || e.key === 'F') {
-        e.preventDefault();
-        handleTogglePresentationMode();
-        return;
-      }
-
-      // Space: Toggle Pause / Resume orbital propagation
-      if (e.code === 'Space' || e.key === ' ') {
-        e.preventDefault();
-        handleTogglePause();
-        return;
-      }
-
-      // R: Reset Camera view to orbital overview
-      if (e.key === 'r' || e.key === 'R') {
-        setCameraTrigger({ type: 'reset', timestamp: Date.now() });
-        showToast('Camera reset to orbital overview (R).', 'info');
-        return;
-      }
-
-      // O: Toggle orbit trail lines
-      if (e.key === 'o' || e.key === 'O') {
-        const next = !showOrbits;
-        setShowOrbits(next);
-        showToast(`Orbital trails ${next ? 'enabled' : 'hidden'} (O).`, 'info');
-        return;
-      }
-
-      // C: Toggle Conjunction Catalog drawer
-      if (e.key === 'c' || e.key === 'C') {
-        setCatalogDrawerOpen((prev) => !prev);
-        return;
-      }
-
-      // H: Open Health & Authenticity Checker
-      if (e.key === 'h' || e.key === 'H') {
-        setHealthModalOpen((prev) => !prev);
-        return;
-      }
-
-      // D: Open Developer Telemetry Settings
-      if (e.key === 'd' || e.key === 'D') {
-        setDevSettingsOpen((prev) => !prev);
-        return;
-      }
-
-      // 1: Realtime LEO Tracking dataset
-      if (e.key === '1') {
-        handleDatasetChange('REALTIME');
-        showToast('Switched to Realtime LEO tracking (1).', 'info');
-        return;
-      }
-
-      // 2: 2009 Collision Reconstruction dataset
-      if (e.key === '2') {
-        handleDatasetChange('ACCIDENT');
-        showToast('Switched to 2009 Collision Reconstruction (2).', 'info');
-        return;
-      }
-
-      // M: Toggle Mission Audio Mute
-      if (e.key === 'm' || e.key === 'M') {
-        handleToggleMute();
-        return;
-      }
-
-      // ? or K: Toggle Keyboard Shortcuts HUD
-      if (e.key === '?' || e.key === 'k' || e.key === 'K') {
-        e.preventDefault();
-        setShortcutsModalOpen((prev) => !prev);
-        return;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
-    shortcutsModalOpen,
     catalogDrawerOpen,
     devSettingsOpen,
     healthModalOpen,
     collisionModalOpen,
-    speedMultiplier,
-    isPaused,
-    isMuted,
     presentationMode,
   ]);
 
@@ -972,7 +884,7 @@ function MissionControlDashboard() {
             isRealtime={isRealtime}
             onAccidentTelemetryUpdate={setLiveAccidentTelemetry}
             onFpsUpdate={setLiveFps}
-            isModalOpen={collisionModalOpen || devSettingsOpen || healthModalOpen || shortcutsModalOpen || Boolean(selectedEncounter)}
+            isModalOpen={collisionModalOpen || devSettingsOpen || healthModalOpen || Boolean(selectedEncounter)}
             viewMode={viewMode}
             selectedPlanetId={selectedPlanet?.id}
             onSelectPlanet={setSelectedPlanet}
@@ -987,12 +899,12 @@ function MissionControlDashboard() {
             type="button"
             onClick={handleTogglePresentationMode}
             className="px-4 py-1.5 rounded-full bg-black/75 backdrop-blur-xl border border-teal-500/40 text-xs font-mono text-zinc-200 hover:text-white hover:border-teal-400 flex items-center gap-2 transition-all shadow-[0_0_25px_rgba(20,184,166,0.35)] cursor-pointer"
-            title="Exit Presentation Mode (Tab / Esc)"
+            title="Exit Presentation Mode (Esc)"
           >
             <Eye className="w-3.5 h-3.5 text-teal-400" />
             <span className="font-bold tracking-wider">CLEAN FLIGHT VIEW</span>
             <span className="text-zinc-500">•</span>
-            <span className="text-zinc-400">PRESS [TAB] OR CLICK TO RESTORE HUD</span>
+            <span className="text-zinc-400">CLICK OR PRESS ESC TO RESTORE HUD</span>
           </button>
         </div>
       )}
@@ -1708,24 +1620,14 @@ function MissionControlDashboard() {
           {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
         </button>
 
-        {/* Presentation / Clean Flight Mode Toggle (Tab / F) */}
+        {/* Presentation / Clean Flight Mode Toggle */}
         <button
           type="button"
           onClick={handleTogglePresentationMode}
           className="p-2 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-all shadow-lg cursor-pointer"
-          title="Presentation Mode (Tab or F) - Clean 3D orbital view"
+          title="Presentation Mode - Clean 3D orbital view"
         >
           <Eye className="w-3.5 h-3.5" />
-        </button>
-
-        {/* Keyboard Shortcuts HUD Button (? / K) */}
-        <button
-          type="button"
-          onClick={() => setShortcutsModalOpen(true)}
-          className="p-2 rounded-full bg-black/60 backdrop-blur-md border border-teal-500/40 text-teal-300 hover:text-white hover:border-teal-400 transition-all shadow-lg cursor-pointer"
-          title="Mission Control Keyboard Shortcuts (? or K)"
-        >
-          <Keyboard className="w-3.5 h-3.5" />
         </button>
       </div>
 
@@ -1828,17 +1730,6 @@ function MissionControlDashboard() {
         )}
       </React.Suspense>
 
-      {/* ====== MISSION CONTROL KEYBOARD SHORTCUTS MODAL ====== */}
-      <React.Suspense fallback={null}>
-        {shortcutsModalOpen && (
-          <LazyBoundary label="Keyboard Shortcuts">
-            <KeyboardShortcutsModal
-              isOpen={shortcutsModalOpen}
-              onClose={() => setShortcutsModalOpen(false)}
-            />
-          </LazyBoundary>
-        )}
-      </React.Suspense>
 
       {/* ====== 24/7 LIVE ISS SPACE VIDEO DOWNLINK (LEO) ====== */}
       {!presentationMode && viewMode === 'EARTH' && (
