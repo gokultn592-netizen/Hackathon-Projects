@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { SatellitePosition } from '../hooks/useSatellitePositions';
 import { playImpactExplosionSound } from '../utils/audio';
-import TacticalRadarFallback2D from './TacticalRadarFallback2D';
 import {
   PLANETARY_BODIES,
   CelestialBodyData,
@@ -347,9 +346,6 @@ export default function Globe3D({
     focusTarget: () => void;
   } | null>(null);
 
-  // WebGL context failure flag for graceful 2D tactical ground-track fallback
-  const [webGlDisabled, setWebGlDisabled] = useState<boolean>(false);
-  const [sceneReloadKey, setSceneReloadKey] = useState<number>(0);
   const cleanupFnsRef = useRef<Array<() => void>>([]);
 
   // Persistent Three.js scene refs
@@ -410,9 +406,6 @@ export default function Globe3D({
   } | null>(null);
 
   const animationFrameIdRef = useRef<number>(0);
-  // Flag set during intentional renderer.dispose() to suppress the
-  // webglcontextlost handler so we don't trigger an infinite remount loop.
-  const isIntentionalTeardownRef = useRef<boolean>(false);
   const orbitsRef = useRef<OrbitDefinition[]>([]);
 
   // Solar System & Heliocentric state refs
@@ -550,34 +543,8 @@ export default function Globe3D({
 
   // Unified Scene Lifecycle
   useEffect(() => {
-    if (webGlDisabled) return;
     const container = mountRef.current;
     if (!container) return;
-
-    // When sceneReloadKey changes (context loss recovery), tear down the stale
-    // scene before the init guard runs so it actually re-builds.
-    if (sceneRef.current || rendererRef.current) {
-      if (animationFrameIdRef.current) {
-        cancelAnimationFrame(animationFrameIdRef.current);
-        animationFrameIdRef.current = 0;
-      }
-      cleanupFnsRef.current.forEach((fn) => { try { fn(); } catch {} });
-      cleanupFnsRef.current = [];
-      if (rendererRef.current) {
-        try {
-          // Suppress the webglcontextlost handler so it doesn't fire
-          // setSceneReloadKey and create an infinite remount loop.
-          isIntentionalTeardownRef.current = true;
-          rendererRef.current.dispose();
-          if (rendererRef.current.domElement?.parentNode) {
-            rendererRef.current.domElement.parentNode.removeChild(rendererRef.current.domElement);
-          }
-        } catch {}
-        isIntentionalTeardownRef.current = false;
-        rendererRef.current = null;
-      }
-      sceneRef.current = null;
-    }
 
     let width = container.clientWidth || window.innerWidth;
     let height = container.clientHeight || window.innerHeight;
@@ -594,62 +561,14 @@ export default function Globe3D({
       camera.lookAt(0, 0, 0);
       cameraRef.current = camera;
 
-      let renderer: THREE.WebGLRenderer | null = null;
-      try {
-        renderer = new THREE.WebGLRenderer({
-          antialias: true,
-          alpha: false,
-          powerPreference: 'default',
-          failIfMajorPerformanceCaveat: false,
-        });
-      } catch (err1) {
-        console.warn('[Globe3D] Primary WebGL context failed, trying default fallback:', err1);
-        try {
-          renderer = new THREE.WebGLRenderer({
-            antialias: false,
-            alpha: false,
-            powerPreference: 'default',
-            precision: 'mediump',
-            failIfMajorPerformanceCaveat: false,
-          });
-        } catch (err2) {
-          console.error('[Globe3D] WebGL context creation failed entirely in this browser environment:', err2);
-          setWebGlDisabled(true);
-          return;
-        }
-      }
-
-      if (!renderer) {
-        setWebGlDisabled(true);
-        return;
-      }
-
-      renderer.domElement.addEventListener(
-        'webglcontextlost',
-        (e) => {
-          e.preventDefault();
-          // Only rebuild on REAL GPU context loss, not on our own dispose() call.
-          if (isIntentionalTeardownRef.current) return;
-          console.warn('[Globe3D] WebGL context lost — scheduling scene rebuild.');
-          if (animationFrameIdRef.current) cancelAnimationFrame(animationFrameIdRef.current);
-          setTimeout(() => setSceneReloadKey((k) => k + 1), 250);
-        },
-        false
-      );
-
-      renderer.domElement.addEventListener(
-        'webglcontextrestored',
-        () => {
-          // Only act on real context restoration (not intentional teardown).
-          if (isIntentionalTeardownRef.current) return;
-          console.info('[Globe3D] WebGL context restored — triggering remount.');
-          setSceneReloadKey((k) => k + 1);
-        },
-        false
-      );
-
+      const renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: false,
+        powerPreference: 'high-performance',
+        logarithmicDepthBuffer: true,
+      });
       renderer.setSize(width, height);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.0;
       container.innerHTML = '';
@@ -2493,7 +2412,6 @@ export default function Globe3D({
       if (rendererRef.current) {
         try {
           rendererRef.current.dispose();
-          rendererRef.current.forceContextLoss();
           if (rendererRef.current.domElement && rendererRef.current.domElement.parentNode) {
             rendererRef.current.domElement.parentNode.removeChild(rendererRef.current.domElement);
           }
@@ -2504,7 +2422,7 @@ export default function Globe3D({
       }
       sceneRef.current = null;
     };
-  }, [sceneReloadKey]);
+  }, []);
 
   // =========================================================================
   // REBUILD ORBITS ON DATASET / SATELLITE UPDATE
@@ -2930,17 +2848,6 @@ export default function Globe3D({
     }
   }, [dataset, encounters, satellitePositions, encounterCount]);
 
-  if (webGlDisabled) {
-    return (
-      <TacticalRadarFallback2D
-        satellitePositions={satellitePositions}
-        selectedSatName={selectedSatName}
-        onSelectSat={onSelectSat}
-        onUnfocus={onUnfocus}
-        onFpsUpdate={onFpsUpdate}
-      />
-    );
-  }
 
   return (
     <div className="relative w-full h-full select-none overflow-hidden bg-black">
