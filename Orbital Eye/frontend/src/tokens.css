@@ -1,39 +1,33 @@
 :root {
-  /* Surface & Borders */
-  --bg-app: #09090b;
-  --bg-panel: #18181b;
-  --bg-panel-95: rgba(24, 24, 27, 0.95);
-  --border-subtle: #27272a;
+  --background: #09090b;
+  --panel-background: #18181b;
+  --border: #27272a;
+  --border-width: 1px;
 
-  /* Typography Colors */
   --text-primary: #f4f4f5;
   --text-secondary: #a1a1aa;
   --text-tertiary: #71717a;
 
-  /* Accent (Single) */
-  --accent-amber: #f59e0b;
+  --accent: #f59e0b;
 
-  /* Status Colors */
   --status-critical: #ef4444;
   --status-warning: #f59e0b;
   --status-nominal: #71717a;
 
-  /* Fonts */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  /* Type Scale */
-  --text-label: 11px;
-  --text-body: 13px;
-  --text-heading: 16px;
-  --text-title: 24px;
+  --font-size-label: 11px;
+  --font-size-body: 13px;
+  --font-size-section: 16px;
 
-  /* Radii */
+  --font-weight-label: 500;
+  --font-weight-title: 600;
+
   --radius-card: 6px;
-  --radius-btn: 4px;
-  --radius-cell: 0px;
+  --radius-button: 4px;
+  --radius-table-cell: 0px;
 
-  /* Spacing Scale (8px Grid) */
   --space-1: 8px;
   --space-2: 16px;
   --space-3: 24px;
