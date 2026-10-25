@@ -4,11 +4,11 @@
   "type": "module",
   "private": true,
   "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.1",
     "@tanstack/react-virtual": "^3.8.0",
     "hls.js": "^1.7.3",
-    "lucide-react": "^1.55.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.186.1"
