@@ -28,7 +28,7 @@ export default function MathDerivationModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9500] bg-black/90 backdrop-blur-2xl flex items-center justify-center p-2 sm:p-4 md:p-6 select-none"
+      className="fixed inset-0 z-[9500] bg-black/95 flex items-center justify-center p-2 sm:p-4 md:p-6 select-none"
       onClick={onClose}
     >
       <div

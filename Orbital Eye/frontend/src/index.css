@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import 'katex/dist/katex.min.css';
 @import './tokens.css';
 @import './globals.css';
 
@@ -31,4 +32,19 @@
 ::selection {
   background: rgba(245, 158, 11, 0.2);
   color: #f4f4f5;
+}
+
+@keyframes katexStrokeFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(2px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.katex-animated {
+  animation: katexStrokeFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }

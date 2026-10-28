@@ -191,7 +191,7 @@ export default function WhiteboardDerivation({
   const dvInputId = useId();
 
   return (
-    <div className="w-full bg-[#0a0f1d] border border-cyan-500/40 rounded-3xl shadow-[0_0_80px_rgba(6,182,212,0.2)] overflow-hidden flex flex-col text-left font-mono select-none">
+    <div className="w-full bg-[#0a0f1d] border border-cyan-500/40 rounded-3xl overflow-hidden flex flex-col text-left font-mono select-none">
       {/* ── TOP CONTROL SLATE: Satellite Presets & Real Inputs ── */}
       <div className="p-4 md:p-6 bg-gradient-to-b from-[#11192e] to-[#0a0f1d] border-b border-white/10 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -241,7 +241,7 @@ export default function WhiteboardDerivation({
                   onClick={() => handleSelectPreset(p)}
                   className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
                     isSelected
-                      ? 'border-cyan-400 bg-cyan-500/20 text-white shadow-[0_0_15px_rgba(6,182,212,0.3)] ring-1 ring-cyan-400'
+                      ? 'border-cyan-400 bg-cyan-500/20 text-white ring-1 ring-cyan-400'
                       : 'border-white/10 bg-black/40 text-zinc-400 hover:border-white/20 hover:text-zinc-200'
                   }`}
                 >
@@ -446,11 +446,11 @@ export default function WhiteboardDerivation({
             </div>
 
             {/* Final Solved Result Card */}
-            <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-950/40 via-cyan-950/30 to-black border border-emerald-500/40 flex flex-wrap items-center justify-between gap-3 shadow-[0_0_20px_rgba(16,185,129,0.15)]">
+            <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-950/40 via-cyan-950/30 to-black border border-emerald-500/40 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="text-[10px] text-emerald-400 uppercase font-bold tracking-widest">CALCULATED ORBITAL SPEED RESULT:</div>
                 <div className="text-xl md:text-2xl font-extrabold text-white mt-0.5 flex items-baseline gap-2">
-                  <span className="text-emerald-300 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]">
+                  <span className="text-emerald-300">
                     {vOrbitKmS.toFixed(3)} km/s
                   </span>
                   <span className="text-xs text-zinc-300 font-normal">
@@ -511,11 +511,11 @@ export default function WhiteboardDerivation({
             </div>
 
             {/* Final Solved Result Card */}
-            <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-950/40 via-cyan-950/30 to-black border border-emerald-500/40 flex flex-wrap items-center justify-between gap-3 shadow-[0_0_20px_rgba(16,185,129,0.15)]">
+            <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-950/40 via-cyan-950/30 to-black border border-emerald-500/40 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="text-[10px] text-emerald-400 uppercase font-bold tracking-widest">CALCULATED ORBIT PERIOD RESULT:</div>
                 <div className="text-xl md:text-2xl font-extrabold text-white mt-0.5 flex items-baseline gap-2">
-                  <span className="text-emerald-300 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]">
+                  <span className="text-emerald-300">
                     {periodMinutes.toFixed(2)} minutes
                   </span>
                   <span className="text-xs text-zinc-300 font-normal">
@@ -577,11 +577,11 @@ export default function WhiteboardDerivation({
             </div>
 
             {/* Final Solved Result Card */}
-            <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-950/40 via-cyan-950/30 to-black border border-emerald-500/40 flex flex-wrap items-center justify-between gap-3 shadow-[0_0_20px_rgba(16,185,129,0.15)]">
+            <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-950/40 via-cyan-950/30 to-black border border-emerald-500/40 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="text-[10px] text-emerald-400 uppercase font-bold tracking-widest">CALCULATED NODAL PRECESSION DRIFT:</div>
                 <div className="text-xl md:text-2xl font-extrabold text-white mt-0.5 flex items-baseline gap-2">
-                  <span className="text-emerald-300 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]">
+                  <span className="text-emerald-300">
                     {raanPrecessionDegDay.toFixed(3)}° / day
                   </span>
                   <span className="text-xs text-zinc-300 font-normal">
@@ -641,11 +641,11 @@ export default function WhiteboardDerivation({
             </div>
 
             {/* Final Solved Result Card */}
-            <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-950/40 via-cyan-950/30 to-black border border-emerald-500/40 flex flex-wrap items-center justify-between gap-3 shadow-[0_0_20px_rgba(16,185,129,0.15)]">
+            <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-950/40 via-cyan-950/30 to-black border border-emerald-500/40 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="text-[10px] text-emerald-400 uppercase font-bold tracking-widest">CALCULATED CONJUNCTION PROBABILITY:</div>
                 <div className="text-xl md:text-2xl font-extrabold text-white mt-0.5 flex items-baseline gap-2">
-                  <span className="text-emerald-300 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]">
+                  <span className="text-emerald-300">
                     1 in {oddsDenominator.toLocaleString()}
                   </span>
                   <span className="text-xs text-zinc-300 font-normal">
@@ -706,11 +706,11 @@ export default function WhiteboardDerivation({
             </div>
 
             {/* Final Solved Result Card */}
-            <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-950/40 via-cyan-950/30 to-black border border-emerald-500/40 flex flex-wrap items-center justify-between gap-3 shadow-[0_0_20px_rgba(16,185,129,0.15)]">
+            <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-950/40 via-cyan-950/30 to-black border border-emerald-500/40 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="text-[10px] text-emerald-400 uppercase font-bold tracking-widest">CALCULATED COLLISION CLEARANCE RESULT:</div>
                 <div className="text-xl md:text-2xl font-extrabold text-white mt-0.5 flex items-baseline gap-2">
-                  <span className="text-emerald-300 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]">
+                  <span className="text-emerald-300">
                     +{alongTrackSeparationKm.toFixed(2)} km
                   </span>
                   <span className="text-xs text-zinc-300 font-normal">
