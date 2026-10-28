@@ -103,8 +103,8 @@ export default function EncounterDetailModal({ encounter, onClose }: EncounterDe
   const missDistNum = typeof encounter.missDistance === 'number' ? encounter.missDistance : Number(encounter.missDistance) || 0;
   const relVelNum = typeof encounter.relVelocity === 'number' ? encounter.relVelocity : Number(encounter.relVelocity) || 0;
 
-  const isCritical = missDistNum < 2.0 || probNum > 25;
-  const isCaution = !isCritical && (missDistNum < 10.0 || probNum > 5);
+  const isCritical = missDistNum < 0.50 || probNum > 25;
+  const isCaution = !isCritical && (missDistNum < 0.60 || probNum > 5);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 backdrop-blur-sm animate-fadeIn">

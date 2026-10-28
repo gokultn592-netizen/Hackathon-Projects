@@ -1,27 +1,40 @@
 import React, { useState, useEffect } from 'react';
-import { Database, ShieldCheck, Orbit, Clock } from './Icons';
+import { Orbit, Clock } from './Icons';
+import { useSatellitePositions } from '../hooks/useSatellitePositions';
 
 interface GlobalStatusBarProps {
-  totalSatellites?: number;
   criticalEncounters?: number;
   isDbConnected?: boolean;
   fps?: number;
   datasetTag?: string;
 }
 
+function readQueryLimit(): number {
+  if (typeof window === 'undefined') return 100;
+  const limitParam = new URLSearchParams(window.location.search).get('limit');
+  return limitParam
+    ? Math.max(10, Math.min(1000, parseInt(limitParam, 10) || 100))
+    : 100;
+}
+
 export default function GlobalStatusBar({
-  totalSatellites = 348,
-  criticalEncounters = 4,
-  isDbConnected = true,
-  fps = 60,
   datasetTag = 'REALTIME',
 }: GlobalStatusBarProps) {
-  const [utcTime, setUtcTime] = useState<string>('');
+  const { positions } = useSatellitePositions(datasetTag, readQueryLimit());
+  const trackedCount = Array.isArray(positions) ? positions.length : 0;
+  const [istTime, setIstTime] = useState<string>('');
 
   useEffect(() => {
     const updateClock = () => {
       const now = new Date();
-      setUtcTime(now.toISOString().replace('T', ' ').substring(0, 19) + ' UTC');
+      const istDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+      const y = istDate.getFullYear();
+      const m = String(istDate.getMonth() + 1).padStart(2, '0');
+      const d = String(istDate.getDate()).padStart(2, '0');
+      const hh = String(istDate.getHours()).padStart(2, '0');
+      const mm = String(istDate.getMinutes()).padStart(2, '0');
+      const ss = String(istDate.getSeconds()).padStart(2, '0');
+      setIstTime(`${y}-${m}-${d} ${hh}:${mm}:${ss} IST`);
     };
     updateClock();
     const interval = setInterval(updateClock, 1000);
@@ -39,80 +52,17 @@ export default function GlobalStatusBar({
           }}
         />
 
-        {/* ── LEFT: Database & Connection Health ── */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                isDbConnected ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'
-              }`}
-            />
-            <span className="text-zinc-400">ORACLE 21C XE:</span>
-            <span
-              className={`font-bold ${
-                isDbConnected ? 'text-emerald-400' : 'text-red-400'
-              }`}
-            >
-              {isDbConnected ? 'ONLINE [XEPDB1]' : 'DISCONNECTED'}
-            </span>
-          </div>
-
-          <span className="text-white/15">│</span>
-
-          <div className="flex items-center gap-1.5 text-zinc-400">
-            <Orbit className="w-3 h-3 text-cyan-400" />
-            <span>PROPAGATION ENGINE:</span>
-            <span className="text-cyan-300 font-bold">SGP4 / SKYFIELD</span>
-          </div>
-
-          <span className="text-white/15 hidden md:inline">│</span>
-
-          <div className="hidden md:flex items-center gap-1.5 text-zinc-400">
-            <span className="px-1.5 py-0.2 rounded bg-white/5 border border-white/10 text-zinc-300 text-[9px]">
-              DATASET: {datasetTag}
-            </span>
-          </div>
+        {/* ── LEFT: Tracking Satellite Count Only ── */}
+        <div className="flex items-center gap-2">
+          <Orbit className="w-3.5 h-3.5 text-cyan-400" />
+          <span className="text-zinc-400">TRACKING LEO SATELLITES:</span>
+          <span className="text-cyan-300 font-bold">{trackedCount}</span>
         </div>
 
-        {/* ── CENTER: Ticker / Alert Summary ── */}
-        <div className="hidden lg:flex items-center gap-4">
-          <div className="flex items-center gap-1.5">
-            <span className="text-zinc-400">TRACKED LEO OBJECTS:</span>
-            <span className="text-white font-bold">{totalSatellites}</span>
-          </div>
-
-          <span className="text-white/15">│</span>
-
-          <div className="flex items-center gap-1.5">
-            <span
-              className={`w-1.5 h-1.5 rounded-full ${
-                criticalEncounters > 0 ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'
-              }`}
-            />
-            <span className="text-zinc-400">ENCOUNTERS (TCA &lt; 24H):</span>
-            <span
-              className={`font-bold ${
-                criticalEncounters > 0 ? 'text-amber-400' : 'text-emerald-400'
-              }`}
-            >
-              {criticalEncounters} HIGH-RISK
-            </span>
-          </div>
-        </div>
-
-        {/* ── RIGHT: Clock & Performance ── */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 text-zinc-400">
-            <span>RENDER:</span>
-            <span className="text-emerald-400 font-bold">{fps} FPS</span>
-          </div>
-
-          <span className="text-white/15">│</span>
-
-          <div className="flex items-center gap-1.5 text-cyan-300 font-bold">
-            <Clock className="w-3 h-3 text-cyan-400" />
-            <span>{utcTime}</span>
-          </div>
+        {/* ── RIGHT: Indian Standard Time (IST) ── */}
+        <div className="flex items-center gap-1.5 text-cyan-300 font-bold">
+          <Clock className="w-3 h-3 text-cyan-400" />
+          <span>{istTime}</span>
         </div>
       </div>
     </div>

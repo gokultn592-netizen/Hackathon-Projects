@@ -98,7 +98,7 @@ export const CONSTELLATION_CATEGORY_CODES: Record<string, number> = {
 };
 
 /** Total number of satellites rendered in the constellation cloud. */
-export const CONSTELLATION_SATELLITE_COUNT = 750;
+export const CONSTELLATION_SATELLITE_COUNT = 0;
 
 /** Earth's mean radius in km, used to convert an altitude to scene units. */
 export const EARTH_RADIUS_KM = 6371;
@@ -114,98 +114,7 @@ export const RING_SEGMENTS = 96;
  * plane are scaled so the total satellite count stays at
  * `CONSTELLATION_SATELLITE_COUNT`.
  */
-export const CONSTELLATION_SPECS: ConstellationPlaneSpec[] = [
-  {
-    category: 'STARLINK',
-    planeCount: 21,
-    satsPerPlane: 20,
-    altKm: 545,
-    velKms: 7.61,
-    incDeg: 53.2,
-    operator: 'SpaceX Starlink',
-    namePrefix: 'STARLINK',
-    noradBase: 51000,
-    color: [0.2, 0.82, 1.0],
-    colorVariants: [
-      [0.2, 0.82, 1.0],   // Cyan
-      [0.98, 0.72, 0.22],  // Amber Gold
-      [0.22, 0.92, 0.58],  // Emerald
-      [0.32, 0.68, 1.0],   // Electric Sky Blue
-    ],
-    description:
-      'Low-latency global broadband internet satellite in low Earth orbit with optical space lasers.',
-  },
-  {
-    category: 'ONEWEB',
-    planeCount: 12,
-    satsPerPlane: 8,
-    altKm: 1200,
-    velKms: 7.31,
-    incDeg: 87.4,
-    operator: 'Eutelsat OneWeb',
-    namePrefix: 'ONEWEB',
-    noradBase: 45000,
-    color: [0.35, 0.75, 1.0],
-    description:
-      'Polar low Earth orbit broadband communication satellite providing low-latency enterprise coverage.',
-  },
-  {
-    category: 'IRIDIUM',
-    planeCount: 8,
-    satsPerPlane: 11,
-    altKm: 780,
-    velKms: 7.48,
-    incDeg: 86.4,
-    operator: 'Iridium Communications',
-    namePrefix: 'IRIDIUM-NEXT',
-    noradBase: 41900,
-    color: [0.75, 0.48, 1.0],
-    description:
-      'Cross-linked global communications satellite delivering mission-critical L-band voice and data.',
-  },
-  {
-    category: 'NAVIGATION',
-    planeCount: 6,
-    satsPerPlane: 13,
-    altKm: 20200,
-    velKms: 3.87,
-    incDeg: 55.0,
-    operator: 'US Space Force',
-    namePrefix: 'NAVSTAR-GPS',
-    noradBase: 32000,
-    color: [0.98, 0.75, 0.2],
-    description:
-      'Medium Earth Orbit global positioning satellite transmitting atomic-clock synchronized navigation signals.',
-  },
-  {
-    category: 'EARTH OBSERVATION',
-    planeCount: 8,
-    satsPerPlane: 5,
-    altKm: 485,
-    velKms: 7.64,
-    incDeg: 97.5,
-    operator: 'Planet Labs',
-    namePrefix: 'PLANET-FLOCK',
-    noradBase: 43000,
-    color: [0.25, 0.92, 0.65],
-    description:
-      '3U CubeSat optical imaging satellite capturing daily planet-wide high-resolution multispectral imagery.',
-  },
-  {
-    category: 'MARITIME & WEATHER',
-    planeCount: 7,
-    satsPerPlane: 4,
-    altKm: 520,
-    velKms: 7.61,
-    incDeg: 85.0,
-    operator: 'Spire Global',
-    namePrefix: 'LEMUR-2',
-    noradBase: 43800,
-    color: [0.25, 0.92, 0.65],
-    description:
-      'CubeSat monitoring global maritime AIS ship positions and radio occultation weather profiles.',
-  },
-];
+export const CONSTELLATION_SPECS: ConstellationPlaneSpec[] = [];
 
 /** Convert an altitude in km to a scene-space orbital radius. */
 export function sceneRadiusForAltitude(altKm: number): number {

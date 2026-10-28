@@ -36,10 +36,10 @@ export default function EncounterTable({
     }
   }, [initialRiskFilter]);
 
-  // Count encounters by risk level based on miss distance and collision probability
-  // CRITICAL: miss distance < 2km OR collision probability > 25%
-  // CAUTION: miss distance 2-10km OR collision probability 5-25%
-  // NOMINAL: miss distance >= 10km AND collision probability <= 5%
+  // Count encounters by risk level based on NASA CARA thresholds
+  // CRITICAL: miss distance < 0.50km OR collision probability > 25%
+  // CAUTION: miss distance 0.50-0.60km OR collision probability 5-25%
+  // NOMINAL: miss distance >= 0.60km AND collision probability <= 5%
   const counts = useMemo(() => {
     let crit = 0;
     let caut = 0;
@@ -47,8 +47,8 @@ export default function EncounterTable({
     data.forEach((r) => {
       const dist = r.missDistance;
       const prob = Number(r.collisionProbPct) || (r.collisionProb * 100);
-      if (dist < 2.0 || prob > 25) crit++;
-      else if (dist < 10.0 || prob > 5) caut++;
+      if (dist < 0.50 || prob > 25) crit++;
+      else if (dist < 0.60 || prob > 5) caut++;
       else nom++;
     });
     return { ALL: data.length, CRITICAL: crit, CAUTION: caut, NOMINAL: nom };
@@ -73,17 +73,17 @@ export default function EncounterTable({
     if (riskFilter === 'CRITICAL') {
       result = result.filter((r) => {
         const prob = Number(r.collisionProbPct) || (r.collisionProb * 100);
-        return r.missDistance < 2.0 || prob > 25;
+        return r.missDistance < 0.50 || prob > 25;
       });
     } else if (riskFilter === 'CAUTION') {
       result = result.filter((r) => {
         const prob = Number(r.collisionProbPct) || (r.collisionProb * 100);
-        return (r.missDistance >= 2.0 && r.missDistance < 10.0) || (prob > 5 && prob <= 25);
+        return (r.missDistance >= 0.50 && r.missDistance < 0.60) || (prob > 5 && prob <= 25);
       });
     } else if (riskFilter === 'NOMINAL') {
       result = result.filter((r) => {
         const prob = Number(r.collisionProbPct) || (r.collisionProb * 100);
-        return r.missDistance >= 10.0 && prob <= 5;
+        return r.missDistance >= 0.60 && prob <= 5;
       });
     }
 
@@ -183,8 +183,8 @@ export default function EncounterTable({
         {!isDataLoading &&
           filteredData.map((enc) => {
             const prob = Number(enc.collisionProbPct) || (enc.collisionProb * 100);
-            const isCrit = enc.missDistance < 2.0 || prob > 25;
-            const isCaut = !isCrit && (enc.missDistance < 10.0 || prob > 5);
+            const isCrit = enc.missDistance < 0.50 || prob > 25;
+            const isCaut = !isCrit && (enc.missDistance < 0.60 || prob > 5);
 
             const barColor = isCrit ? 'bg-red-500' : isCaut ? 'bg-amber-500' : 'bg-cyan-500';
 

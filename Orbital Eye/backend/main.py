@@ -110,6 +110,16 @@ async def root():
     return RedirectResponse(url="/docs")
 
 
+@app.get("/services", tags=["System Diagnostics"])
+async def services_diagnostic():
+    """
+    Developer service diagnostics endpoint.
+    Returns live connection and health status for Oracle 21c XE, SGP4 physics, and backend daemon.
+    """
+    from routes.health_checker import perform_full_system_health_check
+    return await perform_full_system_health_check()
+
+
 @app.get("/api/health")
 async def health_check():
     """Basic health check endpoint with quick service status."""
@@ -167,3 +177,5 @@ async def db_test():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
+# Reload trigger

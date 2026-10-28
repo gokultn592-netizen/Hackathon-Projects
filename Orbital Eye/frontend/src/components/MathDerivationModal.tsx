@@ -1,18 +1,18 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { SatelliteInfo } from './Globe3D';
-import WhiteboardDerivation from './WhiteboardDerivation';
+import FullScreenWhiteboard from './FullScreenWhiteboard';
+import { SatellitePosition } from '../hooks/useSatellitePositions';
 
 interface MathDerivationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  selectedSat?: SatelliteInfo | null;
+  satellites: SatellitePosition[];
 }
 
 export default function MathDerivationModal({
   isOpen,
   onClose,
-  selectedSat,
+  satellites,
 }: MathDerivationModalProps) {
   // Close on Escape key press
   useEffect(() => {
@@ -28,15 +28,10 @@ export default function MathDerivationModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9500] bg-black/95 flex items-center justify-center p-2 sm:p-4 md:p-6 select-none"
-      onClick={onClose}
+      className="fixed inset-0 z-[9999] bg-white flex flex-col select-none"
+      onClick={(e) => e.stopPropagation()}
     >
-      <div
-        className="w-full max-w-6xl max-h-[94vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <WhiteboardDerivation selectedSat={selectedSat} onClose={onClose} />
-      </div>
+      <FullScreenWhiteboard satellites={satellites} onClose={onClose} />
     </div>,
     document.body
   );

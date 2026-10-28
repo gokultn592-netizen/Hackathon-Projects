@@ -78,7 +78,7 @@ async def get_encounters(
                     miss_distance_km=round(float(row[3]), 2) if row[3] is not None else 0.0,
                     rel_velocity_kms=round(float(row[4]), 2) if row[4] is not None else 0.0,
                     tca_utc=str(row[5]),
-                    collision_prob=round(float(row[6]), 2) if row[6] is not None else 0.0,
+                    collision_prob=round(float(row[6]), 6) if row[6] is not None else 0.0,
                     sat_a_norad=int(row[7]) if row[7] is not None else None,
                     sat_b_norad=int(row[8]) if row[8] is not None else None,
                 ))

@@ -130,11 +130,10 @@ export default function WhiteboardCanvas({
   const handleSequenceComplete = () => {
     // Optionally auto-advance after 1.5 seconds if not last sequence
     if (currentSeqIdx < SEQUENCES.length - 1 && !isInstantCompleted) {
-      const timer = setTimeout(() => {
+      setTimeout(() => {
         setCurrentSeqIdx((prev) => prev + 1);
         setReplayKey((k) => k + 1);
       }, 1500);
-      return () => clearTimeout(timer);
     }
   };
 

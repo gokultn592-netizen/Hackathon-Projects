@@ -163,30 +163,3 @@ async def set_cached_json(key: str, data: Any, ttl_seconds: int = 10) -> bool:
         success = True  # Memory cache successfully saved
 
     return success
-
-
-async def invalidate_cache_pattern(pattern: str) -> int:
-    """
-    Invalidate all keys matching a prefix or pattern (e.g. 'orbitaleye:positions:*').
-    """
-    count = 0
-    now = time.time()
-
-    # Invalidate in-memory matching keys
-    prefix = pattern.rstrip("*")
-    for k in list(_in_memory_cache.keys()):
-        if k.startswith(prefix):
-            _in_memory_cache.pop(k, None)
-            count += 1
-
-    # Invalidate in Redis
-    if _redis_available and _redis_client is not None:
-        try:
-            keys = await _redis_client.keys(pattern)
-            if keys:
-                await _redis_client.delete(*keys)
-                count = max(count, len(keys))
-        except Exception as e:
-            logger.debug(f"Redis delete error for {pattern}: {e}")
-
-    return count

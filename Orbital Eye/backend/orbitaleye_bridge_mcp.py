@@ -168,7 +168,9 @@ def handle_app_diagnose_discrepancy(args: dict) -> dict:
     try:
         import oracledb
         user = os.getenv("ORACLE_USER", "ORBITAL_EYE")
-        password = os.getenv("ORACLE_PASS") or os.getenv("ORACLE_PASSWORD", "OrbitalEye_2026")
+        password = os.getenv("ORACLE_PASS") or os.getenv("ORACLE_PASSWORD")
+        if not password:
+            raise RuntimeError("ORACLE_PASSWORD or ORACLE_PASS required for diagnostic bridge")
         host = os.getenv("ORACLE_HOST", "localhost")
         port = int(os.getenv("ORACLE_PORT", "1521"))
         service = os.getenv("ORACLE_SERVICE", "XEPDB1")

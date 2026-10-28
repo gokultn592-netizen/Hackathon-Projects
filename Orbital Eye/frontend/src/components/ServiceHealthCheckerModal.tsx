@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { apiFetch } from '../utils/api';
 import {
   X,
@@ -11,7 +11,11 @@ import {
   RefreshCw,
   ExternalLink,
   Zap,
+  Clock,
+  Sliders,
+  Orbit,
 } from './Icons';
+import type { DevSettingsData } from './DevSettingsModal';
 
 export interface ServiceHealthData {
   overall_status: 'HEALTHY' | 'DEGRADED' | 'DOWN';
@@ -93,11 +97,13 @@ export interface ServiceHealthData {
 interface ServiceHealthCheckerModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSettingsChange?: (newSettings: DevSettingsData) => void;
 }
 
 export default function ServiceHealthCheckerModal({
   isOpen,
   onClose,
+  onSettingsChange,
 }: ServiceHealthCheckerModalProps) {
   const [data, setData] = useState<ServiceHealthData | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -105,10 +111,62 @@ export default function ServiceHealthCheckerModal({
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
   const [showRawJson, setShowRawJson] = useState<boolean>(false);
 
-  const fetchHealth = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  // Simulation controls state (satellite count & speed multiplier)
+  const [settings, setSettings] = useState<DevSettingsData>({
+    satellite_limit: 50,
+    speed_multiplier: 1.0,
+    is_realtime: true,
+    refresh_interval_sec: 10,
+  });
+
+  // Load active simulation settings from /api/settings on modal open
+  useEffect(() => {
+    if (!isOpen) return;
+    apiFetch('/api/settings')
+      .then((res) => (res && res.ok ? res.json() : null))
+      .then((s) => {
+        if (s) {
+          setSettings({
+            satellite_limit: s.satellite_limit ?? 50,
+            speed_multiplier: s.speed_multiplier ?? 1.0,
+            is_realtime: s.is_realtime ?? true,
+            refresh_interval_sec: s.refresh_interval_sec ?? 10,
+          });
+        }
+      })
+      .catch(() => {});
+  }, [isOpen]);
+
+  const updateSimulationSettings = async (partial: Partial<DevSettingsData>) => {
+    const updated = { ...settings, ...partial };
+    setSettings(updated);
+    if (onSettingsChange) onSettingsChange(updated);
+
     try {
+      await apiFetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(partial),
+      });
+    } catch {}
+  };
+  const isMountedRef = useRef(true);
+  const inFlightRef = useRef(false);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
+
+  const fetchHealth = useCallback(async () => {
+    // Guard against stacking: a slow probe must not overlap the next tick.
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    try {
+      if (isMountedRef.current) {
+        setLoading(true);
+        setError(null);
+      }
       // apiFetch tries the same-origin Vite proxy first and only falls back
       // to the absolute dev-server origin when running under the dev server.
       const res = await apiFetch('/api/system/health-checker');
@@ -116,11 +174,14 @@ export default function ServiceHealthCheckerModal({
         throw new Error(res ? `HTTP ${res.status}: ${res.statusText}` : 'Backend unreachable');
       }
       const json: ServiceHealthData = await res.json();
-      setData(json);
+      if (isMountedRef.current) setData(json);
     } catch (err: any) {
-      setError(err.message || 'Failed to reach diagnostic health endpoint');
+      if (isMountedRef.current) {
+        setError(err.message || 'Failed to reach diagnostic health endpoint');
+      }
     } finally {
-      setLoading(false);
+      inFlightRef.current = false;
+      if (isMountedRef.current) setLoading(false);
     }
   }, []);
 
@@ -133,7 +194,7 @@ export default function ServiceHealthCheckerModal({
 
   useEffect(() => {
     if (!isOpen || !autoRefresh) return;
-    const interval = setInterval(fetchHealth, 8000);
+    const interval = setInterval(fetchHealth, 30000);
     return () => clearInterval(interval);
   }, [isOpen, autoRefresh, fetchHealth]);
 
@@ -564,6 +625,126 @@ export default function ServiceHealthCheckerModal({
                   <div className="text-sm font-bold text-white mt-0.5">{cnt.toLocaleString()}</div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* ====== SATELLITE CONSTELLATION DENSITY & SPEED ACCELERATION CONTROLS ====== */}
+          <div className="p-5 rounded-2xl bg-[#090f19] border border-cyan-500/30 shadow-xl space-y-5">
+            <div className="flex items-center justify-between border-b border-cyan-500/20 pb-3">
+              <div className="flex items-center gap-2 text-cyan-300 font-mono text-sm font-bold">
+                <Sliders className="w-4 h-4 text-cyan-400" />
+                <span>RUNTIME SIMULATION & SATELLITE CONTROLS</span>
+              </div>
+              <span className="text-[10px] font-mono text-cyan-400/80 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/30">
+                ACTIVE /api/settings
+              </span>
+            </div>
+
+            {/* Satellite Count / Limit Control */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-xs font-mono">
+                <span className="text-zinc-300 flex items-center gap-1.5 font-bold">
+                  <Orbit className="w-3.5 h-3.5 text-cyan-400" />
+                  SATELLITE CONSTELLATION COUNT (DENSITY):
+                </span>
+                <span className="text-cyan-300 font-bold bg-cyan-950/80 px-2.5 py-0.5 rounded border border-cyan-500/40">
+                  {settings.satellite_limit} Satellites
+                </span>
+              </div>
+
+              {/* Presets */}
+              <div className="grid grid-cols-6 gap-2">
+                {[10, 25, 50, 100, 250, 500].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => updateSimulationSettings({ satellite_limit: preset })}
+                    className={`py-1.5 px-2 text-xs font-mono font-bold rounded-lg border transition-all cursor-pointer ${
+                      settings.satellite_limit === preset
+                        ? 'bg-cyan-500/25 border-cyan-400 text-cyan-200 shadow-[0_0_12px_rgba(6,182,212,0.3)]'
+                        : 'bg-black/50 border-white/10 text-zinc-400 hover:text-white hover:border-cyan-500/40'
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+
+              {/* Slider */}
+              <div className="pt-1">
+                <input
+                  type="range"
+                  min={10}
+                  max={500}
+                  step={10}
+                  value={settings.satellite_limit}
+                  onChange={(e) => updateSimulationSettings({ satellite_limit: parseInt(e.target.value, 10) })}
+                  className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                />
+                <div className="flex justify-between text-[9px] font-mono text-zinc-500 pt-1">
+                  <span>10 (Minimum LEO)</span>
+                  <span>250 (Full Constellation)</span>
+                  <span>500 (High Density)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Orbital Speed Acceleration Control */}
+            <div className="space-y-3 pt-3 border-t border-white/[0.06]">
+              <div className="flex items-center justify-between text-xs font-mono">
+                <span className="text-zinc-300 flex items-center gap-1.5 font-bold">
+                  <Clock className="w-3.5 h-3.5 text-teal-400" />
+                  ORBITAL TIME & PROPAGATION SPEED:
+                </span>
+                <span className="text-teal-300 font-bold bg-teal-950/80 px-2.5 py-0.5 rounded border border-teal-500/40">
+                  {settings.is_realtime ? '1x (LIVE SGP4)' : `${settings.speed_multiplier}x WARP ACTIVE`}
+                </span>
+              </div>
+
+              {/* Speed Presets */}
+              <div className="grid grid-cols-5 gap-2">
+                {[
+                  { label: 'LIVE (1x)', val: 1.0, isRt: true },
+                  { label: '10x', val: 10.0, isRt: false },
+                  { label: '60x (1s=1m)', val: 60.0, isRt: false },
+                  { label: '300x', val: 300.0, isRt: false },
+                  { label: '1000x', val: 1000.0, isRt: false },
+                ].map((item) => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => updateSimulationSettings({ speed_multiplier: item.val, is_realtime: item.isRt })}
+                    className={`py-1.5 px-2 text-xs font-mono font-bold rounded-lg border transition-all cursor-pointer ${
+                      (item.isRt && settings.is_realtime) || (!settings.is_realtime && settings.speed_multiplier === item.val)
+                        ? 'bg-teal-500/25 border-teal-400 text-teal-200 shadow-[0_0_12px_rgba(20,184,166,0.3)]'
+                        : 'bg-black/50 border-white/10 text-zinc-400 hover:text-white hover:border-teal-500/40'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Speed Slider */}
+              <div className="pt-1">
+                <input
+                  type="range"
+                  min={1}
+                  max={2000}
+                  step={5}
+                  value={settings.is_realtime ? 1 : settings.speed_multiplier}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    updateSimulationSettings({ speed_multiplier: val, is_realtime: val === 1.0 });
+                  }}
+                  className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-teal-400"
+                />
+                <div className="flex justify-between text-[9px] font-mono text-zinc-500 pt-1">
+                  <span>1x (Real-time Physical)</span>
+                  <span>500x (Orbital Overview)</span>
+                  <span>2000x (Hyperwarp)</span>
+                </div>
+              </div>
             </div>
           </div>
 

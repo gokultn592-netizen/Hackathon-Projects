@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { SatellitePosition } from '../hooks/useSatellitePositions';
 import { playImpactExplosionSound } from '../utils/audio';
@@ -144,6 +144,16 @@ function getGlowDotTexture(): THREE.Texture {
   ctx.fillRect(0, 0, 64, 64);
   cachedGlowDotTex = new THREE.CanvasTexture(canvas);
   return cachedGlowDotTex;
+}
+
+interface AccidentHudState {
+  visible: boolean;
+  phase: 'APPROACH' | 'BURNING' | 'AVOIDED' | 'IMPACT' | 'DEBRIS';
+  screenX: number;
+  screenY: number;
+  missDistanceKm: number;
+  timeToTcaSec: number;
+  deltaV?: number;
 }
 
 export interface FlagshipPresetConfig {
@@ -306,15 +316,18 @@ export default function Globe3D({
   }, [isRealtime]);
 
   // Tactical Accident / Avoidance HUD state
-  const [accidentHUD, setAccidentHUD] = useState<{
-    visible: boolean;
-    phase: 'APPROACH' | 'BURNING' | 'AVOIDED' | 'IMPACT' | 'DEBRIS';
-    screenX: number;
-    screenY: number;
-    missDistanceKm: number;
-    timeToTcaSec: number;
-    deltaV?: number;
-  } | null>(null);
+  const [accidentHUD, setAccidentHUD] = useState<AccidentHudState | null>(null);
+
+  // The HUD tracks screen positions computed every animation frame. Pushing
+  // that fresh object straight into state re-rendered the whole component
+  // tree at ~60fps, so updates are coalesced to ~15fps instead.
+  const lastHudUpdateRef = useRef<number>(0);
+  const pushAccidentHUD = useCallback((hud: AccidentHudState) => {
+    const now = performance.now();
+    if (now - lastHudUpdateRef.current < 70) return;
+    lastHudUpdateRef.current = now;
+    setAccidentHUD(hud);
+  }, []);
 
   // Refs for live animation loop
   const avoidanceRef = useRef(avoidanceActive);
@@ -377,6 +390,7 @@ export default function Globe3D({
     type: 'live' | 'constellation';
     orbit?: OrbitDefinition;
     constIndex?: number;
+    constNoradId?: number;
   } | null>(null);
 
   // Forensic accident & avoidance 3D objects
@@ -395,6 +409,8 @@ export default function Globe3D({
     cosmosMesh: THREE.Mesh;
     iridTrailLine: THREE.Line;
     cosmosTrailLine: THREE.Line;
+    iridMatClone: THREE.MeshStandardMaterial;
+    cosmosMatClone: THREE.MeshStandardMaterial;
   } | null>(null);
 
   const sharedMaterialsRef = useRef<{
@@ -1477,7 +1493,7 @@ export default function Globe3D({
               const latDeg = (Math.asin(Math.max(-1, Math.min(1, py / r))) * 180) / Math.PI;
               const lonDeg = (Math.atan2(pz, px) * 180) / Math.PI;
 
-              selectedTargetRef.current = { type: 'constellation', constIndex: idx };
+              selectedTargetRef.current = { type: 'constellation', constIndex: idx, constNoradId: pData.info.noradId };
               onSelectSat({
                 ...pData.info,
                 latDeg: parseFloat(latDeg.toFixed(4)),
@@ -1564,8 +1580,19 @@ export default function Globe3D({
           constellationPointsRef.current &&
           constellationDataRef.current.length > 0
         ) {
-          const idx = selectedTargetRef.current.constIndex;
-          if (idx < constellationDataRef.current.length) {
+          const selTarget = selectedTargetRef.current;
+          // Resolve by NORAD id first: a payload refresh can reorder the
+          // array, which would silently re-target a stored array index onto
+          // a different satellite.
+          let idx = -1;
+          if (selTarget.constNoradId !== undefined) {
+            idx = constellationDataRef.current.findIndex(
+              (d) => d.info.noradId === selTarget.constNoradId
+            );
+          } else {
+            idx = selTarget.constIndex!;
+          }
+          if (idx >= 0 && idx < constellationDataRef.current.length) {
             const p = constellationDataRef.current[idx];
             const geo = constellationPointsRef.current.geometry as THREE.BufferGeometry;
             const posAttr = geo.getAttribute('position') as THREE.BufferAttribute;
@@ -2096,7 +2123,7 @@ export default function Globe3D({
             if (collisionPointLightRef.current) collisionPointLightRef.current.intensity = 0;
 
             const screenPoint = iridPos.clone().project(camera);
-            setAccidentHUD({
+            pushAccidentHUD({
               visible: screenPoint.z <= 1.0,
               phase: livePhase,
               screenX: ((screenPoint.x + 1) * width) / 2,
@@ -2140,7 +2167,7 @@ export default function Globe3D({
               if (collisionPointLightRef.current) collisionPointLightRef.current.intensity = 0;
 
               const screenPoint = iridPos.clone().project(camera);
-              setAccidentHUD({
+              pushAccidentHUD({
                 visible: screenPoint.z <= 1.0,
                 phase: 'APPROACH',
                 screenX: ((screenPoint.x + 1) * width) / 2,
@@ -2198,7 +2225,7 @@ export default function Globe3D({
               }
 
               const screenPoint = acc.colPoint.clone().project(camera);
-              setAccidentHUD({
+              pushAccidentHUD({
                 visible: screenPoint.z <= 1.0,
                 phase: 'IMPACT',
                 screenX: ((screenPoint.x + 1) * width) / 2,
@@ -2217,7 +2244,7 @@ export default function Globe3D({
               acc.debrisPoints.visible = true;
 
               const screenPoint = acc.colPoint.clone().project(camera);
-              setAccidentHUD({
+              pushAccidentHUD({
                 visible: screenPoint.z <= 1.0,
                 phase: 'DEBRIS',
                 screenX: ((screenPoint.x + 1) * width) / 2,
@@ -2449,9 +2476,105 @@ export default function Globe3D({
         }
         rendererRef.current = null;
       }
+      // Release every GPU resource created by this mount: geometries,
+      // materials and textures. The cached glow-dot texture is module-level
+      // and shared across remounts, so it is kept alive.
+      const scene = sceneRef.current;
+      if (scene) {
+        scene.traverse((obj) => {
+          const mesh = obj as THREE.Mesh;
+          if (mesh.geometry) mesh.geometry.dispose();
+          const mat = mesh.material as THREE.Material | THREE.Material[] | undefined;
+          if (!mat) return;
+          (Array.isArray(mat) ? mat : [mat]).forEach((m) => {
+            const slots = m as unknown as Record<string, unknown>;
+            for (const key of ['map', 'normalMap', 'specularMap', 'emissiveMap', 'bumpMap', 'aoMap', 'alphaMap']) {
+              const tex = slots[key] as THREE.Texture | undefined | null;
+              if (tex && tex !== cachedGlowDotTex) {
+                tex.dispose();
+              }
+            }
+            m.dispose();
+          });
+        });
+        scene.clear();
+      }
       sceneRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const points = constellationPointsRef.current;
+    if (!points) return;
+
+    const rows: SatellitePosition[] = Array.isArray(satellitePositions)
+      ? satellitePositions
+      : [];
+
+    const positions = new Float32Array(rows.length * 3);
+    const colors = new Float32Array(rows.length * 3);
+    const categoryCodes = new Float32Array(rows.length);
+    const data: ConstellationParticleData[] = [];
+
+    const riskColors: Record<SatellitePosition['risk_category'], [number, number, number]> = {
+      CRITICAL: [0.97, 0.44, 0.44],
+      CAUTION: [0.98, 0.75, 0.14],
+      NOMINAL: [0.18, 0.83, 0.75],
+    };
+
+    rows.forEach((row, c) => {
+      positions[c * 3] = row.x;
+      positions[c * 3 + 1] = row.y;
+      positions[c * 3 + 2] = row.z;
+
+      const color = riskColors[row.risk_category] ?? riskColors.NOMINAL;
+      colors[c * 3] = color[0];
+      colors[c * 3 + 1] = color[1];
+      colors[c * 3 + 2] = color[2];
+
+      const radius = Math.hypot(row.x, row.y, row.z);
+      const u =
+        radius > 0
+          ? new THREE.Vector3(row.x / radius, row.y / radius, row.z / radius)
+          : new THREE.Vector3(0, 1, 0);
+      const w = new THREE.Vector3().crossVectors(u, new THREE.Vector3(0, 0, 1));
+      if (w.lengthSq() < 1e-9) {
+        w.set(1, 0, 0);
+      } else {
+        w.normalize();
+      }
+
+      data.push({
+        u,
+        w,
+        radius,
+        theta: 0,
+        speed: 0,
+        planeIndex: 0,
+        info: {
+          name: row.name,
+          noradId: row.norad_id,
+          altitudeKm: row.alt_km,
+          velocityKms: row.velocity_kms,
+          inclinationDeg: row.inclination_deg,
+          status: row.risk_category,
+          latDeg: row.lat_deg,
+          lonDeg: row.lon_deg,
+        },
+      });
+    });
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.setAttribute('categoryCode', new THREE.BufferAttribute(categoryCodes, 1));
+
+    const previousGeo = points.geometry;
+    points.geometry = geo;
+    previousGeo.dispose();
+
+    constellationDataRef.current = data;
+  }, [satellitePositions]);
 
   // =========================================================================
   // REBUILD ORBITS ON DATASET / SATELLITE UPDATE
@@ -2499,30 +2622,60 @@ export default function Globe3D({
       return;
     }
 
+    // Per-rebuild materials are disposed together with their meshes.
+    // Shared mats.* are excluded: the animation loop may assign them onto
+    // accident meshes at runtime, so they must survive the rebuild.
+    const sharedMats = new Set<THREE.Material>([
+      mats.criticalMat, mats.cautionMat, mats.nominalMat,
+      mats.avoidanceEscapeMat, mats.backgroundMat,
+    ]);
+    const disposeObjectResources = (obj: THREE.Object3D) => {
+      obj.traverse((child) => {
+        const mesh = child as THREE.Mesh;
+        if (mesh.geometry) mesh.geometry.dispose();
+        const mat = mesh.material as THREE.Material | THREE.Material[] | undefined;
+        if (!mat) return;
+        (Array.isArray(mat) ? mat : [mat]).forEach((m) => {
+          if (!sharedMats.has(m)) m.dispose();
+        });
+      });
+    };
+
     // Clean up old orbits
     orbitsRef.current.forEach((orbit) => {
       scene.remove(orbit.mesh);
       scene.remove(orbit.trailLine);
-      orbit.mesh.traverse((child) => {
-        if ((child as THREE.Mesh).geometry) {
-          (child as THREE.Mesh).geometry.dispose();
-        }
-      });
-      orbit.trailLine.geometry.dispose();
+      disposeObjectResources(orbit.mesh);
+      disposeObjectResources(orbit.trailLine);
     });
     orbitsRef.current = [];
 
     // Clean up accident objects
     if (accidentObjectsRef.current) {
-      scene.remove(accidentObjectsRef.current.flashMesh);
-      scene.remove(accidentObjectsRef.current.shockwaveMesh);
-      scene.remove(accidentObjectsRef.current.debrisPoints);
-      scene.remove(accidentObjectsRef.current.thrusterPlumeMesh);
-      scene.remove(accidentObjectsRef.current.clearanceLine);
-      scene.remove(accidentObjectsRef.current.iridMesh);
-      scene.remove(accidentObjectsRef.current.cosmosMesh);
-      scene.remove(accidentObjectsRef.current.iridTrailLine);
-      scene.remove(accidentObjectsRef.current.cosmosTrailLine);
+      const acc = accidentObjectsRef.current;
+      scene.remove(acc.flashMesh);
+      scene.remove(acc.shockwaveMesh);
+      scene.remove(acc.debrisPoints);
+      scene.remove(acc.thrusterPlumeMesh);
+      scene.remove(acc.clearanceLine);
+      scene.remove(acc.iridMesh);
+      scene.remove(acc.cosmosMesh);
+      scene.remove(acc.iridTrailLine);
+      scene.remove(acc.cosmosTrailLine);
+      disposeObjectResources(acc.flashMesh);
+      disposeObjectResources(acc.shockwaveMesh);
+      disposeObjectResources(acc.debrisPoints);
+      disposeObjectResources(acc.thrusterPlumeMesh);
+      disposeObjectResources(acc.clearanceLine);
+      disposeObjectResources(acc.iridMesh);
+      disposeObjectResources(acc.cosmosMesh);
+      disposeObjectResources(acc.iridTrailLine);
+      disposeObjectResources(acc.cosmosTrailLine);
+      // The animation loop swaps the cloned accident materials out for shared
+      // ones (criticalMat / avoidanceEscapeMat), so the clones must be
+      // disposed explicitly or they leak on every ACCIDENT activation.
+      acc.iridMatClone.dispose();
+      acc.cosmosMatClone.dispose();
       accidentObjectsRef.current = null;
     }
 
@@ -2574,7 +2727,8 @@ export default function Globe3D({
       const hitGeo = new THREE.SphereGeometry(0.04, 10, 10);
       const hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.0, depthWrite: false });
 
-      const iridMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.015, 0), mats.criticalMat.clone());
+      const iridMatClone = mats.criticalMat.clone();
+      const iridMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.015, 0), iridMatClone);
       iridMesh.rotation.set(0.785, 0.785, 0);
       iridMesh.userData = { encounterIndex: 0, isAccidentTarget: true, isIridium: true };
       const iridHit = new THREE.Mesh(hitGeo, hitMat);
@@ -2588,7 +2742,8 @@ export default function Globe3D({
       const trailLineIrid = new THREE.Line(trailGeoIrid, trailMatIrid);
       scene.add(trailLineIrid);
 
-      const cosmosMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.015, 0), mats.criticalMat.clone());
+      const cosmosMatClone = mats.criticalMat.clone();
+      const cosmosMesh = new THREE.Mesh(new THREE.OctahedronGeometry(0.015, 0), cosmosMatClone);
       cosmosMesh.rotation.set(0.785, 0.785, 0);
       cosmosMesh.userData = { encounterIndex: 1, isAccidentTarget: true, isCosmos: true };
       const cosmosHit = new THREE.Mesh(hitGeo, hitMat);
@@ -2655,6 +2810,7 @@ export default function Globe3D({
         flashMesh, shockwaveMesh, debrisPoints, debrisVelocities: debVelocities,
         thrusterPlumeMesh, clearanceLine, iridMesh, cosmosMesh,
         iridTrailLine: trailLineIrid, cosmosTrailLine: trailLineCosmos,
+        iridMatClone, cosmosMatClone,
       };
 
       // ONLY KEEP THESE TWO SATELLITES (IRIDIUM 33 & COSMOS 2251)

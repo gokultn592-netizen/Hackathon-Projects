@@ -306,8 +306,8 @@ export const PLANETARY_BODIES: CelestialBodyData[] = [
 ];
 
 /**
- * Calculates high-accuracy 3D Heliocentric Cartesian Position for a celestial body
- * given elapsed simulation time in seconds.
+ * Calculates 3D Heliocentric Cartesian Position for a celestial body
+ * given elapsed simulation time in seconds (visual approximation).
  */
 export function calculateHeliocentricPosition(
   body: CelestialBodyData,
@@ -329,10 +329,14 @@ export function calculateHeliocentricPosition(
   // Keplerian elliptical distortion
   const r = orbitRadius * (1 - body.eccentricity * Math.cos(angle));
 
-  // Heliocentric plane coordinates (X-Z orbital plane, Y inclination offset)
+  // Heliocentric plane coordinates: tilt the full orbital plane around X
+  // so |r| is conserved (x² + y² + z² = r²) and positions stay aligned
+  // with generateOrbitPathPoints below.
+  const cosI = Math.cos(incRad);
+  const sinI = Math.sin(incRad);
   const x = r * Math.cos(angle);
-  const z = r * Math.sin(angle);
-  const y = r * Math.sin(angle) * Math.sin(incRad);
+  const z = r * Math.sin(angle) * cosI;
+  const y = r * Math.sin(angle) * sinI;
 
   return new THREE.Vector3(x, y, z);
 }
@@ -346,14 +350,18 @@ export function generateOrbitPathPoints(body: CelestialBodyData, segments: numbe
   const points: THREE.Vector3[] = [];
   const orbitRadius = body.semiMajorAxisAU * AU_SCALE;
   const incRad = (body.inclinationDeg * Math.PI) / 180;
+  const cosI = Math.cos(incRad);
+  const sinI = Math.sin(incRad);
 
   for (let i = 0; i <= segments; i++) {
     const angle = (i / segments) * Math.PI * 2;
     const r = orbitRadius * (1 - body.eccentricity * Math.cos(angle));
 
+    const cosI = Math.cos(incRad);
+    const sinI = Math.sin(incRad);
     const x = r * Math.cos(angle);
-    const z = r * Math.sin(angle);
-    const y = r * Math.sin(angle) * Math.sin(incRad);
+    const z = r * Math.sin(angle) * cosI;
+    const y = r * Math.sin(angle) * sinI;
 
     points.push(new THREE.Vector3(x, y, z));
   }

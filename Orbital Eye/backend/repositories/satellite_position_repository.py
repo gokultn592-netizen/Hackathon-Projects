@@ -149,10 +149,12 @@ def _batch_propagate_rows(rows: list, dt_now: datetime, dataset_tag: str) -> Lis
         except Exception:
             inclination_deg = 0.0
 
-        # Risk category based on miss distance to any encounter pair
-        if miss_dist < 2.0:
+        # Risk category based on miss distance to any encounter pair.
+        # NASA CARA Aerospace Operational Thresholds:
+        # CRITICAL < 0.50 km, CAUTION 0.50 - 0.60 km, NOMINAL >= 0.60 km
+        if miss_dist < 0.50:
             risk = "CRITICAL"
-        elif miss_dist < 10.0:
+        elif miss_dist < 0.60:
             risk = "CAUTION"
         else:
             risk = "NOMINAL"

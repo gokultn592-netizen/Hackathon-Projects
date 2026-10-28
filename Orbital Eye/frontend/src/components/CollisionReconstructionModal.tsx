@@ -68,6 +68,8 @@ export default function CollisionReconstructionModal({
   const lastTimestampRef = useRef<number | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const prevTimeRef = useRef<number>(-35.0);
+  const isPlayingRef = useRef<boolean>(isPlaying);
+  useEffect(() => { isPlayingRef.current = isPlaying; }, [isPlaying]);
 
   // High-fidelity multi-layer hypervelocity kinetic blast synthesis
   const playSynthesizedBlast = useCallback(() => {
@@ -226,14 +228,19 @@ export default function CollisionReconstructionModal({
       if (e.key === 'Escape') onClose();
       if (e.key === ' ' || e.code === 'Space') {
         e.preventDefault();
+        // Toggle play/pause via ref to avoid setState updater double-invoke
+        // (React 18 StrictMode double-invokes updaters in development,
+        // which fired every toast twice — documented at App.tsx:547-549).
         setTime((curTime) => {
           if (curTime >= 59.9) {
-            setIsPlaying(true);
+            setTimeout(() => setIsPlaying(true), 0);
             return -60.0;
           }
-          setIsPlaying((prev) => !prev);
           return curTime;
         });
+        // Apply the toggle after the setTime updater has committed
+        isPlayingRef.current = !isPlayingRef.current;
+        setIsPlaying(isPlayingRef.current);
       }
     };
     if (isOpen) {

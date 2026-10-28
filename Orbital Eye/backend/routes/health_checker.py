@@ -199,8 +199,8 @@ async def perform_full_system_health_check() -> Dict[str, Any]:
                         ts.tle_line2
                     FROM satellites s
                     JOIN tle_sets ts ON s.satellite_id = ts.satellite_id
-                    WHERE ROWNUM <= 5
                     ORDER BY s.norad_id
+                    FETCH FIRST 5 ROWS ONLY
                 """
                 await cursor.execute(sample_sql)
                 rows = await cursor.fetchall()
@@ -272,8 +272,9 @@ async def perform_full_system_health_check() -> Dict[str, Any]:
             else:
                 physics_status["status"] = "CALCULATION_WARNING"
     else:
+        # No sample TLE existed; physics was not tested — do not claim pass.
         physics_status["status"] = "ACTIVE_CALCULATING"
-        physics_status["physics_pass"] = True
+        physics_status["physics_pass"] = False
 
     # ---------------------------------------------------------
     # 4. CACHE & PERFORMANCE ACCELERATION HEALTH

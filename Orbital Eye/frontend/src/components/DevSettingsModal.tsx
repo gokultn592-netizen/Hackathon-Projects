@@ -122,7 +122,7 @@ export default function DevSettingsModal({
             </div>
 
             <p className="text-xs text-slate-400 leading-relaxed">
-              Oracle 21c XE holds 250 fully verified satellites (Starlink, OneWeb, ISS, Tiangong, NOAA, MetOp) with high-fidelity SGP4 ephemerides.
+              Verified satellite catalog reflects current database load (live count from `/api/satellites/positions`). The 250 upper bound is the current dataset size, not a separate verified catalog.
             </p>
 
             <div className="space-y-2 pt-1">

@@ -87,10 +87,18 @@ async def websocket_bridge_endpoint(websocket: WebSocket):
 
                 if msg_type == "STATE_UPDATE":
                     payload = data.get("payload", {})
-                    _latest_app_state.update(payload)
-                    _latest_app_state["status"] = "active"
-                    _latest_app_state["connected_clients"] = len(_active_clients)
-                    _latest_app_state["last_updated"] = time.time()
+                    if isinstance(payload, dict):
+                        allowed = {"satellite_count", "dataset", "limit", "selected_satellite",
+                                   "telemetry_card_visible", "speed_multiplier", "fps", "view_mode",
+                                   "is_paused", "is_realtime"}
+                        for k, v in payload.items():
+                            if k in allowed:
+                                _latest_app_state[k] = v
+                        _latest_app_state["status"] = "active"
+                        _latest_app_state["connected_clients"] = len(_active_clients)
+                        _latest_app_state["last_updated"] = time.time()
+                    elif payload is not None:
+                        logger.warning("STATE_UPDATE payload was non-dict: %r; ignored", payload)
 
                 elif msg_type == "ERROR":
                     err = data.get("payload", {})

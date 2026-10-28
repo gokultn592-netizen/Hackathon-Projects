@@ -20,12 +20,21 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const idCounter = useRef(0);
 
+  const timeoutsRef = useRef<number[]>([]);
+
   const showToast = useCallback((message: string, type: ToastType = 'info') => {
     const id = ++idCounter.current;
     setToasts((prev) => [...prev, { id, message, type, timestamp: Date.now() }]);
-    setTimeout(() => {
+    const timer = window.setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 5000);
+    timeoutsRef.current.push(timer);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      timeoutsRef.current.forEach((t) => clearTimeout(t));
+    };
   }, []);
 
   return (

@@ -429,6 +429,13 @@ function MissionControlDashboard() {
     ];
   }, [avoidanceActive, liveAccidentTelemetry]);
 
+  // Developer diagnostics route support: /services opens ServiceHealthCheckerModal
+  useEffect(() => {
+    if (window.location.pathname === '/services' || window.location.search.includes('services')) {
+      setHealthModalOpen(true);
+    }
+  }, []);
+
   // Simulation State
   const [showOrbits, setShowOrbits] = useState(true);
   const [cameraTrigger, setCameraTrigger] = useState<{
@@ -465,7 +472,10 @@ function MissionControlDashboard() {
 
   useEffect(() => {
     let isMounted = true;
+    let probing = false;
     const probeHealth = async () => {
+      if (probing) return;
+      probing = true;
       try {
         // apiFetch tries the same-origin proxy first and only falls back to the
         // absolute dev-server origin when running under the Vite dev server.
@@ -507,11 +517,13 @@ function MissionControlDashboard() {
             backendOnline: false,
           });
         }
+      } finally {
+        probing = false;
       }
     };
 
     probeHealth();
-    const interval = setInterval(probeHealth, 6000);
+    const interval = setInterval(probeHealth, 30000);
     return () => {
       isMounted = false;
       clearInterval(interval);
@@ -525,7 +537,7 @@ function MissionControlDashboard() {
   const [selectedSat, setSelectedSat] = useState<SatelliteInfo | null>(null);
 
   const criticalCount = useMemo(() => {
-    return (data || []).filter((e) => (e.collisionProb || 0) > 0.0001 || (e.missDistance || 999) < 10.0).length;
+    return (data || []).filter((e) => (e.missDistance ?? 999) < 0.50 || (e.collisionProb || 0) > 0.25).length;
   }, [data]);
 
   // Real-Time Mathematical Derivation Solver Modal
@@ -991,7 +1003,9 @@ function MissionControlDashboard() {
                   <span className="text-red-400 font-bold text-xs font-mono">2009 Collision Forensic Analysis</span>
                 ) : (
                   <>
-                    <span className="text-teal-400 font-bold text-sm font-mono">11,296</span> satellites tracked
+                    <span className="text-teal-400 font-bold text-sm font-mono">
+                      {satellitePositions?.length ?? 0}
+                    </span> satellites tracked
                   </>
                 )}
               </div>
@@ -1462,205 +1476,62 @@ function MissionControlDashboard() {
           </button>
         </div>
 
-        {/* Service Health & Real-Data Authenticity Checker Pill */}
+        {/* Real-Time System Health Indicator (Green: OK, Red: DB Failed, Yellow: Other Service Degraded) */}
         <button
           type="button"
           onClick={() => setHealthModalOpen(true)}
-          className={`flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-bold rounded-full border transition-all shadow-lg cursor-pointer ${
-            systemHealth.status === 'HEALTHY'
-              ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300 hover:border-emerald-400 hover:text-white'
-              : systemHealth.status === 'DEGRADED'
-              ? 'bg-amber-950/80 border-amber-500/60 text-amber-300 hover:border-amber-400 animate-pulse'
-              : 'bg-red-950/80 border-red-500/60 text-red-300 hover:border-red-400 animate-pulse'
+          className={`flex items-center gap-2 px-3 py-1 text-xs font-mono font-bold rounded-full border transition-all shadow-lg cursor-pointer ${
+            !systemHealth.dbConnected
+              ? 'bg-red-950/80 border-red-500/60 text-red-300 shadow-[0_0_15px_rgba(239,68,68,0.4)] animate-pulse'
+              : systemHealth.status === 'DEGRADED' || systemHealth.connectedCount < systemHealth.totalCount || !systemHealth.backendOnline
+              ? 'bg-amber-950/80 border-amber-500/60 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.4)] animate-pulse'
+              : 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300 hover:border-emerald-400'
           }`}
-          title="Service Health & Real-Data Authenticity Checker (Backend, Oracle 21c XE, SGP4)"
-        >
-          <ShieldCheck className={`w-3.5 h-3.5 ${
-            systemHealth.status === 'HEALTHY' ? 'text-emerald-400' : systemHealth.status === 'DEGRADED' ? 'text-amber-400' : 'text-red-400'
-          }`} />
-          <span>
-            {systemHealth.status === 'HEALTHY'
-              ? `${systemHealth.connectedCount}/${systemHealth.totalCount} SERVICES OK`
-              : systemHealth.status === 'DEGRADED'
-              ? (!systemHealth.dbConnected ? 'DATABASE DISCONNECTED' : `${systemHealth.connectedCount}/${systemHealth.totalCount} DEGRADED`)
-              : 'BACKEND OFFLINE'}
-          </span>
-        </button>
-
-        {/* Real-Time Mathematical Derivation Solver Pill */}
-        <button
-          type="button"
-          onClick={() => setMathModalOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-bold rounded-lg border border-cyan-500/40 bg-[#0a1526] text-cyan-300 hover:border-cyan-400 hover:bg-cyan-900/60 hover:text-white transition-all cursor-pointer"
-          title="Open Real-Time Astrodynamics & Conjunction Mathematics Solver"
-        >
-          <span className="text-sm font-serif">∑</span>
-          <span>MATH DERIVATION</span>
-        </button>
-
-        {/* NASA CARA 2D B-Plane Radar & TCA Scrubber Button */}
-        <button
-          type="button"
-          onClick={() => setBplaneModalOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-bold rounded-lg border border-emerald-500/40 bg-[#071615] text-emerald-300 hover:border-emerald-400 hover:bg-emerald-950/80 hover:text-white transition-all cursor-pointer"
-          title="Open NASA CARA B-Plane Covariance Radar & TCA Encounter Flight Scrubber"
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span>B-PLANE RADAR</span>
-        </button>
-
-        {/* Real-Time Conjunction Threat Level Pill — REMOVED.
-            The per-risk breakdown now lives in the Oracle DB Conjunction Catalog
-            drawer (ALL / CRITICAL / CAUTION / NOMINAL filter tabs), which is the
-            authoritative place to inspect it. Keeping a second copy in the
-            toolbar duplicated the same numbers and consumed ~200px of the
-            top bar, which is what pushed the controls over the left sidebar
-            on laptop viewports. */}
-
-        {/* Integrated LIVE Telemetry & Speed Warp Toggle */}
-        <button
-          type="button"
-          onClick={handleCycleSpeed}
-          className={`flex items-center gap-2 px-3 py-1 text-xs font-mono font-bold rounded-full border transition-all shadow-lg cursor-pointer select-none ${
-            isRealtime
-              ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300 hover:border-emerald-400 hover:bg-emerald-900/60 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
-              : 'bg-cyan-950/70 border-cyan-500/50 text-cyan-300 hover:border-cyan-400 hover:bg-cyan-900/60 shadow-[0_0_15px_rgba(6,182,212,0.2)] animate-pulse'
-          }`}
-          title={
-            isRealtime
-              ? 'Active: LIVE. Click to accelerate speed (60x -> 300x -> 1000x)'
-              : `Active: Warp simulation (${speedMultiplier}x). Click to cycle speed or return to LIVE`
-          }
+          title="System Health & Controls (/services) — Green: OK, Red: DB Down, Yellow: Degraded"
         >
           <span
             className={`w-2 h-2 rounded-full ${
-              isRealtime ? 'bg-emerald-400 animate-pulse' : 'bg-cyan-400'
+              !systemHealth.dbConnected
+                ? 'bg-red-500 animate-ping'
+                : systemHealth.status === 'DEGRADED' || systemHealth.connectedCount < systemHealth.totalCount || !systemHealth.backendOnline
+                ? 'bg-amber-400 animate-ping'
+                : 'bg-emerald-400 animate-pulse'
             }`}
           />
-          {isRealtime ? (
-            <span className="font-sans font-bold tracking-wider text-white">LIVE</span>
-          ) : (
-            <span className="flex items-center gap-1.5">
-              <span className="font-sans font-bold tracking-wider text-cyan-200">WARP</span>
-              <span className="text-cyan-500/50">•</span>
-              <span>{speedMultiplier}x</span>
-            </span>
-          )}
-        </button>
-
-        {/* Developer Settings Button (/api/settings) */}
-        <button
-          type="button"
-          onClick={() => setDevSettingsOpen(true)}
-          className="p-2 rounded-full bg-black/60 backdrop-blur-md border border-cyan-500/40 text-cyan-400 hover:text-cyan-200 hover:border-cyan-400 transition-all shadow-lg"
-          title="Developer Options & Simulation Settings (Endpoint: /api/settings)"
-        >
-          <Sliders className="w-3.5 h-3.5" />
+          <span>SERVICES</span>
         </button>
 
         {/* Dataset Switcher: Realtime vs 2009 Collision */}
         <button
           type="button"
           onClick={() => handleDatasetChange(dataset === 'REALTIME' ? 'ACCIDENT' : 'REALTIME')}
-          className={`px-3 py-1 text-xs font-mono font-bold rounded-full border transition-all ${
+          className={`flex items-center gap-1.5 px-3 py-1 text-xs font-mono font-bold rounded-full border transition-all cursor-pointer shadow-lg ${
             dataset === 'ACCIDENT'
-              ? 'bg-red-950/80 border-red-500/60 text-red-300'
+              ? 'bg-red-950/80 border-red-500/60 text-red-300 shadow-[0_0_15px_rgba(239,68,68,0.3)]'
               : 'bg-black/60 border-white/10 text-zinc-300 hover:text-white hover:border-white/20'
           }`}
           title="Toggle between Realtime LEO and 2009 Collision Reconstruction"
         >
-          {dataset === 'ACCIDENT' ? '2009 COLLISION' : 'COLLISION MODE'}
+          {dataset === 'ACCIDENT' && <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />}
+          <span>{dataset === 'ACCIDENT' ? '2009 COLLISION' : 'COLLISION MODE'}</span>
         </button>
 
-        {/* Oracle DB Encounters Catalog */}
+        {/* Oracle DB Encounters Catalog Toggle */}
         <button
           type="button"
           onClick={() => setCatalogDrawerOpen((prev) => !prev)}
-          className="p-2 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-all shadow-lg"
-          title="Oracle DB Conjunction Records"
-        >
-          <Database className="w-3.5 h-3.5" />
-        </button>
-
-        {/* Toggle Orbit Trails */}
-        <button
-          type="button"
-          onClick={() => setShowOrbits((prev) => !prev)}
-          className={`p-2 rounded-full backdrop-blur-md border transition-all shadow-lg ${
-            showOrbits
-              ? 'bg-teal-950/50 border-teal-500/40 text-teal-300'
-              : 'bg-black/60 border-white/10 text-zinc-500 hover:text-zinc-300'
+          className={`flex items-center gap-2 px-3 py-1 text-xs font-mono font-bold rounded-full border transition-all shadow-lg cursor-pointer ${
+            catalogDrawerOpen
+              ? 'bg-cyan-950/80 border-cyan-500/60 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.3)]'
+              : 'bg-black/60 border-white/10 text-zinc-300 hover:text-white hover:border-cyan-500/40'
           }`}
-          title="Toggle orbital trail lines"
+          title="Open Oracle 21c Conjunction Catalog"
         >
-          <Layers className="w-3.5 h-3.5" />
-        </button>
-
-        {/* Camera Zoom In */}
-        <button
-          type="button"
-          onClick={() => setCameraTrigger({ type: 'zoomin', timestamp: Date.now() })}
-          className="p-2 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-all shadow-lg cursor-pointer"
-          title="Zoom In"
-        >
-          <ZoomIn className="w-3.5 h-3.5" />
-        </button>
-
-        {/* Camera Zoom Out */}
-        <button
-          type="button"
-          onClick={() => setCameraTrigger({ type: 'zoomout', timestamp: Date.now() })}
-          className="p-2 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-all shadow-lg cursor-pointer"
-          title="Zoom Out"
-        >
-          <ZoomOut className="w-3.5 h-3.5" />
-        </button>
-
-        {/* Reset Camera to Orbital Overview */}
-        <button
-          type="button"
-          onClick={() => {
-            setCameraTrigger({ type: 'reset', timestamp: Date.now() });
-            showToast('Camera reset to orbital overview.', 'info');
-          }}
-          className="p-2 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-all shadow-lg cursor-pointer"
-          title="Reset Camera to Orbital Overview"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-        </button>
-
-        {/* Fullscreen Button */}
-        <button
-          type="button"
-          onClick={handleToggleFullscreen}
-          className="p-2 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-all shadow-lg"
-          title="Toggle Fullscreen"
-        >
-          <Maximize className="w-3.5 h-3.5" />
-        </button>
-
-        {/* Global Audio Controller (Mute / Unmute) */}
-        <button
-          type="button"
-          onClick={handleToggleMute}
-          className={`p-2 rounded-full backdrop-blur-md border transition-all shadow-lg ${
-            isMuted
-              ? 'bg-red-950/40 border-red-500/40 text-red-400 hover:text-red-200'
-              : 'bg-black/60 border-teal-500/40 text-teal-300 hover:text-white'
-          }`}
-          title={isMuted ? 'Unmute Mission Audio' : 'Mute Mission Audio'}
-        >
-          {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-        </button>
-
-        {/* Presentation / Clean Flight Mode Toggle */}
-        <button
-          type="button"
-          onClick={handleTogglePresentationMode}
-          className="p-2 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-zinc-300 hover:text-white hover:border-white/20 transition-all shadow-lg cursor-pointer"
-          title="Presentation Mode - Clean 3D orbital view"
-        >
-          <Eye className="w-3.5 h-3.5" />
+          <Database className="w-3.5 h-3.5 text-cyan-400" />
+          <span>CATALOG</span>
+          <span className="text-[10px] bg-cyan-500/20 text-cyan-300 px-1.5 py-0.2 rounded border border-cyan-500/40">
+            {data?.length || 50}
+          </span>
         </button>
       </div>
 
@@ -1696,7 +1567,7 @@ function MissionControlDashboard() {
             altitudeKm: enc.satAAlt || 550,
             velocityKms: enc.relVelocity || 7.6,
             inclinationDeg: 53.0,
-            status: enc.missDistance < 1 ? 'CRITICAL' : enc.missDistance < 5 ? 'CAUTION' : 'NOMINAL',
+            status: enc.missDistance < 0.50 ? 'CRITICAL' : enc.missDistance < 0.60 ? 'CAUTION' : 'NOMINAL',
             operator: enc.operator || 'LEO Operator',
             category: 'CONJUNCTION ENCOUNTER',
             missDistanceKm: enc.missDistance,
@@ -1758,6 +1629,13 @@ function MissionControlDashboard() {
             <ServiceHealthCheckerModal
               isOpen={healthModalOpen}
               onClose={() => setHealthModalOpen(false)}
+              onSettingsChange={(newSettings: DevSettingsData) => {
+                setSpeedMultiplier(newSettings.speed_multiplier);
+                setIsRealtime(newSettings.is_realtime);
+                if (newSettings.satellite_limit !== limit) {
+                  setUrlState({ limit: newSettings.satellite_limit });
+                }
+              }}
             />
           </LazyBoundary>
         )}
@@ -1773,7 +1651,6 @@ function MissionControlDashboard() {
 
       {/* ====== TACTICAL GLOBAL STATUS BAR TICKER ====== */}
       <GlobalStatusBar
-        totalSatellites={satellitePositions?.length || 348}
         criticalEncounters={criticalCount}
         isDbConnected={systemHealth.dbConnected}
         fps={liveFps}
@@ -1784,7 +1661,7 @@ function MissionControlDashboard() {
       <MathDerivationModal
         isOpen={mathModalOpen}
         onClose={() => setMathModalOpen(false)}
-        selectedSat={selectedSat}
+        satellites={satellitePositions}
       />
 
       {/* ====== NASA CARA B-PLANE COVARIANCE & TCA ENCOUNTER SCRUBBER MODAL ====== */}

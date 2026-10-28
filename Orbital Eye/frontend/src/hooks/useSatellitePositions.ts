@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { apiFetch } from '../utils/api';
 
 export interface SatellitePosition {
@@ -18,7 +18,7 @@ export interface SatellitePosition {
 
 export function useSatellitePositions(
   dataset: string,
-  limit: number,
+  _limit?: number,
   refreshIntervalMs = 30000
 ) {
   const [positions, setPositions] = useState<SatellitePosition[]>([]);
@@ -27,39 +27,45 @@ export function useSatellitePositions(
 
   useEffect(() => {
     const controller = new AbortController();
-    setIsLoading(true);
+    let busy = false;
 
     const fetchPositions = async () => {
+      if (busy || controller.signal.aborted) return;
+      busy = true;
+      setIsLoading(true);
+
       try {
-        const query = `dataset=${encodeURIComponent(dataset)}&limit=${limit}`;
-        // apiFetch tries the same-origin Vite proxy first and only falls back
-        // to the absolute dev-server origin when running under the dev server.
+        const query = `dataset=${encodeURIComponent(dataset)}`;
         const res = await apiFetch(`/api/satellites/positions?${query}`, {
           signal: controller.signal,
         });
 
         if (!res || !res.ok) throw new Error(res ? `HTTP ${res.status}` : 'Backend unreachable');
         const data: SatellitePosition[] = await res.json();
-        setPositions(data);
-        setError(null);
-      } catch (err: any) {
-        if (err.name === 'AbortError') return;
-        setError(err.message || 'Failed to fetch positions');
+        if (!controller.signal.aborted) {
+          setPositions(data);
+          setError(null);
+        }
+      } catch (err) {
+        if ((err as Error)?.name === 'AbortError') return;
+        if (!controller.signal.aborted) {
+          setError((err as Error).message || 'Failed to fetch positions');
+        }
       } finally {
-        setIsLoading(false);
+        busy = false;
+        if (!controller.signal.aborted) setIsLoading(false);
       }
     };
 
     fetchPositions();
 
-    // Adaptive periodic telemetry polling
     const intervalId = setInterval(fetchPositions, refreshIntervalMs);
 
     return () => {
       controller.abort();
       clearInterval(intervalId);
     };
-  }, [dataset, limit, refreshIntervalMs]);
+  }, [dataset, refreshIntervalMs]);
 
   return { positions, isLoading, error };
 }
