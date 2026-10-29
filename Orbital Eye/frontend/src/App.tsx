@@ -1487,7 +1487,20 @@ function MissionControlDashboard() {
               ? 'bg-amber-950/80 border-amber-500/60 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.4)] animate-pulse'
               : 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300 hover:border-emerald-400'
           }`}
-          title="System Health & Controls (/services) — Green: OK, Red: DB Down, Yellow: Degraded"
+          title={
+            !systemHealth.dbConnected
+              ? 'DATABASE DISCONNECTED — Click to inspect services'
+              : !systemHealth.backendOnline
+              ? 'BACKEND OFFLINE — Click to inspect services'
+              : 'System Health & Diagnostics (/services)'
+          }
+          aria-label={
+            !systemHealth.dbConnected
+              ? 'DATABASE DISCONNECTED'
+              : !systemHealth.backendOnline
+              ? 'BACKEND OFFLINE'
+              : 'System Health & Diagnostics'
+          }
         >
           <span
             className={`w-2 h-2 rounded-full ${
