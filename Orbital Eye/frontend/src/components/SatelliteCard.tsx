@@ -176,7 +176,7 @@ export default function SatelliteCard({ sat, onClose, onOpenMathModal }: Satelli
             onClick={onOpenMathModal}
             className="w-full py-2 px-3 rounded-xl border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 text-[10px] font-mono tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer font-bold shadow-[0_0_15px_rgba(6,182,212,0.15)]"
           >
-            <span>∑</span> ANIMATED MATH DERIVATIONS →
+            ANIMATED MATH DERIVATIONS →
           </button>
         )}
 
