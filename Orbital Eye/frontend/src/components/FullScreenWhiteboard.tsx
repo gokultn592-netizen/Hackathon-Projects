@@ -188,7 +188,7 @@ export default function FullScreenWhiteboard({
             resultColor: 'emerald',
           },
           {
-            tex: `\\frac{d\\Omega}{dt} = -1.5 \\cdot (1.08263\\times 10^{-3}) \\cdot \\left(\\frac{6{,}371.0}{${fix(pKm, 2)}}\\right)^2 \\cdot ${meanMotionRadS.toExponential(4)} \\cdot ${Math.cos(incRad).toFixed(4)} = ${fix(raanPrecessionDegDay, 3)}^\\circ\\text{/day}`,
+            tex: `\\frac{d\\Omega}{dt} = -1.5 \\cdot (1.08263\\times 10^{-3}) \\cdot \\left(\\frac{6{,}371.0}{${fix(pKm, 2)}}\\right)^2 \\cdot (${sciTex(meanMotionRadS, 4)}) \\cdot ${Math.cos(incRad).toFixed(4)} = ${fix(raanPrecessionDegDay, 3)}^\\circ\\text{/day}`,
             label: `Algebraic Substitution for ${satName}`,
             stages: [
               { highlight: 'p', delay: 700, value: fix(pKm, 2) + ' km', label: 'Semi-latus rectum' },
@@ -212,7 +212,7 @@ export default function FullScreenWhiteboard({
             resultColor: collisionProb > 1e-4 ? 'red' : 'emerald',
           },
           {
-            tex: `P_c = \\left[\\frac{${fix(rHbrKm * rHbrKm, 4)}}{${fix(2 * collisionResult.sigmaX * collisionResult.sigmaY, 2)}}\\right] \\cdot \\exp(${fix(bPlaneExponent, 4)}) = ${sciTex(collisionProb, 3)} (1 in ${oddsDenominator.toLocaleString()})`,
+            tex: `P_c = \\left[\\frac{${fix(rHbrKm * rHbrKm, 4)}}{${fix(2 * collisionResult.sigmaX * collisionResult.sigmaY, 2)}}\\right] \\cdot \\exp(${fix(bPlaneExponent, 4)}) = ${sciTex(collisionProb, 3)} \\text{ (1 in }${oddsDenominator.toLocaleString('en-US').replace(/,/g, '{,}')}\\text{)}`,
             label: `Algebraic Substitution for ${satName}`,
             stages: [
               { highlight: 'R_{HBR}', delay: 700, value: fix(rHbrKm * 1000, 0) + ' m', label: 'Hard-body radius' },
@@ -238,7 +238,7 @@ export default function FullScreenWhiteboard({
             resultColor: 'emerald',
           },
           {
-            tex: `\\Delta a = \\frac{2 \\cdot ${fix(aKm, 0)} \cdot ${fix(vOrbitKmS, 2)} \cdot ${fix(deltaV / 1000, 4)}}{${fix(MU_EARTH / (rKm * rKm), 4)}} = +${fix(deltaA_km, 2)}\\text{ km}\\implies \\Delta s = 1.5 \\cdot ${meanMotionRadS.toExponential(4)} \cdot ${fix(deltaA_km, 2)} \cdot ${leadTimeSec} = +${fix(alongTrackSeparationKm, 2)}\\text{ km}`,
+            tex: `\\Delta a = \\frac{2 \\cdot ${fix(aKm, 0)} \cdot ${fix(vOrbitKmS, 2)} \cdot ${fix(deltaV / 1000, 4)}}{${fix(MU_EARTH / (rKm * rKm), 4)}} = +${fix(deltaA_km, 2)}\\text{ km}\\implies \\Delta s = 1.5 \\cdot (${sciTex(meanMotionRadS, 4)}) \cdot ${fix(deltaA_km, 2)} \cdot ${leadTimeSec} = +${fix(alongTrackSeparationKm, 2)}\\text{ km}`,
             label: `Algebraic Substitution for ${satName}`,
             stages: [
               { highlight: '\\Delta a', delay: 700, value: '+' + fix(deltaA_km, 2) + ' km', label: 'Semi-major axis change' },

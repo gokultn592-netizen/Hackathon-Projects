@@ -98,7 +98,38 @@ export default function AnimatedEquation({
     }
   }, [tex]);
 
-  // Post-process DOM: highlight the active variable token (amber-500, scale: 1.05)
+  // Render chip variable via KaTeX
+  const renderVariableHtml = useMemo(() => {
+    if (!activeStage?.highlight) return '';
+    try {
+      return katex.renderToString(activeStage.highlight, {
+        displayMode: false,
+        throwOnError: false,
+        trust: true,
+      });
+    } catch {
+      return activeStage.highlight;
+    }
+  }, [activeStage?.highlight]);
+
+  // Render chip value via KaTeX if it contains LaTeX syntax
+  const renderValueHtml = useMemo(() => {
+    if (!activeStage?.value) return '';
+    if (/[\\^_{}]/.test(activeStage.value)) {
+      try {
+        return katex.renderToString(activeStage.value, {
+          displayMode: false,
+          throwOnError: false,
+          trust: true,
+        });
+      } catch {
+        return activeStage.value;
+      }
+    }
+    return '';
+  }, [activeStage?.value]);
+
+  // Post-process DOM: highlight the active variable token (amber marker stroke)
   useEffect(() => {
     if (!containerRef.current) return;
     const el = containerRef.current;
@@ -137,38 +168,38 @@ export default function AnimatedEquation({
     }
   }, [activeStage, isCompletedInstant]);
 
-  // Determine pulse border color
+  // Determine pulse border/background color (light whiteboard palette)
   const pulseColorClass =
     resultColor === 'red'
-      ? 'border-red-500/60 bg-red-950/20'
+      ? 'border-red-400 bg-red-50/70'
       : resultColor === 'emerald'
-      ? 'border-emerald-500/60 bg-emerald-950/20'
-      : 'border-amber-500/60 bg-amber-950/20';
+      ? 'border-emerald-400 bg-emerald-50/70'
+      : 'border-amber-400 bg-amber-50/70';
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: 'easeOut' }}
-      className={`group relative flex flex-col items-center justify-center p-3.5 rounded-lg border transition-all duration-300 ${
+      className={`group relative flex flex-col items-center justify-center p-4 rounded-xl border transition-all duration-300 ${
         isPulsingResult
-          ? `${pulseColorClass} scale-[1.01]`
-          : 'border-zinc-800/80 bg-zinc-900/60 hover:border-zinc-700/80'
+          ? `${pulseColorClass} scale-[1.005] shadow-sm`
+          : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm'
       } ${className}`}
     >
       {/* Top Label */}
       {label && (
-        <div className="w-full flex items-center justify-between pb-1.5 mb-1 border-b border-zinc-800/60 text-[11px] font-sans font-medium text-zinc-400 tracking-wider">
+        <div className="w-full flex items-center justify-between pb-1.5 mb-1 border-b border-gray-100 text-[11px] font-sans font-medium text-gray-500 tracking-wider">
           <span>{label}</span>
           {activeStage?.label && (
-            <span className="text-amber-400/90 font-mono text-[10px]">
+            <span className="text-amber-600 font-mono text-[10px] font-semibold">
               {activeStage.label}
             </span>
           )}
         </div>
       )}
 
-      {/* KaTeX Equation Output with stroke-by-stroke wipe reveal */}
+      {/* KaTeX Equation Output with stroke-by-stroke wipe reveal (dark ink on white) */}
       <motion.div
         ref={containerRef}
         initial={
@@ -181,14 +212,20 @@ export default function AnimatedEquation({
           duration: isCompletedInstant ? 0 : 0.7,
           ease: [0.16, 1, 0.3, 1],
         }}
-        className={`w-full overflow-x-auto py-1 text-center font-serif text-base sm:text-lg tracking-wide select-text text-zinc-100 ${
-          isPulsingResult ? (resultColor === 'red' ? 'text-red-400' : 'text-amber-400') : ''
+        className={`w-full overflow-x-auto py-1 text-center font-serif text-base sm:text-lg tracking-wide select-text text-gray-900 ${
+          isPulsingResult
+            ? resultColor === 'red'
+              ? 'text-red-700'
+              : resultColor === 'emerald'
+              ? 'text-emerald-700'
+              : 'text-amber-800'
+            : ''
         }`}
         dangerouslySetInnerHTML={{ __html: renderedHtml }}
       />
 
-      {/* Active Stage Variable Highlight & Inline Value Annotation */}
-      <div className="min-h-[26px] mt-1.5 flex items-center justify-center">
+      {/* Active Stage Variable Highlight & Inline Value Annotation (light amber chip) */}
+      <div className="min-h-[28px] mt-2 flex items-center justify-center">
         <AnimatePresence mode="wait">
           {activeStage?.value && (
             <motion.div
@@ -197,11 +234,23 @@ export default function AnimatedEquation({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92, y: -4 }}
               transition={{ duration: 0.25 }}
-              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-300 font-mono text-xs shadow-none"
+              className="inline-flex items-center gap-2 px-3 py-1 rounded-lg border border-amber-300 bg-amber-50/90 text-amber-900 text-xs shadow-sm"
             >
-              <span className="font-semibold text-amber-400">{activeStage.highlight}</span>
-              <span className="text-amber-500/60">=</span>
-              <span className="font-bold text-amber-200">{activeStage.value}</span>
+              <span
+                className="font-semibold text-amber-900 font-serif"
+                dangerouslySetInnerHTML={{ __html: renderVariableHtml }}
+              />
+              <span className="text-amber-700 font-bold px-0.5 text-sm select-none">=</span>
+              {renderValueHtml ? (
+                <span
+                  className="font-semibold text-amber-950 font-serif"
+                  dangerouslySetInnerHTML={{ __html: renderValueHtml }}
+                />
+              ) : (
+                <span className="font-bold text-amber-950 font-mono tracking-tight">
+                  {activeStage.value}
+                </span>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
