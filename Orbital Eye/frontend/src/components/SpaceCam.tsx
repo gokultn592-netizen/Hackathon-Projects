@@ -24,7 +24,7 @@ const FEEDS: SpaceFeed[] = [
     tag: 'ISS HD LIVE',
     detail: 'NASA Official Live HD Views from the International Space Station · Harmony Port',
     type: 'embed',
-    src: 'https://www.youtube-nocookie.com/embed/ROboUHfPUrU?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&controls=0&disablekb=1&fs=0&iv_load_policy=3',
+    src: 'https://www.youtube-nocookie.com/embed/ROboUHfPUrU?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&cc_load_policy=0&cc_lang_pref=none',
     externalUrl: 'https://www.youtube.com/watch?v=ROboUHfPUrU',
     fallbackVideoSrc: '/videos/space_earth_view.mp4',
     resolution: '1080P // NASA LIVE',
@@ -36,7 +36,7 @@ const FEEDS: SpaceFeed[] = [
     tag: 'ISS CAM 2',
     detail: 'NASA Official Live Video from the International Space Station · Exterior Array',
     type: 'embed',
-    src: 'https://www.youtube-nocookie.com/embed/M3HKLzjvKPc?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&controls=0&disablekb=1&fs=0&iv_load_policy=3',
+    src: 'https://www.youtube-nocookie.com/embed/M3HKLzjvKPc?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&controls=0&disablekb=1&fs=0&iv_load_policy=3&cc_load_policy=0&cc_lang_pref=none',
     externalUrl: 'https://www.youtube.com/watch?v=M3HKLzjvKPc',
     fallbackVideoSrc: '/videos/space_station_view.mp4',
     resolution: '1080P // NASA CAM 2',
@@ -51,26 +51,6 @@ const FEEDS: SpaceFeed[] = [
     src: 'https://linear-1224.frequency.stream/dist/lg-uk/1224/hls/master/playlist.m3u8',
     fallbackVideoSrc: '/videos/space_earth_view.mp4',
     resolution: '1080P // HLS LIVE',
-  },
-  {
-    id: 'sen-4k',
-    label: '4K EARTH',
-    shortLabel: '4K LOOP',
-    tag: '4K UHD',
-    detail: 'Sen 4K UHD Optical Array · Columbus External Payload (Local 4K Optical Cache)',
-    type: 'video',
-    src: '/videos/space_earth_view.mp4',
-    resolution: '4K UHD // 60 FPS',
-  },
-  {
-    id: 'iss-nadir',
-    label: 'NADIR VIEW',
-    shortLabel: 'NADIR',
-    tag: 'HDEV SENSOR',
-    detail: 'ISS High Definition Earth-Viewing (HDEV) Sensor · Nadir Optical Port',
-    type: 'video',
-    src: '/videos/space_nadir_view.mp4',
-    resolution: '1080P // NADIR',
   },
 ];
 
@@ -150,7 +130,7 @@ export default function SpaceCam() {
 
           hlsInstances.push(hls);
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-          // Safari native HLS
+          // Safari native HLS without auto-fullscreen
           video.src = activeFeed.src;
           setStreamStatus('LIVE');
           video.addEventListener('loadedmetadata', () => {
@@ -224,18 +204,19 @@ export default function SpaceCam() {
           </button>
         </div>
 
-        {/* Video Container (Clean Video - Zero YouTube UI, Zero In-Video Overlays) */}
+        {/* Video Container (Zero YouTube UI, Zero In-Video Overlays) */}
         {!collapsed && (
           <>
-            <div className="relative w-full aspect-video bg-black overflow-hidden group/player">
+            <div className="relative w-full aspect-video bg-black overflow-hidden select-none">
               {activeFeed.type === 'embed' ? (
-                <iframe
-                  src={activeFeed.src}
-                  title={activeFeed.label}
-                  className="w-full h-full border-0 select-none"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                />
+                <div className="w-full h-full overflow-hidden relative pointer-events-none select-none">
+                  <iframe
+                    src={activeFeed.src}
+                    title={activeFeed.label}
+                    className="absolute w-[124%] h-[124%] -top-[12%] -left-[12%] border-0 pointer-events-none select-none"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  />
+                </div>
               ) : (
                 <video
                   ref={videoRef}
@@ -244,6 +225,8 @@ export default function SpaceCam() {
                   loop
                   muted
                   playsInline
+                  disablePictureInPicture
+                  controls={false}
                   className="w-full h-full object-cover pointer-events-none select-none"
                 />
               )}
@@ -253,29 +236,16 @@ export default function SpaceCam() {
               <div className="absolute top-2 right-2 text-[10px] font-mono text-cyan-400/40 pointer-events-none">┐</div>
               <div className="absolute bottom-2 left-2 text-[10px] font-mono text-cyan-400/40 pointer-events-none">└</div>
               <div className="absolute bottom-2 right-2 text-[10px] font-mono text-cyan-400/40 pointer-events-none">┘</div>
-
-              {/* Expand button on top-right */}
-              <div className="absolute top-2 right-2 z-10 opacity-0 group-hover/player:opacity-100 transition-opacity">
-                <button
-                  type="button"
-                  onClick={() => setExpanded(true)}
-                  className="px-2 py-1 rounded bg-black/85 backdrop-blur-md text-[9px] font-mono text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/20 shadow-lg flex items-center gap-1 cursor-pointer transition-colors"
-                  title="Expand to Fullscreen"
-                >
-                  <Maximize className="w-2.5 h-2.5" />
-                  EXPAND
-                </button>
-              </div>
             </div>
 
-            {/* Camera Channel Selector Buttons */}
-            <div className="grid grid-cols-5 gap-1 p-1.5 bg-black/50 border-b border-white/[0.06]">
+            {/* Camera Channel Selector Buttons (3 Clean Feeds) */}
+            <div className="grid grid-cols-3 gap-1 p-1.5 bg-black/50 border-b border-white/[0.06]">
               {FEEDS.map((f) => (
                 <button
                   key={f.id}
                   type="button"
                   onClick={() => setActiveFeed(f)}
-                  className={`py-1 px-1 rounded text-[8.5px] font-mono tracking-wider transition-all border text-center truncate cursor-pointer ${
+                  className={`py-1.5 px-1 rounded-lg text-[9px] font-mono tracking-wider transition-all border text-center truncate cursor-pointer ${
                     activeFeed.id === f.id
                       ? 'border-cyan-400/60 bg-cyan-500/20 text-cyan-300 font-bold shadow-[0_0_12px_rgba(6,182,212,0.2)]'
                       : 'border-white/[0.05] text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.05]'
@@ -354,16 +324,17 @@ export default function SpaceCam() {
               </button>
             </div>
 
-            {/* Video container (Clean Video - Zero YouTube UI, Zero In-Video Overlays) */}
+            {/* Video container (Zero YouTube UI, Zero In-Video Overlays) */}
             <div className="relative w-full aspect-video rounded-2xl overflow-hidden border border-cyan-500/40 shadow-[0_0_60px_rgba(6,182,212,0.3)] bg-black">
               {activeFeed.type === 'embed' ? (
-                <iframe
-                  src={activeFeed.src}
-                  title={activeFeed.label}
-                  className="w-full h-full border-0 select-none"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                />
+                <div className="w-full h-full overflow-hidden relative pointer-events-none select-none">
+                  <iframe
+                    src={activeFeed.src}
+                    title={activeFeed.label}
+                    className="absolute w-[124%] h-[124%] -top-[12%] -left-[12%] border-0 pointer-events-none select-none"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  />
+                </div>
               ) : (
                 <video
                   ref={expandedVideoRef}
@@ -372,6 +343,8 @@ export default function SpaceCam() {
                   loop
                   muted
                   playsInline
+                  disablePictureInPicture
+                  controls={false}
                   className="w-full h-full object-cover pointer-events-none select-none"
                 />
               )}
@@ -383,7 +356,7 @@ export default function SpaceCam() {
               <div className="absolute bottom-4 right-4 text-xs font-mono text-cyan-400/50 leading-none pointer-events-none">┘</div>
             </div>
 
-            {/* Bottom Controls Strip (Cleanly Outside the Video) */}
+            {/* Bottom Controls Strip */}
             <div className="flex items-center justify-between gap-4 pt-1 flex-wrap">
               <div className="flex gap-2">
                 {FEEDS.map((f) => (
