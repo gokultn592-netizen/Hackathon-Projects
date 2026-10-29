@@ -106,24 +106,22 @@ export default function SpaceCam() {
             video.play().catch(() => {});
           });
 
+          let networkErrorCount = 0;
           hls.on(Hls.Events.ERROR, (_event, data) => {
             if (data.fatal) {
               console.warn('[SpaceCam] HLS fatal error, recovering or falling back:', data.type);
-              switch (data.type) {
-                case Hls.ErrorTypes.NETWORK_ERROR:
+              if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                networkErrorCount++;
+                if (networkErrorCount <= 2) {
                   hls.startLoad();
-                  break;
-                case Hls.ErrorTypes.MEDIA_ERROR:
-                  hls.recoverMediaError();
-                  break;
-                default:
-                  hls.destroy();
-                  setStreamStatus('FALLBACK');
-                  if (activeFeed.fallbackVideoSrc) {
-                    video.src = activeFeed.fallbackVideoSrc;
-                    video.play().catch(() => {});
-                  }
-                  break;
+                  return;
+                }
+              }
+              hls.destroy();
+              setStreamStatus('FALLBACK');
+              if (activeFeed.fallbackVideoSrc) {
+                video.src = activeFeed.fallbackVideoSrc;
+                video.play().catch(() => {});
               }
             }
           });
@@ -213,7 +211,7 @@ export default function SpaceCam() {
                   <iframe
                     src={activeFeed.src}
                     title={activeFeed.label}
-                    className="absolute w-[124%] h-[124%] -top-[12%] -left-[12%] border-0 pointer-events-none select-none"
+                    className="absolute w-[145%] h-[145%] -top-[22%] -left-[22.5%] border-0 pointer-events-none select-none"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   />
                 </div>
@@ -331,7 +329,7 @@ export default function SpaceCam() {
                   <iframe
                     src={activeFeed.src}
                     title={activeFeed.label}
-                    className="absolute w-[124%] h-[124%] -top-[12%] -left-[12%] border-0 pointer-events-none select-none"
+                    className="absolute w-[145%] h-[145%] -top-[22%] -left-[22.5%] border-0 pointer-events-none select-none"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   />
                 </div>
