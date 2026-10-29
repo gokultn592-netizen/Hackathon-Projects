@@ -538,8 +538,11 @@ export default function ServiceHealthCheckerModal({
                 <div className="mt-3 space-y-1.5 text-xs font-mono">
                   <div className="flex justify-between">
                     <span className="text-zinc-400">Architecture</span>
-                    <span className="text-cyan-300 font-medium truncate max-w-[130px]">
-                      {data?.services?.cache?.mode || 'In-Memory Resilient Cache'}
+                    <span
+                      className="text-cyan-300 font-medium truncate max-w-[160px]"
+                      title={data?.services?.cache?.mode || 'In-Memory (L1)'}
+                    >
+                      {data?.services?.cache?.redis_connected ? 'Redis Distributed' : 'In-Memory (L1)'}
                     </span>
                   </div>
                   <div className="flex justify-between">
