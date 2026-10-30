@@ -1,10 +1,17 @@
 version: '3.9'
 
-services:
-  # Oracle listener service (optional — relies on external Oracle instance)
-  # Note: This project connects to an external Oracle DB (XEPDB1) via .env.
-  # The backend reads ORACLE_HOST, ORACLE_PORT, ORACLE_SERVICE from .env.
+# =============================================================================
+# OrbitalEye DBMS Edition — Multi-Container Compose Configuration
+#
+# QUICK START:
+#   Option A (Default - Host Oracle XE):
+#     docker compose up --build
+#
+#   Option B (Full Stack including Oracle DB container - No local installs!):
+#     docker compose --profile with-db up --build
+# =============================================================================
 
+services:
   backend:
     build:
       context: .
@@ -15,19 +22,21 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       - ORACLE_USER=${ORACLE_USER:-ORBITAL_EYE}
-      - ORACLE_PASS=${ORACLE_PASS}
-      - ORACLE_PASSWORD=${ORACLE_PASSWORD}
-      - ORACLE_HOST=${DOCKER_ORACLE_HOST:-host.docker.internal}
+      - ORACLE_PASSWORD=${ORACLE_PASSWORD:-OrbitalEye_2026}
+      - ORACLE_PASS=${ORACLE_PASS:-OrbitalEye_2026}
+      - ORACLE_HOST=${DOCKER_ORACLE_HOST:-${ORACLE_HOST:-host.docker.internal}}
       - ORACLE_PORT=${ORACLE_PORT:-1521}
       - ORACLE_SERVICE=${ORACLE_SERVICE:-XEPDB1}
-      - REDIS_HOST=${DOCKER_REDIS_HOST:-redis}
+      - REDIS_ENABLED=${REDIS_ENABLED:-true}
+      - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
     volumes:
       - ./backend:/app/backend:ro
-    restart: "no"
+    restart: unless-stopped
     networks:
       - orbital-net
     depends_on:
@@ -50,19 +59,40 @@ services:
     ports:
       - "3000:3000"
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       - BACKEND_URL=http://backend:8000
       - VITE_BACKEND_URL=http://backend:8000
       - DOCKER=true
     volumes:
       - ./frontend/src:/app/src:ro
+      - ./frontend/public:/app/public:ro
       - ./frontend/vite.config.ts:/app/vite.config.ts:ro
-    restart: "no"
+    restart: unless-stopped
     networks:
       - orbital-net
     depends_on:
       - backend
+
+  # Optional containerized Oracle DB for friends without Oracle installed locally
+  oracle:
+    image: gvenzl/oracle-free:23-slim
+    container_name: orbital-eye-oracle
+    profiles:
+      - with-db
+    ports:
+      - "1521:1521"
+    environment:
+      - ORACLE_PASSWORD=${ORACLE_PASSWORD:-OrbitalEye_2026}
+      - APP_USER=${ORACLE_USER:-ORBITAL_EYE}
+      - APP_USER_PASSWORD=${ORACLE_PASSWORD:-OrbitalEye_2026}
+      - DATABASE=XEPDB1
+    volumes:
+      - ./database/ddl:/container-entrypoint-initdb.d:ro
+    restart: unless-stopped
+    networks:
+      - orbital-net
 
 networks:
   orbital-net:

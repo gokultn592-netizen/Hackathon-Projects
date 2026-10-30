@@ -1,104 +1,72 @@
-# Docker Cleanup — Orbital Eye DBMS Edition
+# 🐳 Docker Management & Cleanup — OrbitalEye DBMS Edition
 
-Use these commands after running `docker-compose up` (or `docker build`) to fully remove all images, containers, networks, and volumes created by this project.
+Use these commands to easily start, inspect, or fully reset Docker containers for OrbitalEye.
 
 ---
 
-## 1. Stop and remove running containers
+## 🚀 1. Starting the Project
 
+### Option A: Standard (Connects to host Oracle XE)
 ```bash
-docker-compose down --remove-orphans
+docker compose up --build
 ```
 
-- Stops `orbital-eye-backend` and `orbital-eye-frontend` containers.
-- Removes the `orbital-net` network.
-- Keeps images (see step 2 for removal).
-
----
-
-## 2. Remove Docker images
-
+### Option B: All-in-One (Includes containerized Oracle DB — no local Oracle install needed)
 ```bash
-# Remove the built images specifically
-docker rmi $(docker images -q --filter "reference=orbital-eye-*") 2>/dev/null || echo "No matching images"
+docker compose --profile with-db up --build
+```
 
-# Or remove all dangling / unused images
-docker image prune -a -f
+### Run in background (Detached mode)
+```bash
+docker compose up -d
 ```
 
 ---
 
-## 3. Remove build cache (optional — frees disk space)
+## 🛑 2. Stopping Containers
 
+```bash
+docker compose down
+```
+
+To stop containers and also remove Docker networks created by the project:
+```bash
+docker compose down --remove-orphans
+```
+
+---
+
+## 🧹 3. Quick Image Cleanup
+
+Remove only the images built for OrbitalEye without touching other projects:
+```bash
+docker rmi orbital-eye-backend orbital-eye-frontend 2>/dev/null || true
+```
+
+---
+
+## 🗑️ 4. Full Reset (Complete Cleanup)
+
+Stops containers, removes networks, and purges project volumes:
+```bash
+docker compose down --volumes --remove-orphans
+```
+
+To prune unused build cache and dangling images:
 ```bash
 docker builder prune -f
+docker image prune -f
 ```
 
 ---
 
-## 4. Remove volumes (optional — deletes any persistent data)
+## 🔍 5. Verification
 
+Check if any OrbitalEye containers are running:
 ```bash
-# List volumes first to confirm
-docker volume ls
-
-# Remove project volumes (if any were defined)
-docker-compose down --volumes
-docker volume prune -f
-```
-
----
-
-## 5. Full one-line cleanup (destructive)
-
-```bash
-docker-compose down --rmi all --volumes --remove-orphans && docker builder prune -f && docker system prune -a -f --volumes
-```
-
-> ⚠️ This deletes ALL unused Docker data on the machine — images, networks, volumes, build cache. Only run if you want a complete reset.
-
----
-
-## Verification (after cleanup)
-
-```bash
-# Confirm no containers remain
 docker ps -a --filter "name=orbital-eye"
-
-# Confirm no images remain
-docker images --filter "reference=orbital-eye-*"
-
-# Confirm no networks remain
+```
+Check project networks:
+```bash
 docker network ls | grep orbital-net
 ```
-
-All should return empty results after cleanup.
-
----
-
-## Re-run the project (after cleanup)
-
-```bash
-# Rebuild and start
-docker-compose up --build
-```
-
----
-
-## Ready-to-paste commands (no comments)
-
-```bash
-docker-compose down --remove-orphans
-docker rmi $(docker images -q --filter "reference=orbital-eye-*") 2>/dev/null || true
-docker image prune -a -f
-docker builder prune -f
-docker-compose down --volumes
-docker volume prune -f
-docker-compose down --rmi all --volumes --remove-orphans && docker builder prune -f && docker system prune -a -f --volumes
-docker ps -a --filter "name=orbital-eye"
-docker images --filter "reference=orbital-eye-*"
-docker network ls | grep orbital-net
-docker-compose up --build
-```
-
-The `.env` file is loaded by `docker-compose.yml` and passed to both services. No credentials are embedded in Docker images or this markdown file — they remain in `.env` only (env-only, never hardcoded).
