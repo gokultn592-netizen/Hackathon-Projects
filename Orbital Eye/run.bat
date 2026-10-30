@@ -8,6 +8,29 @@ echo =========================================================================
 echo.
 
 rem -----------------------------------------------------------
+rem STEP 0: PRE-FLIGHT CONFIGURATION & DEPENDENCY CHECK
+rem -----------------------------------------------------------
+if not exist "%~dp0.env" (
+    if exist "%~dp0.env.example" (
+        echo [INFO] .env configuration not found.
+        echo        Auto-creating .env from .env.example...
+        copy "%~dp0.env.example" "%~dp0.env" >nul
+        echo        [OK] .env configuration initialized.
+        echo.
+    )
+)
+
+if not exist "%~dp0frontend\node_modules" (
+    echo [INFO] frontend\node_modules not found.
+    echo        Auto-installing frontend dependencies (npm install --legacy-peer-deps)...
+    pushd "%~dp0frontend"
+    call npm install --legacy-peer-deps
+    popd
+    echo        [OK] Frontend dependencies installed.
+    echo.
+)
+
+rem -----------------------------------------------------------
 rem STEP 1: STOP EXISTING SERVICES (Backend and Frontend)
 rem -----------------------------------------------------------
 echo [1/5] Stopping any existing OrbitalEye services...
