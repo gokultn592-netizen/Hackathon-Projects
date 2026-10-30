@@ -70,6 +70,11 @@ async def init_redis() -> bool:
         return True
     except Exception as e:
         _redis_available = False
+        if client is not None:
+            try:
+                await client.aclose()
+            except Exception:
+                pass
         _redis_client = None
         logger.info(f"Redis not reachable at {host}:{port} ({e}); using resilient in-memory TTL cache.")
         return False
@@ -112,6 +117,7 @@ async def get_cached_json(key: str) -> Optional[Any]:
                 return json.loads(raw)
         except Exception as e:
             logger.debug(f"Redis get error for {key}: {e}; falling back to memory.")
+            _redis_available = False
 
     # 2. In-memory fallback
     now = time.time()
@@ -159,6 +165,7 @@ async def set_cached_json(key: str, data: Any, ttl_seconds: int = 10) -> bool:
             success = True
         except Exception as e:
             logger.debug(f"Redis set error for {key}: {e}")
+            _redis_available = False
     else:
         success = True  # Memory cache successfully saved
 

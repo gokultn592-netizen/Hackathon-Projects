@@ -1,6 +1,6 @@
 -- database/ddl/07_performance_indexes.sql
 -- Optimizes query performance for /api/encounters and /api/satellites/positions
--- Eliminates table full scans and speeds up queries across 4,500+ encounter pairs.
+-- Eliminates table full scans and speeds up queries across 14,000+ encounter pairs.
 
 SET SQLBLANKLINES ON;
 
@@ -14,3 +14,6 @@ CREATE INDEX idx_ep_dataset_miss ON encounter_pairs(
 -- 2. Indexes for fast norad minimum miss distance lookups in satellite positions subquery
 CREATE INDEX idx_ep_lookup_a ON encounter_pairs(dataset_tag, sat_a_norad, miss_distance_km);
 CREATE INDEX idx_ep_lookup_b ON encounter_pairs(dataset_tag, sat_b_norad, miss_distance_km);
+
+-- 3. Composite index for TLE sets to accelerate real-time SGP4 positions join
+CREATE INDEX idx_tle_sets_sat_dataset ON tle_sets(satellite_id, dataset_tag);

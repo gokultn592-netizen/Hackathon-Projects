@@ -7,6 +7,7 @@ interface GlobalStatusBarProps {
   isDbConnected?: boolean;
   fps?: number;
   datasetTag?: string;
+  trackedCount?: number;
 }
 
 function readQueryLimit(): number {
@@ -19,9 +20,15 @@ function readQueryLimit(): number {
 
 export default function GlobalStatusBar({
   datasetTag = 'REALTIME',
+  trackedCount: propTrackedCount,
 }: GlobalStatusBarProps) {
-  const { positions } = useSatellitePositions(datasetTag, readQueryLimit());
-  const trackedCount = Array.isArray(positions) ? positions.length : 0;
+  // If trackedCount is supplied by parent, disable duplicate polling loop (refreshIntervalMs = 0)
+  const { positions } = useSatellitePositions(
+    datasetTag,
+    readQueryLimit(),
+    propTrackedCount !== undefined ? 0 : 30000
+  );
+  const trackedCount = propTrackedCount !== undefined ? propTrackedCount : (Array.isArray(positions) ? positions.length : 0);
   const [istTime, setIstTime] = useState<string>('');
 
   useEffect(() => {

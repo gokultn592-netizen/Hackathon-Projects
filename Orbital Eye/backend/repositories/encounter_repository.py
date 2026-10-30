@@ -44,8 +44,8 @@ async def get_encounters(
         sql = """
             SELECT
                 ep.pair_id,
-                sa.satellite_name AS sat_a_name,
-                sb.satellite_name AS sat_b_name,
+                NVL(sa.satellite_name, 'NORAD ' || ep.sat_a_norad) AS sat_a_name,
+                NVL(sb.satellite_name, 'NORAD ' || ep.sat_b_norad) AS sat_b_name,
                 ep.miss_distance_km,
                 ep.rel_velocity_kms,
                 TO_CHAR(ep.tca_utc, 'YYYY-MM-DD"T"HH24:MI:SS') AS tca_utc,
@@ -53,8 +53,8 @@ async def get_encounters(
                 ep.sat_a_norad,
                 ep.sat_b_norad
             FROM encounter_pairs ep
-            JOIN satellites sa ON ep.sat_a_norad = sa.norad_id
-            JOIN satellites sb ON ep.sat_b_norad = sb.norad_id
+            LEFT JOIN satellites sa ON ep.sat_a_norad = sa.norad_id
+            LEFT JOIN satellites sb ON ep.sat_b_norad = sb.norad_id
             WHERE ep.dataset_tag = :dataset_tag
             ORDER BY ep.miss_distance_km ASC
             FETCH FIRST :limit ROWS ONLY

@@ -57,6 +57,10 @@ export function useSatellitePositions(
       }
     };
 
+    if (refreshIntervalMs <= 0) {
+      return () => controller.abort();
+    }
+
     fetchPositions();
 
     const intervalId = setInterval(fetchPositions, refreshIntervalMs);

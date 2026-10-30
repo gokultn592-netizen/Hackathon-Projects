@@ -620,6 +620,14 @@ function MissionControlDashboard() {
           setPresentationMode(false);
           return;
         }
+        if (mathModalOpen) {
+          setMathModalOpen(false);
+          return;
+        }
+        if (selectedEncounter) {
+          setSelectedEncounter(null);
+          return;
+        }
         if (catalogDrawerOpen) {
           setCatalogDrawerOpen(false);
           return;
@@ -896,7 +904,7 @@ function MissionControlDashboard() {
             isRealtime={isRealtime}
             onAccidentTelemetryUpdate={setLiveAccidentTelemetry}
             onFpsUpdate={setLiveFps}
-            isModalOpen={collisionModalOpen || devSettingsOpen || healthModalOpen || Boolean(selectedEncounter)}
+            isModalOpen={collisionModalOpen || devSettingsOpen || healthModalOpen || mathModalOpen || Boolean(selectedEncounter)}
             viewMode={viewMode}
             selectedPlanetId={selectedPlanet?.id}
             onSelectPlanet={setSelectedPlanet}
@@ -1668,6 +1676,7 @@ function MissionControlDashboard() {
         isDbConnected={systemHealth.dbConnected}
         fps={liveFps}
         datasetTag={dataset}
+        trackedCount={satellitePositions?.length ?? 0}
       />
 
       {/* ====== REAL-TIME ASTRODYNAMICS & CONJUNCTION MATHEMATICS SOLVER MODAL ====== */}
