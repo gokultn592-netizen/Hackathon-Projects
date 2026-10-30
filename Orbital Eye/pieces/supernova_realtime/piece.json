@@ -1,8 +1,0 @@
-{
-  "name": "supernova-realtime",
-  "title": "Astrophysical Supernova & Stellar Core Collapse",
-  "format": { "width": 1920, "height": 1080, "fps": 30, "bpm": 120, "duration": 48.0, "frames": 1440 },
-  "storyFormat": "chronological math explainer (3 acts)",
-  "style": "math",
-  "review": { "safe": { "top": 80, "bottom": 80, "right": 80, "left": 80 }, "refs": {} }
-}
